@@ -1,9 +1,0 @@
-# Common dependencies
--r common.txt
-
-numba == 0.61.2 # Required for N-gram speculative decoding
-
-# Dependencies for NVIDIA GPUs
-ray[cgraph]>=2.48.0
-# FlashInfer should be updated together with the Dockerfile
-flashinfer-python==0.6.4
