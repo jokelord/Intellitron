@@ -1,0 +1,85 @@
+{
+    "python.languageServer": "Pylance",
+    "python.analysis.typeCheckingMode": "basic",
+    "python.analysis.autoImportCompletions": true,
+    "python.analysis.extraPaths": [
+        "${workspaceFolder}"
+    ],
+    "editor.formatOnSave": true,
+    "editor.tabSize": 4,
+    "editor.insertSpaces": true,
+    "[python]": {
+        "editor.tabSize": 4,
+        "editor.formatOnSave": true,
+        "editor.codeActionsOnSave": {
+            "source.organizeImports": "explicit"
+        }
+    },
+    "[typescript]": {
+        "editor.tabSize": 2,
+        "editor.formatOnSave": true
+    },
+    "[typescriptreact]": {
+        "editor.tabSize": 2,
+        "editor.formatOnSave": true
+    },
+    "[javascript]": {
+        "editor.tabSize": 2,
+        "editor.formatOnSave": true
+    },
+    "files.associations": {
+        "*.ini": "ini",
+        "*.css": "tailwindcss"
+    },
+    "css.validate": false,
+    "scss.validate": false,
+    "tailwindCSS.includeLanguages": {
+        "typescript": "javascript",
+        "typescriptreact": "javascript"
+    },
+    "python.defaultInterpreterPath": "${workspaceFolder}/.sglang/bin/python",
+    "python.terminal.activateEnvironment": false,
+    "terminal.integrated.profiles.linux": {
+        "sglang (workspace)": {
+            "path": "/bin/bash",
+            "args": [
+                "--init-file",
+                "/home/zk/Project/LLM-deployment/.vscode/terminal-init-sglang.sh"
+            ],
+            "overrideName": true
+        },
+        "vllm (workspace)": {
+            "path": "/bin/bash",
+            "args": [
+                "--init-file",
+                "/home/zk/Project/LLM-deployment/.vscode/terminal-init-vllm.sh"
+            ],
+            "overrideName": true
+        },
+        "trt-edge (workspace)": {
+            "path": "/bin/bash",
+            "args": [
+                "--init-file",
+                "/home/zk/Project/LLM-deployment/.vscode/terminal-init-trt-edge.sh"
+            ],
+            "overrideName": true
+        }
+    },
+    "terminal.integrated.defaultProfile.linux": "sglang (workspace)", // 默认使用的环境
+    "files.exclude": {
+        "**/__pycache__": true,
+        "**/*.pyc": true,
+        "**/.pytest_cache": true,
+        "**/node_modules": true,
+        "**/.next": true
+    },
+    "search.exclude": {
+        "**/node_modules": true,
+        "**/.next": true,
+        "**/dist": true,
+        "**/.venv": true,
+        "**/venv": true
+    },
+    "geminicodeassist.agentDebugMode": true,
+    "geminicodeassist.agentYoloMode": true
+}
