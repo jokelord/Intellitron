@@ -1,0 +1,209 @@
+# ============================================================
+# LLM-Test 项目 .gitignore
+# ============================================================
+.gitignore
+# ============================================================
+# Python
+# ============================================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# 虚拟环境
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+.conda/
+.sglang/
+.vllm/
+.trt-edge/
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# 类型检查
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pytype/
+
+# Pytest
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# ============================================================
+# Node.js / 前端
+# ============================================================
+node_modules/
+.next/
+out/
+.nuxt/
+dist/
+.cache/
+*.local
+
+# 调试日志
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# 环境文件
+.env*.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Vercel
+.vercel
+
+# TypeScript
+*.tsbuildinfo
+next-env.d.ts
+
+# ============================================================
+# IDE / 编辑器
+# ============================================================
+# VS Code（保留部分配置）
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/README.md
+!.vscode/terminal-init-sglang.sh
+!.vscode/terminal-init-vllm.sh
+!.vscode/terminal-init-trt-edge.sh
+
+# JetBrains
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Vim
+*.swp
+*.swo
+*~
+.netrwhist
+
+# Emacs
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+auto-save-list
+tramp
+
+# ============================================================
+# 操作系统
+# ============================================================
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.lnk
+
+# Linux
+*~
+
+# ============================================================
+# 项目特定
+# ============================================================
+# 日志文件
+logs/
+*.log
+
+# 模型文件（太大不应提交）
+models/
+*.bin
+*.safetensors
+*.gguf
+*.onnx
+*.engine
+*.trt
+
+# 临时文件
+tmp/
+temp/
+*.tmp
+*.bak
+.ruff_cache/
+
+# 配置文件中的敏感信息（如需要）
+# config/config.local.ini
+# config/secrets.ini
+
+# 测试输出
+test-results/
+coverage/
+
+# Docker
+.docker/
+
+# ============================================================
+# 大文件 / 数据
+# ============================================================
+# 数据集
+data/
+datasets/
+
+# 权重文件（建议使用 Git LFS 或外部存储）
+weights/
+checkpoints/
+
+# 推理框架源码库
+vllm-main/
+sglang-main/
+aider-main/
+smolagents-main/
+
+# 备忘录
+踩坑记录.md
+vllm_Compilation_Turitorial.md
+MIGRATION_SUMMARY.md
