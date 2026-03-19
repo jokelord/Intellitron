@@ -1,0 +1,72 @@
+# ============================================================
+# Agent 工具调用配置
+# 启用后在 /v1/agent/chat 端点提供 Agent 对话能力
+# ============================================================
+
+agent:
+  # 总开关
+  enabled: true
+  # Agent 模式: tool_calling (原生工具调用) | code (生成 Python 代码)
+  agent_mode: tool_calling
+  # 最大推理步数
+  max_steps: 200
+  # Session 过期时间（分钟），过期后自动清理
+  session_ttl_minutes: 60
+  # exec_command 工具的默认超时时间（秒）
+  exec_timeout: 60
+  # 工作目录, null 表示使用当前目录
+  work_dir: null
+
+# ============================================================
+# Debug 调试开关
+# 启用后会在终端输出对应模块的详细调试信息
+# ============================================================
+
+debug:
+  # 总开关：关闭后忽略所有debug子开关
+  enabled: true
+  # 模型加载调试：显示模型加载进度、内存占用、设备信息
+  debug_model_loading: true
+  # 推理过程调试：显示推理耗时、token统计、生成速度
+  debug_inference: true
+  # API请求调试：显示请求/响应详情、参数校验
+  debug_api: true
+  # 内存监控调试：显示显存/内存占用变化
+  debug_memory: false
+  # 配置加载调试：显示配置文件解析过程
+  debug_config: true
+  # 前端调试：启用前端详细日志
+  debug_frontend: true
+
+# ============================================================
+# 平台特定配置
+# 针对不同部署平台的特殊设置
+# ============================================================
+
+platform:
+  # 当前平台标识: desktop / jetson_thor
+  current: desktop
+  jetson_thor:
+    # Jetson Thor 专用配置
+    # 启用 DLA 加速（如果可用）
+    use_dla: false
+    # 功耗模式: MAXN / 15W / 30W
+    power_mode: MAXN
+    # 启用内存优化模式
+    memory_optimize: true
+  desktop:
+    # 桌面GPU专用配置
+    # 是否使用多GPU
+    multi_gpu: false
+    # GPU设备ID列表（逗号分隔）
+    gpu_devices: 0
+
+logging:
+  # 日志级别: DEBUG / INFO / WARNING / ERROR / CRITICAL
+  level: INFO
+  # 日志文件路径（留空表示仅输出到控制台）
+  file_path: null
+  # 日志格式
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  # 是否启用彩色输出
+  colorize: true

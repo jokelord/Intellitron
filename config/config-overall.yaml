@@ -1,0 +1,13 @@
+# ============================================================
+# LLM-Test 配置文件
+# 目标平台: NVIDIA Jetson Thor (ARM64, Ubuntu) / Desktop GPU
+# 作者: 
+# ============================================================
+model: config/config-model.yaml
+infer: config/config-infer.yaml
+server: config/config-server.yaml
+misc: config/config-misc.yaml
+agent_prompts: config/config-agent-prompts.yaml
+
+
+

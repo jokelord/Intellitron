@@ -1,0 +1,21 @@
+# sglang/ vllm等推理框架的服务器地址设置位于：
+# config/config-infer.yaml
+
+
+server:
+  # API服务主机地址
+  host: 0.0.0.0
+  # API服务端口
+  port: 8000
+  # 工作进程数（Thor上建议设为1）
+  workers: 1
+  # API密钥（留空表示不启用认证）
+  api_key: null
+  # 跨域允许的源（*表示允许所有）
+  cors_origins: "*"
+
+frontend:
+  # 前端开发服务器端口
+  dev_port: 3000
+  # 后端API地址（前端调用）
+  api_base_url: http://localhost:8000

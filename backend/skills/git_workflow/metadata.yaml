@@ -1,0 +1,7 @@
+name: git_workflow
+description: "提供标准的 Git 提交流程、分支管理和解决冲突的规范化作业程序"
+tags:
+  - git
+  - version-control
+  - workflow
+  - conflict-resolution

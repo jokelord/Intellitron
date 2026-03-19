@@ -6,15 +6,14 @@
 set -uo pipefail
 
 # ============================================================
-# 1. 获取项目根目录 & 配置文件
+# 1. 获取项目根目录 & YAML 配置文件
 # ============================================================
 PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-CONFIG_FILE="$PROJECT_ROOT/config/config.ini"
+YAML_MODEL="$PROJECT_ROOT/config/config-model.yaml"
+YAML_INFER="$PROJECT_ROOT/config/config-infer.yaml"
 
-if [ ! -f "$CONFIG_FILE" ]; then
-    echo "❌ 配置文件不存在: $CONFIG_FILE"
-    exit 1
-fi
+[[ ! -f "$YAML_MODEL" ]] && { echo "❌ 配置文件不存在: $YAML_MODEL"; exit 1; }
+[[ ! -f "$YAML_INFER" ]] && { echo "❌ 配置文件不存在: $YAML_INFER"; exit 1; }
 
 # ============================================================
 # 2. 激活 .vllm uv 虚拟环境
@@ -32,25 +31,103 @@ echo "🐍 Python 环境: $(which python3)"
 echo "📦 vLLM 版本: $(python3 -c 'import vllm; print(vllm.__version__)' 2>/dev/null || echo '<未安装>')"
 
 # ============================================================
-# 3. 从 config.ini 解析配置
+# 3. 从 YAML 配置文件加载参数
 # ============================================================
 
-# 读取模型路径（从 [model] 部分）
-MODEL_PATH=$(grep "^model_path" "$CONFIG_FILE" | head -1 | cut -d'=' -f2 | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-MODEL_NAME=$(grep "^model_name" "$CONFIG_FILE" | head -1 | cut -d'=' -f2 | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+# 使用 Python 一次性解析 YAML 并输出 shell 变量赋值；null 值输出为空字符串
+eval "$(python3 - "$YAML_MODEL" "$YAML_INFER" <<'PYEOF'
+import yaml, sys
 
-# 读取 vLLM 配置（从 [vllm] 部分）
-VLLM_CONFIG=$(sed -n '/^\[vllm\]/,/^\[/p' "$CONFIG_FILE" | grep ' = ' | sed 's/^[[:space:]]*//')
+def yget(d, *keys):
+    for k in keys:
+        if not isinstance(d, dict) or k not in d:
+            return ''
+        d = d[k]
+    if d is None:
+        return ''
+    v = str(d)
+    return v.lower() if v.lower() in ('true', 'false') else v
+
+def sh(k, v):
+    return "{}='{}'".format(k, v.replace("'", "'\\''"))
+
+with open(sys.argv[1]) as f:
+    m = yaml.safe_load(f).get('model', {})
+with open(sys.argv[2]) as f:
+    infer = yaml.safe_load(f)
+vl = infer.get('vllm', {})
+
+print('\n'.join([
+    sh('MODEL_PATH',                        yget(m,  'model_path')),
+    sh('MODEL_NAME',                        yget(m,  'model_name')),
+    sh('VLLM_HOST',                         yget(vl, 'host')),
+    sh('VLLM_PORT',                         yget(vl, 'port')),
+    sh('TENSOR_PARALLEL_SIZE',              yget(vl, 'tensor_parallel_size')),
+    sh('PIPELINE_PARALLEL_SIZE',            yget(vl, 'pipeline_parallel_size')),
+    sh('DISTRIBUTED_EXECUTOR_BACKEND',      yget(vl, 'distributed_executor_backend')),
+    sh('MAX_MODEL_LEN',                     yget(vl, 'max_model_len')),
+    sh('GPU_MEMORY_UTILIZATION',            yget(vl, 'gpu_memory_utilization')),
+    sh('DTYPE',                             yget(vl, 'dtype')),
+    sh('QUANTIZATION',                      yget(vl, 'quantization')),
+    sh('TOKENIZER',                         yget(vl, 'tokenizer')),
+    sh('REVISION',                          yget(vl, 'revision')),
+    sh('TOKENIZER_REVISION',                yget(vl, 'tokenizer_revision')),
+    sh('LOAD_FORMAT',                       yget(vl, 'load_format')),
+    sh('DOWNLOAD_DIR',                      yget(vl, 'download_dir')),
+    sh('TRUST_REMOTE_CODE',                 yget(vl, 'trust_remote_code')),
+    sh('ENFORCE_EAGER',                     yget(vl, 'enforce_eager')),
+    sh('MAX_NUM_SEQS',                      yget(vl, 'max_num_seqs')),
+    sh('MAX_NUM_BATCHED_TOKENS',            yget(vl, 'max_num_batched_tokens')),
+    sh('BLOCK_SIZE',                        yget(vl, 'block_size')),
+    sh('ENABLE_PREFIX_CACHING',             yget(vl, 'enable_prefix_caching')),
+    sh('KV_CACHE_DTYPE',                    yget(vl, 'kv_cache_dtype')),
+    sh('SWAP_SPACE',                        yget(vl, 'swap_space')),
+    sh('CPU_OFFLOAD_GB',                    yget(vl, 'cpu_offload_gb')),
+    sh('ATTENTION_BACKEND',                 yget(vl, 'attention_backend')),
+    sh('DISABLE_FLASH_ATTN',                yget(vl, 'disable_flash_attn')),
+    sh('ENABLE_CHUNKED_PREFILL',            yget(vl, 'enable_chunked_prefill')),
+    sh('MAX_SEQ_LEN_TO_CAPTURE',            yget(vl, 'max_seq_len_to_capture')),
+    sh('DISABLE_SLIDING_WINDOW',            yget(vl, 'disable_sliding_window')),
+    sh('DISABLE_LOG_STATS',                 yget(vl, 'disable_log_stats')),
+    sh('DISABLE_LOG_REQUESTS',              yget(vl, 'disable_log_requests')),
+    sh('MAX_LOGPROBS',                      yget(vl, 'max_logprobs')),
+    sh('ENABLE_PROMPT_LOGPROBS',            yget(vl, 'enable_prompt_logprobs')),
+    sh('GUIDED_DECODING_BACKEND',           yget(vl, 'guided_decoding_backend')),
+    sh('DISABLE_CUSTOM_ALL_REDUCE',         yget(vl, 'disable_custom_all_reduce')),
+    sh('ENABLE_REASONING',                  yget(vl, 'enable_reasoning')),
+    sh('REASONING_PARSER',                  yget(vl, 'reasoning_parser')),
+    sh('CHAT_TEMPLATE',                     yget(vl, 'chat_template')),
+    sh('TOOL_CALL_PARSER',                  yget(vl, 'tool_call_parser')),
+    sh('ENABLE_AUTO_TOOL_CHOICE',           yget(vl, 'enable_auto_tool_choice')),
+    sh('SERVED_MODEL_NAME',                 yget(vl, 'served_model_name')),
+    sh('ENABLE_LORA',                       yget(vl, 'enable_lora')),
+    sh('MAX_LORAS',                         yget(vl, 'max_loras')),
+    sh('MAX_LORA_RANK',                     yget(vl, 'max_lora_rank')),
+    sh('LORA_EXTRA_VOCAB_SIZE',             yget(vl, 'lora_extra_vocab_size')),
+    sh('MAX_CPU_LORAS',                     yget(vl, 'max_cpu_loras')),
+    sh('FULLY_SHARDED_LORAS',               yget(vl, 'fully_sharded_loras')),
+    sh('SPECULATIVE_MODEL',                 yget(vl, 'speculative_model')),
+    sh('NUM_SPECULATIVE_TOKENS',            yget(vl, 'num_speculative_tokens')),
+    sh('SPECULATIVE_MAX_MODEL_LEN',         yget(vl, 'speculative_max_model_len')),
+    sh('SPECULATIVE_DISABLE_BY_BATCH_SIZE', yget(vl, 'speculative_disable_by_batch_size')),
+    sh('NGRAM_PROMPT_LOOKUP_MAX',           yget(vl, 'ngram_prompt_lookup_max')),
+    sh('NGRAM_PROMPT_LOOKUP_MIN',           yget(vl, 'ngram_prompt_lookup_min')),
+    sh('ENABLE_MULTI_MODAL',                yget(vl, 'enable_multi_modal')),
+    sh('DISABLE_MM_PREPROCESSOR_CACHE',     yget(vl, 'disable_mm_preprocessor_cache')),
+    sh('PREEMPTION_MODE',                   yget(vl, 'preemption_mode')),
+    sh('SCHEDULER_DELAY_FACTOR',            yget(vl, 'scheduler_delay_factor')),
+    sh('MODEL_LOADER_EXTRA_CONFIG',         yget(vl, 'model_loader_extra_config')),
+    sh('IGNORE_PATTERNS',                   yget(vl, 'ignore_patterns')),
+    sh('MAX_PARALLEL_LOADING_WORKERS',      yget(vl, 'max_parallel_loading_workers')),
+]))
+PYEOF
+)"
 
 # ============================================================
 # 3.1 参数有效性判断函数（过滤空值/null/none）
 # ============================================================
 trim_value() {
     echo "${1:-}" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//'
-}
-
-safe_parse() {
-    echo "$VLLM_CONFIG" | grep "^$1 =" | head -1 | awk -F'=' '{print $2}' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' || echo ""
 }
 
 is_set_value() {
@@ -64,87 +141,6 @@ is_true() {
     value="$(trim_value "${1:-}")"
     [[ "$value" =~ ^([Tt][Rr][Uu][Ee]|1|[Yy][Ee][Ss]|[Oo][Nn])$ ]]
 }
-
-# 解析各个配置项 - 基础配置
-VLLM_HOST=$(safe_parse "host")
-VLLM_PORT=$(safe_parse "port")
-TENSOR_PARALLEL_SIZE=$(safe_parse "tensor_parallel_size")
-PIPELINE_PARALLEL_SIZE=$(safe_parse "pipeline_parallel_size")
-DISTRIBUTED_EXECUTOR_BACKEND=$(safe_parse "distributed_executor_backend")
-MAX_MODEL_LEN=$(echo "$VLLM_CONFIG" | grep '^max_model_len =' | awk -F'=' '{print $2}' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-GPU_MEMORY_UTILIZATION=$(echo "$VLLM_CONFIG" | grep '^gpu_memory_utilization =' | awk -F'=' '{print $2}' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-DTYPE=$(echo "$VLLM_CONFIG" | grep '^dtype =' | awk -F'=' '{print $2}' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-QUANTIZATION=$(echo "$VLLM_CONFIG" | grep '^quantization =' | awk -F'=' '{print $2}' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-
-# 模型加载配置
-TOKENIZER=$(echo "$VLLM_CONFIG" | grep '^tokenizer =' | awk -F'=' '{print $2}' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-REVISION=$(echo "$VLLM_CONFIG" | grep '^revision =' | awk -F'=' '{print $2}' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-TOKENIZER_REVISION=$(echo "$VLLM_CONFIG" | grep '^tokenizer_revision =' | awk -F'=' '{print $2}' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-LOAD_FORMAT=$(echo "$VLLM_CONFIG" | grep '^load_format =' | awk -F'=' '{print $2}' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-DOWNLOAD_DIR=$(echo "$VLLM_CONFIG" | grep '^download_dir =' | awk -F'=' '{print $2}' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-TRUST_REMOTE_CODE=$(echo "$VLLM_CONFIG" | grep '^trust_remote_code =' | awk -F'=' '{print $2}' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-ENFORCE_EAGER=$(echo "$VLLM_CONFIG" | grep '^enforce_eager =' | awk -F'=' '{print $2}' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-
-# 批处理与内存配置
-MAX_NUM_SEQS=$(echo "$VLLM_CONFIG" | grep '^max_num_seqs =' | awk -F'=' '{print $2}' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-MAX_NUM_BATCHED_TOKENS=$(echo "$VLLM_CONFIG" | grep '^max_num_batched_tokens =' | awk -F'=' '{print $2}' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-BLOCK_SIZE=$(echo "$VLLM_CONFIG" | grep '^block_size =' | awk -F'=' '{print $2}' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-ENABLE_PREFIX_CACHING=$(echo "$VLLM_CONFIG" | grep '^enable_prefix_caching =' | awk -F'=' '{print $2}' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-KV_CACHE_DTYPE=$(echo "$VLLM_CONFIG" | grep '^kv_cache_dtype =' | awk -F'=' '{print $2}' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-SWAP_SPACE=$(echo "$VLLM_CONFIG" | grep '^swap_space =' | awk -F'=' '{print $2}' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-CPU_OFFLOAD_GB=$(echo "$VLLM_CONFIG" | grep '^cpu_offload_gb =' | awk -F'=' '{print $2}' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-
-# Attention 配置
-ATTENTION_BACKEND=$(echo "$VLLM_CONFIG" | grep '^attention_backend =' | awk -F'=' '{print $2}' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-DISABLE_FLASH_ATTN=$(echo "$VLLM_CONFIG" | grep '^disable_flash_attn =' | awk -F'=' '{print $2}' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-
-# 性能优化配置
-ENABLE_CHUNKED_PREFILL=$(echo "$VLLM_CONFIG" | grep '^enable_chunked_prefill =' | awk -F'=' '{print $2}' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-MAX_SEQ_LEN_TO_CAPTURE=$(echo "$VLLM_CONFIG" | grep '^max_seq_len_to_capture =' | awk -F'=' '{print $2}' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-DISABLE_SLIDING_WINDOW=$(echo "$VLLM_CONFIG" | grep '^disable_sliding_window =' | awk -F'=' '{print $2}' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-DISABLE_LOG_STATS=$(echo "$VLLM_CONFIG" | grep '^disable_log_stats =' | awk -F'=' '{print $2}' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-DISABLE_LOG_REQUESTS=$(echo "$VLLM_CONFIG" | grep '^disable_log_requests =' | awk -F'=' '{print $2}' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-MAX_LOGPROBS=$(echo "$VLLM_CONFIG" | grep '^max_logprobs =' | awk -F'=' '{print $2}' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-ENABLE_PROMPT_LOGPROBS=$(echo "$VLLM_CONFIG" | grep '^enable_prompt_logprobs =' | awk -F'=' '{print $2}' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-GUIDED_DECODING_BACKEND=$(echo "$VLLM_CONFIG" | grep '^guided_decoding_backend =' | awk -F'=' '{print $2}' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-DISABLE_CUSTOM_ALL_REDUCE=$(echo "$VLLM_CONFIG" | grep '^disable_custom_all_reduce =' | awk -F'=' '{print $2}' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-
-# 推理模式配置
-ENABLE_REASONING=$(echo "$VLLM_CONFIG" | grep '^enable_reasoning =' | awk -F'=' '{print $2}' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-REASONING_PARSER=$(echo "$VLLM_CONFIG" | grep '^reasoning_parser =' | awk -F'=' '{print $2}' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-CHAT_TEMPLATE=$(echo "$VLLM_CONFIG" | grep '^chat_template =' | awk -F'=' '{print $2}' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-TOOL_CALL_PARSER=$(echo "$VLLM_CONFIG" | grep '^tool_call_parser =' | awk -F'=' '{print $2}' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-ENABLE_AUTO_TOOL_CHOICE=$(echo "$VLLM_CONFIG" | grep '^enable_auto_tool_choice =' | awk -F'=' '{print $2}' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-SERVED_MODEL_NAME=$(echo "$VLLM_CONFIG" | grep '^served_model_name =' | awk -F'=' '{print $2}' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-
-# LoRA 配置
-ENABLE_LORA=$(echo "$VLLM_CONFIG" | grep '^enable_lora =' | awk -F'=' '{print $2}' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-MAX_LORAS=$(echo "$VLLM_CONFIG" | grep '^max_loras =' | awk -F'=' '{print $2}' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-MAX_LORA_RANK=$(echo "$VLLM_CONFIG" | grep '^max_lora_rank =' | awk -F'=' '{print $2}' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-LORA_EXTRA_VOCAB_SIZE=$(echo "$VLLM_CONFIG" | grep '^lora_extra_vocab_size =' | awk -F'=' '{print $2}' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-MAX_CPU_LORAS=$(echo "$VLLM_CONFIG" | grep '^max_cpu_loras =' | awk -F'=' '{print $2}' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-FULLY_SHARDED_LORAS=$(echo "$VLLM_CONFIG" | grep '^fully_sharded_loras =' | awk -F'=' '{print $2}' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-
-# 推测解码配置
-SPECULATIVE_MODEL=$(echo "$VLLM_CONFIG" | grep '^speculative_model =' | awk -F'=' '{print $2}' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-NUM_SPECULATIVE_TOKENS=$(echo "$VLLM_CONFIG" | grep '^num_speculative_tokens =' | awk -F'=' '{print $2}' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-SPECULATIVE_MAX_MODEL_LEN=$(echo "$VLLM_CONFIG" | grep '^speculative_max_model_len =' | awk -F'=' '{print $2}' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-SPECULATIVE_DISABLE_BY_BATCH_SIZE=$(echo "$VLLM_CONFIG" | grep '^speculative_disable_by_batch_size =' | awk -F'=' '{print $2}' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-NGRAM_PROMPT_LOOKUP_MAX=$(echo "$VLLM_CONFIG" | grep '^ngram_prompt_lookup_max =' | awk -F'=' '{print $2}' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-NGRAM_PROMPT_LOOKUP_MIN=$(echo "$VLLM_CONFIG" | grep '^ngram_prompt_lookup_min =' | awk -F'=' '{print $2}' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-
-# 多模态配置
-ENABLE_MULTI_MODAL=$(echo "$VLLM_CONFIG" | grep '^enable_multi_modal =' | awk -F'=' '{print $2}' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-DISABLE_MM_PREPROCESSOR_CACHE=$(echo "$VLLM_CONFIG" | grep '^disable_mm_preprocessor_cache =' | awk -F'=' '{print $2}' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-
-# 调度器配置
-PREEMPTION_MODE=$(echo "$VLLM_CONFIG" | grep '^preemption_mode =' | awk -F'=' '{print $2}' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-SCHEDULER_DELAY_FACTOR=$(echo "$VLLM_CONFIG" | grep '^scheduler_delay_factor =' | awk -F'=' '{print $2}' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-
-# 其他配置
-MODEL_LOADER_EXTRA_CONFIG=$(echo "$VLLM_CONFIG" | grep '^model_loader_extra_config =' | awk -F'=' '{print $2}' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-IGNORE_PATTERNS=$(echo "$VLLM_CONFIG" | grep '^ignore_patterns =' | awk -F'=' '{print $2}' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-MAX_PARALLEL_LOADING_WORKERS=$(echo "$VLLM_CONFIG" | grep '^max_parallel_loading_workers =' | awk -F'=' '{print $2}' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
 
 # ============================================================
 # 4. 确保 logs 目录存在 & 生成日志文件名
@@ -177,12 +173,13 @@ export PATH=/usr/local/cuda-13.1/bin:$PATH
 TORCH_LIB_DIR=$(python3 -c "import torch, os; print(os.path.join(os.path.dirname(torch.__file__), 'lib'))")
 
 # 库路径：torch/lib + CUDA 13.0
-export LD_LIBRARY_PATH="${TORCH_LIB_DIR}:/usr/local/cuda-13.0/lib64:${LD_LIBRARY_PATH:-}"
+# export LD_LIBRARY_PATH="${TORCH_LIB_DIR}:/usr/local/cuda-13.0/lib64:${LD_LIBRARY_PATH:-}"
 export CPLUS_INCLUDE_PATH=/usr/local/cuda-13.0/targets/sbsa-linux/include:${CPLUS_INCLUDE_PATH:-}
 
 # ---- Triton 相关（vLLM 内部可能使用 Triton kernel）----
 # export TRITON_PTXAS_PATH=/usr/local/cuda/bin/ptxas
 export TRITON_PTXAS_PATH="$PROJECT_ROOT/patch/ptxas_wrapper.sh"
+export TRITON_PTXAS_BLACKWELL_PATH="$PROJECT_ROOT/patch/ptxas_wrapper.sh"
 # 限制 Triton JIT 编译并发线程数（UMA 上编译器临时 buffer 也吃 GPU 内存）
 #export TRITON_NUM_COMPILE_THREADS=1
 

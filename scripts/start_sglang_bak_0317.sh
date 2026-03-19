@@ -15,7 +15,7 @@ if [ -f "$CONFIG_FILE" ]; then
     fi
     
     # 读取 SGLang 配置（从 [sglang] 部分）
-    SGLANG_CONFIG=$(sed -n '/^\[sglang\]/,/^\[/p' "$CONFIG_FILE" | grep -E '^(host|port|reasoning_parser|chat_template|tool_call_parser|disable_cuda_graph|fp8_gemm_backend|attention_backend|tensor_parallel_size|max_context_length|mem_fraction_static|max_total_tokens|max_running_requests|max_prefill_tokens|chunked_prefill_size|mamba_full_memory_ratio|mamba_ssm_dtype|max_mamba_cache_size|skip_server_warmup|speculative_algorithm|speculative_draft_model_path|trust_remote_code|quantization|moe_runner_backend) =' | sed 's/^[[:space:]]*//')
+    SGLANG_CONFIG=$(sed -n '/^\[sglang\]/,/^\[/p' "$CONFIG_FILE" | grep -E '^(host|port|reasoning_parser|chat_template|tool_call_parser|disable_cuda_graph|fp8_gemm_backend|attention_backend|mm_attention_backend|tensor_parallel_size|max_context_length|mem_fraction_static|max_total_tokens|max_running_requests|max_prefill_tokens|chunked_prefill_size|mamba_full_memory_ratio|mamba_ssm_dtype|max_mamba_cache_size|skip_server_warmup|speculative_algorithm|speculative_draft_model_path|trust_remote_code|quantization|moe_runner_backend|dtype|image_max_pixels|image_min_pixels) =' | sed 's/^[[:space:]]*//')
     
     # 解析各个配置项
     SGLANG_HOST=$(echo "$SGLANG_CONFIG" | grep '^host =' | awk -F'=' '{print $2}' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
@@ -26,6 +26,7 @@ if [ -f "$CONFIG_FILE" ]; then
     DISABLE_CUDA_GRAPH=$(echo "$SGLANG_CONFIG" | grep '^disable_cuda_graph =' | awk -F'=' '{print $2}' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
     FP8_GEMM_BACKEND=$(echo "$SGLANG_CONFIG" | grep '^fp8_gemm_backend =' | awk -F'=' '{print $2}' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
     ATTENTION_BACKEND=$(echo "$SGLANG_CONFIG" | grep '^attention_backend =' | awk -F'=' '{print $2}' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+    MM_ATTENTION_BACKEND=$(echo "$SGLANG_CONFIG" | grep '^mm_attention_backend =' | awk -F'=' '{print $2}' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
     TENSOR_PARALLEL_SIZE=$(echo "$SGLANG_CONFIG" | grep '^tensor_parallel_size =' | awk -F'=' '{print $2}' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
     MAX_CONTEXT_LENGTH=$(echo "$SGLANG_CONFIG" | grep '^max_context_length =' | awk -F'=' '{print $2}' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
     MEM_FRACTION_STATIC=$(echo "$SGLANG_CONFIG" | grep '^mem_fraction_static =' | awk -F'=' '{print $2}' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
@@ -42,6 +43,10 @@ if [ -f "$CONFIG_FILE" ]; then
     MOE_RUNNER_BACKEND=$(echo "$SGLANG_CONFIG" | grep '^moe_runner_backend =' | awk -F'=' '{print $2}' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
     MAX_MAMBA_CACHE_SIZE=$(echo "$SGLANG_CONFIG" | grep '^max_mamba_cache_size =' | awk -F'=' '{print $2}' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
     SKIP_SERVER_WARMUP=$(echo "$SGLANG_CONFIG" | grep '^skip_server_warmup =' | awk -F'=' '{print $2}' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+    # Visual Encoder FP16 量化：降低 VLM 首 token 延迟（TTFT）
+    DTYPE=$(echo "$SGLANG_CONFIG" | grep '^dtype =' | awk -F'=' '{print $2}' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+    # Visual Token 预算控制：限制视觉编码器处理的像素数（TTFT 最关键参数）
+    # IMAGE_MAX_PIXELS 和 IMAGE_MIN_PIXELS 已移除（当前版本 SGLang 不支持这两个参数）
     
     # 解析 KV cache 配置项 - 已废弃，不再使用
     # ENABLE_BLOCK_REUSE=$(echo "$KV_CACHE_CONFIG" | grep '^enable_block_reuse =' | awk -F'=' '{print $2}' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | tr '[:upper:]' '[:lower:]')
@@ -65,15 +70,21 @@ LOG_FILE="$PROJECT_ROOT/logs/sglang_$(date +%Y%m%d_%H%M%S).log"
 source /home/zk/Project/LLM-deployment/.sglang/bin/activate
 
 # 设置 Triton PTXAS 路径
-export TRITON_PTXAS_PATH="$PROJECT_ROOT/patch/ptxas_wrapper.sh"
-# export TRITON_PTXAS_PATH=/usr/local/cuda-13.1/bin/ptxas
+# export TRITON_PTXAS_PATH="$PROJECT_ROOT/patch/ptxas_wrapper.sh"
+export TRITON_PTXAS_PATH=/usr/local/cuda-13.1/bin/ptxas
 # 设置正确的 CUDA 架构列表
-export TORCH_CUDA_ARCH_LIST=11.0
+export TORCH_CUDA_ARCH_LIST=11.0a
 # 设置库路径
-export LD_LIBRARY_PATH=/usr/local/cuda-13.1/lib64:$LD_LIBRARY_PATH
-export CPLUS_INCLUDE_PATH=/usr/local/cuda-13.1/targets/sbsa-linux/include:$CPLUS_INCLUDE_PATH
+export LD_LIBRARY_PATH=/usr/local/cuda-13.0/lib64:$LD_LIBRARY_PATH
+export CPLUS_INCLUDE_PATH=/usr/local/cuda-13.0/targets/sbsa-linux/include:$CPLUS_INCLUDE_PATH
 # 允许覆盖更长的上下文长度
 export SGLANG_ALLOW_OVERWRITE_LONGER_CONTEXT_LEN=1
+# cutlass FP8 内核启用 NVFP4
+export SGLANG_USE_CUTLASS_NVFP4=
+
+# VLM 启用 CUDA 图优化，激活ViTCudaGraphRunner，加速VLM首帧
+# 要求每次传进来的图片分辨率都一样，否则会不断地进行 Graph Capture（捕获过程本身非常耗时，大约需要几百毫秒）
+export SGLANG_VIT_ENABLE_CUDA_GRAPH=1
 
 # ---- UMA / Jetson 内存优化 ----
 # 禁用 DeepGemm JIT 编译（首因：DeepGemm 预编译会一次性编译所有 FP8 GEMM 内核变体，
@@ -98,6 +109,7 @@ ARGS=(python3 -m sglang.launch_server
 )
 
 [ -n "$ATTENTION_BACKEND" ] && ARGS+=(--attention-backend "$ATTENTION_BACKEND")
+[ -n "$MM_ATTENTION_BACKEND" ] && ARGS+=(--mm-attention-backend "$MM_ATTENTION_BACKEND")
 
 [ -n "$SGLANG_HOST" ] && ARGS+=(--host "$SGLANG_HOST")
 [ -n "$SGLANG_PORT" ] && ARGS+=(--port "$SGLANG_PORT")
@@ -122,6 +134,10 @@ ARGS=(python3 -m sglang.launch_server
 [ -n "$MOE_RUNNER_BACKEND" ] && ARGS+=(--moe-runner-backend "$MOE_RUNNER_BACKEND")
 [ -n "$MAX_MAMBA_CACHE_SIZE" ] && ARGS+=(--max-mamba-cache-size "$MAX_MAMBA_CACHE_SIZE")
 [ "$SKIP_SERVER_WARMUP" = "true" ] && ARGS+=(--skip-server-warmup)
+# --dtype：设置计算数据类型，float16 可使 visual encoder prefill 更快（相比默认 bfloat16 降低 TTFT 20-40%）
+[ -n "$DTYPE" ] && ARGS+=(--dtype "$DTYPE")
+# --image-max-pixels / --image-min-pixels：当前版本 SGLang 不支持，已禁用
+
 
 echo "🚀 实际启动命令："
 printf '  %q' "${ARGS[@]}"; echo

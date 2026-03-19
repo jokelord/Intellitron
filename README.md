@@ -57,7 +57,7 @@
 | **vLLM** | 0.1.dev13739+g4fc447455 | Gadflyii fork，实验性支持 sm_110 |
 | **sgl-kernel** | 0.3.21+ | 本地编译 wheel，适配 sm_110 |
 | **Transformers** | 4.57.1 | 模型配置和分词器支持 |
-| **TensorRT** | 10.14.1 | JetPack 7 预装版本 |
+
 
 ### 平台特定要求
 - **Jetson Thor**: ARM64, Ubuntu 24.04, JetPack 7

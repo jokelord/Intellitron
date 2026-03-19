@@ -1,12 +1,14 @@
 'use client';
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Send, Trash2, Settings, Bot, User, Loader2 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { Send, Trash2, Settings, Bot, User, Loader2, Zap } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
-import { llmClient, ChatMessage } from '@/lib/api';
+import { llmClient, ChatMessage, AgentStep, AgentChatRequest } from '@/lib/api';
+import AgentStepDisplay from '@/components/AgentStepDisplay';
 
 /**
  * 对话消息接口（包含UI状态）
@@ -15,6 +17,7 @@ interface Message extends ChatMessage {
   id: string;
   timestamp: Date;
   isStreaming?: boolean;
+  agentSteps?: AgentStep[];
 }
 
 /**
@@ -28,6 +31,7 @@ interface ChatSettings {
   maxTokens: number;
   systemPrompt: string;
   showReasoning: boolean;
+  agentMode: boolean;
 }
 
 /**
@@ -41,6 +45,7 @@ const DEFAULT_SETTINGS: ChatSettings = {
   maxTokens: 4096,
   systemPrompt: '你是一个有帮助的AI助手，运行在 NVIDIA Jetson Thor 平台上。请用简洁、准确的语言回答问题。',
   showReasoning: true,
+  agentMode: false,
 };
 
 /**
@@ -85,7 +90,17 @@ function truncateMessagesForContext(
   // 从最新的消息开始添加，只发送content（不包含推理过程）
   for (let i = messages.length - 1; i >= 0; i--) {
     const msg = messages[i];
-    const msgTokens = estimateTokenCount(msg.content); // 只估算content的token数
+    // 提取文本内容进行 token 估算
+    let textContent = '';
+    if (typeof msg.content === 'string') {
+      textContent = msg.content;
+    } else if (Array.isArray(msg.content)) {
+      textContent = msg.content
+        .filter((c: any) => c.type === 'text')
+        .map((c: any) => c.text)
+        .join(' ');
+    }
+    const msgTokens = estimateTokenCount(textContent); // 只估算content的token数
 
     if (totalTokens + msgTokens <= availableTokens) {
       // 在开头插入以保持顺序，只发送content
@@ -97,9 +112,13 @@ function truncateMessagesForContext(
     } else {
       // 如果连一条消息都放不下，至少保留最后一条用户消息
       if (chatMessages.length === 0 && msg.role === 'user') {
+        // 截断文本内容
+        const truncatedContent = typeof msg.content === 'string'
+          ? msg.content.substring(0, Math.floor(availableTokens * 0.5))
+          : msg.content;
         chatMessages.unshift({
           role: msg.role,
-          content: msg.content.substring(0, Math.floor(availableTokens * 0.5)), // 截断内容
+          content: truncatedContent,
         });
       }
       break;
@@ -125,33 +144,61 @@ function generateId(): string {
  * - 设置面板
  */
 export default function Home() {
+  const router = useRouter();
+
+  // ============================================================
+  // 性能优化：预编译 /vision 路由 + sessionStorage 缓存
+  // 解决 Next.js 开发模式下按需编译导致的跳转延迟
+  // ============================================================
+  useEffect(() => {
+    // 1. 立即预编译 /vision 页面（与 API 调用并行，消除编译等待）
+    router.prefetch('/vision');
+
+    // 2. 检查 sessionStorage 缓存，实现后续访问瞬间跳转
+    const cachedModelType = sessionStorage.getItem('llm-model-type');
+    if (cachedModelType === 'vision') {
+      console.log('[LLM-Test] 命中缓存：vision 模式，瞬间跳转');
+      router.replace('/vision');
+    }
+  }, [router]);
+
   // 状态管理
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const [settings, setSettings] = useState<ChatSettings>(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('llm-chat-settings');
-      return saved ? { ...DEFAULT_SETTINGS, ...JSON.parse(saved) } : DEFAULT_SETTINGS;
-    }
-    return DEFAULT_SETTINGS;
-  });
+  const [settings, setSettings] = useState<ChatSettings>(DEFAULT_SETTINGS);
   const [connectionStatus, setConnectionStatus] = useState<'checking' | 'connected' | 'error'>('checking');
   const [modelName, setModelName] = useState<string>('加载中...');
   const [modelInfo, setModelInfo] = useState<{ name: string, description: string } | null>(null);
   const [maxContextLength, setMaxContextLength] = useState<number>(1048576); // 默认1M
   const [serverDefaults, setServerDefaults] = useState<ChatSettings | null>(null);
+  const [agentSessionId, setAgentSessionId] = useState<string | undefined>(undefined);
 
   // refs
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const isHydratedRef = useRef(false);
+
+  // 客户端挂载后从 localStorage 恢复设置（避免服务端/客户端 hydration 不一致）
+  useEffect(() => {
+    const saved = localStorage.getItem('llm-chat-settings');
+    if (saved) {
+      try {
+        setSettings({ ...DEFAULT_SETTINGS, ...JSON.parse(saved) });
+      } catch {
+        // ignore malformed JSON
+      }
+    }
+    isHydratedRef.current = true;
+  }, []);
 
   /**
    * 保存设置到 localStorage
    */
   useEffect(() => {
+    if (!isHydratedRef.current) return;
     localStorage.setItem('llm-chat-settings', JSON.stringify(settings));
   }, [settings]);
 
@@ -184,25 +231,38 @@ export default function Home() {
 
       // 获取配置信息并更新默认设置
       const configResponse = await llmClient.getConfig();
+
+      // 检测是否为视觉模型，如果是则自动跳转到视觉聊天页面
+      if (configResponse.model?.model_type === 'vision') {
+        sessionStorage.setItem('llm-model-type', 'vision');
+        router.replace('/vision');
+        return;
+      } else {
+        sessionStorage.setItem('llm-model-type', configResponse.model?.model_type || 'text');
+      }
+
       if (configResponse && configResponse.inference) {
+        const agentEnabled = configResponse.agent?.enabled ?? false;
         const serverDefaults = {
           temperature: configResponse.inference.temperature,
           topP: configResponse.inference.top_p,
           topK: configResponse.inference.top_k,
           repetitionPenalty: configResponse.inference.repetition_penalty,
           maxTokens: configResponse.inference.max_tokens,
-          systemPrompt: DEFAULT_SETTINGS.systemPrompt, // 保留前端特定的系统提示
-          showReasoning: DEFAULT_SETTINGS.showReasoning, // 保留前端特定的显示设置
+          systemPrompt: DEFAULT_SETTINGS.systemPrompt,
+          showReasoning: DEFAULT_SETTINGS.showReasoning,
+          agentMode: agentEnabled,
         };
 
         // 更新服务器默认值（用于新用户或重置设置）
         setServerDefaults(serverDefaults);
 
-        // 如果用户没有保存过设置，使用服务器默认值
-        const saved = localStorage.getItem('llm-chat-settings');
-        if (!saved) {
-          setSettings(serverDefaults);
-        }
+        // agentMode 始终跟随后端 agent.enabled，用户可在设置中手动关闭
+        setSettings((prev: ChatSettings) => {
+          const saved = localStorage.getItem('llm-chat-settings');
+          const base = saved ? { ...DEFAULT_SETTINGS, ...JSON.parse(saved) } : serverDefaults;
+          return { ...base, agentMode: agentEnabled };
+        });
       }
     } catch (error) {
       console.error('获取模型信息失败:', error);
@@ -218,11 +278,34 @@ export default function Home() {
    * 检查后端连接状态
    */
   useEffect(() => {
+    // 立即检查配置以决定是否跳转
+    const checkAndRedirect = async () => {
+      try {
+        const configResponse = await llmClient.getConfig();
+        console.log('[LLM-Test] 获取配置成功:', configResponse);
+
+        // 检测是否为视觉模型，如果是则自动跳转到视觉聊天页面
+        if (configResponse?.model?.model_type === 'vision') {
+          console.log('[LLM-Test] 检测到视觉模型，自动跳转到 /vision');
+          sessionStorage.setItem('llm-model-type', 'vision');
+          router.replace('/vision');
+          return true;
+        } else {
+          sessionStorage.setItem('llm-model-type', configResponse?.model?.model_type || 'text');
+        }
+      } catch (configError) {
+        console.error('[LLM-Test] 获取配置失败:', configError);
+      }
+      return false;
+    };
+
     async function checkConnection() {
+      const isVision = await checkAndRedirect();
+      if (isVision) return;
+
       try {
         await llmClient.healthCheck();
         setConnectionStatus('connected');
-        // 连接成功后获取模型信息
         fetchModelInfo();
       } catch {
         setConnectionStatus('error');
@@ -230,10 +313,11 @@ export default function Home() {
     }
 
     checkConnection();
+
     // 每30秒检查一次连接
     const interval = setInterval(checkConnection, 30000);
     return () => clearInterval(interval);
-  }, [fetchModelInfo]);
+  }, [fetchModelInfo, router]);
 
   /**
    * 消息更新时滚动到底部
@@ -314,70 +398,126 @@ export default function Home() {
     });
 
     try {
-      let isFirstChunk = true;  // 添加标志防止重复渲染
-
-      // 发送流式请求
-      await llmClient.chatStream(
-        chatMessages,
-        {
-          temperature: settings.temperature,
-          top_p: settings.topP,
-          top_k: settings.topK,
-          repetition_penalty: settings.repetitionPenalty,
-          max_tokens: settings.maxTokens,
-        },
-        // onChunk: 更新助手消息内容
-        (content: string, reasoning?: string) => {
-          setMessages((prev: Message[]) => {
-            const updated = [...prev];
-            const lastMessage = updated[updated.length - 1];
-            if (lastMessage && lastMessage.role === 'assistant') {
-              // 第一个chunk时清空内容，防止重复
-              if (isFirstChunk && lastMessage.content === '') {
-                isFirstChunk = false;
+      if (settings.agentMode) {
+        // ====== Agent 模式 ======
+        await llmClient.agentChatStream(
+          {
+            session_id: agentSessionId,
+            message: trimmedInput,
+          },
+          // onStep: 累积 Agent 步骤
+          (step: AgentStep) => {
+            setMessages((prev: Message[]) => {
+              const updated = [...prev];
+              const lastMessage = updated[updated.length - 1];
+              if (lastMessage && lastMessage.role === 'assistant') {
+                lastMessage.agentSteps = [...(lastMessage.agentSteps || []), step];
               }
-              if (content) {
+              return updated;
+            });
+          },
+          // onContent: 累积最终答案
+          (content: string) => {
+            setMessages((prev: Message[]) => {
+              const updated = [...prev];
+              const lastMessage = updated[updated.length - 1];
+              if (lastMessage && lastMessage.role === 'assistant') {
                 lastMessage.content += content;
               }
-              if (reasoning) {
-                lastMessage.reasoning_content = (lastMessage.reasoning_content || '') + reasoning;
+              return updated;
+            });
+          },
+          // onComplete
+          (sessionId?: string) => {
+            if (sessionId) setAgentSessionId(sessionId);
+            setMessages((prev: Message[]) => {
+              const updated = [...prev];
+              const lastMessage = updated[updated.length - 1];
+              if (lastMessage) lastMessage.isStreaming = false;
+              return updated;
+            });
+            setIsLoading(false);
+          },
+          // onError
+          (error: Error) => {
+            console.error('Agent 错误:', error);
+            setMessages((prev: Message[]) => {
+              const updated = [...prev];
+              const lastMessage = updated[updated.length - 1];
+              if (lastMessage && lastMessage.role === 'assistant') {
+                lastMessage.content = `抱歉，Agent 执行出错: ${error.message}`;
+                lastMessage.isStreaming = false;
               }
-            }
-            return updated;
-          });
-        },
-        // onComplete: 标记流式完成
-        () => {
-          setMessages((prev: Message[]) => {
-            const updated = [...prev];
-            const lastMessage = updated[updated.length - 1];
-            if (lastMessage) {
-              lastMessage.isStreaming = false;
-            }
-            return updated;
-          });
-          setIsLoading(false);
-        },
-        // onError: 处理错误
-        (error: Error) => {
-          console.error('聊天错误:', error);
-          setMessages((prev: Message[]) => {
-            const updated = [...prev];
-            const lastMessage = updated[updated.length - 1];
-            if (lastMessage && lastMessage.role === 'assistant') {
-              lastMessage.content = `抱歉，发生了错误: ${error.message}`;
-              lastMessage.isStreaming = false;
-            }
-            return updated;
-          });
-          setIsLoading(false);
-        }
-      );
+              return updated;
+            });
+            setIsLoading(false);
+          }
+        );
+      } else {
+        // ====== 普通聊天模式 ======
+        let isFirstChunk = true;
+
+        await llmClient.chatStream(
+          chatMessages,
+          {
+            temperature: settings.temperature,
+            top_p: settings.topP,
+            top_k: settings.topK,
+            repetition_penalty: settings.repetitionPenalty,
+            max_tokens: settings.maxTokens,
+          },
+          // onChunk: 更新助手消息内容
+          (content: string, reasoning?: string) => {
+            setMessages((prev: Message[]) => {
+              const updated = [...prev];
+              const lastMessage = updated[updated.length - 1];
+              if (lastMessage && lastMessage.role === 'assistant') {
+                if (isFirstChunk && lastMessage.content === '') {
+                  isFirstChunk = false;
+                }
+                if (content) {
+                  lastMessage.content += content;
+                }
+                if (reasoning) {
+                  lastMessage.reasoning_content = (lastMessage.reasoning_content || '') + reasoning;
+                }
+              }
+              return updated;
+            });
+          },
+          // onComplete: 标记流式完成
+          () => {
+            setMessages((prev: Message[]) => {
+              const updated = [...prev];
+              const lastMessage = updated[updated.length - 1];
+              if (lastMessage) {
+                lastMessage.isStreaming = false;
+              }
+              return updated;
+            });
+            setIsLoading(false);
+          },
+          // onError: 处理错误
+          (error: Error) => {
+            console.error('聊天错误:', error);
+            setMessages((prev: Message[]) => {
+              const updated = [...prev];
+              const lastMessage = updated[updated.length - 1];
+              if (lastMessage && lastMessage.role === 'assistant') {
+                lastMessage.content = `抱歉，发生了错误: ${error.message}`;
+                lastMessage.isStreaming = false;
+              }
+              return updated;
+            });
+            setIsLoading(false);
+          }
+        );
+      }
     } catch (error) {
       console.error('请求失败:', error);
       setIsLoading(false);
     }
-  }, [input, isLoading, messages, settings]);
+  }, [input, isLoading, messages, settings, agentSessionId, maxContextLength]);
 
   /**
    * 处理输入框按键
@@ -394,6 +534,7 @@ export default function Home() {
    */
   const handleClear = useCallback(() => {
     setMessages([]);
+    setAgentSessionId(undefined);
   }, []);
 
   /**
@@ -431,6 +572,11 @@ export default function Home() {
               </h1>
               <p className="text-xs text-gray-500 dark:text-gray-400">
                 {modelName} | NVIDIA Jetson Thor
+                {settings.agentMode && (
+                  <span className="ml-2 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 text-xs font-medium">
+                    <Zap className="w-3 h-3" /> Agent
+                  </span>
+                )}
               </p>
             </div>
           </div>
@@ -551,6 +697,25 @@ export default function Home() {
                   显示推理过程
                 </label>
               </div>
+
+              <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  id="agentMode"
+                  checked={settings.agentMode}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                    setSettings((prev: ChatSettings) => ({ ...prev, agentMode: e.target.checked }));
+                    if (!e.target.checked) setAgentSessionId(undefined);
+                  }}
+                  className="rounded"
+                />
+                <label htmlFor="agentMode" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  <span className="flex items-center gap-1">
+                    <Zap className="w-4 h-4" />
+                    Agent 模式（工具调用）
+                  </span>
+                </label>
+              </div>
             </div>
 
             <div>
@@ -630,6 +795,9 @@ export default function Home() {
                 >
                   {message.role === 'assistant' ? (
                     <div className="markdown-content">
+                      {message.agentSteps && message.agentSteps.length > 0 && (
+                        <AgentStepDisplay steps={message.agentSteps} />
+                      )}
                       {settings.showReasoning && message.reasoning_content && (
                         <div className="mb-2 text-sm text-gray-500 dark:text-gray-400 italic">
                           💭 {message.reasoning_content}
@@ -639,14 +807,14 @@ export default function Home() {
                         remarkPlugins={[remarkGfm, remarkMath]}
                         rehypePlugins={[[rehypeKatex, { throwOnError: false }]]}
                       >
-                        {message.content || '思考中...'}
+                        {typeof message.content === 'string' ? message.content || '思考中...' : '思考中...'}
                       </ReactMarkdown>
                       {message.isStreaming && (
                         <span className="inline-block w-2 h-4 bg-nvidia-500 animate-pulse ml-1" />
                       )}
                     </div>
                   ) : (
-                    <p className="whitespace-pre-wrap">{message.content}</p>
+                    <p className="whitespace-pre-wrap">{typeof message.content === 'string' ? message.content : ''}</p>
                   )}
                 </div>
               </div>
@@ -689,10 +857,6 @@ export default function Home() {
               )}
             </button>
           </div>
-
-          <p className="text-xs text-gray-400 text-center mt-2">
-            模型响应仅供参考，请自行判断内容的准确性
-          </p>
         </div>
       </footer>
     </div>
