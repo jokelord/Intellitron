@@ -143,6 +143,7 @@ class LocalLLMModel(Model):
                     continue  # 无内容，跳过
                 try:
                     from PIL import Image as PILImage
+
                     if isinstance(img_val, PILImage.Image):
                         # (a) PIL 对象：直接编码
                         buf = io.BytesIO()
@@ -163,10 +164,12 @@ class LocalLLMModel(Model):
                     else:
                         logger.warning(f"未知图片类型 {type(img_val)}，跳过")
                         continue
-                    converted.append({
-                        "type": "image_url",
-                        "image_url": {"url": f"data:{mime};base64,{b64}"},
-                    })
+                    converted.append(
+                        {
+                            "type": "image_url",
+                            "image_url": {"url": f"data:{mime};base64,{b64}"},
+                        }
+                    )
                 except Exception as e:
                     logger.warning(f"图片内容转换失败，跳过: {e}")
             else:
@@ -233,7 +236,9 @@ class LocalLLMModel(Model):
             return None
 
         # 格式1：<tool_call> XML 标签格式（Qwen 等模型常用）
-        xml_matches = re.findall(r'<tool_call>\s*(.*?)\s*</tool_call>', content, re.DOTALL)
+        xml_matches = re.findall(
+            r"<tool_call>\s*(.*?)\s*</tool_call>", content, re.DOTALL
+        )
         if xml_matches:
             calls: list[ChatMessageToolCall] = []
             for match in xml_matches:
@@ -259,7 +264,7 @@ class LocalLLMModel(Model):
         # 尝试提取内容中第一个完整的 JSON 对象
         json_match = re.search(r'\{\s*"name"\s*:', content)
         if json_match:
-            json_str = content[json_match.start():]
+            json_str = content[json_match.start() :]
             try:
                 parsed = json.loads(json_str)
                 if isinstance(parsed, dict) and "name" in parsed:
@@ -304,3 +309,86 @@ class LocalLLMModel(Model):
             return calls or None
         except (json.JSONDecodeError, KeyError):
             return None
+
+        # 格式4：smolagents 历史记录格式 "Calling tools:\n[{...}]"（Python dict with single quotes）
+        # 当模型在对话历史中见过此格式后，会直接将其作为文本输出，需要用 ast.literal_eval 解析
+        if "Calling tools:" in content:
+            try:
+                import ast
+
+                # 找到 [ 开头的列表部分
+                bracket_pos = content.find("[", content.find("Calling tools:"))
+                if bracket_pos != -1:
+                    calls_list = ast.literal_eval(content[bracket_pos:].strip())
+                    if isinstance(calls_list, list):
+                        calls = []
+                        for item in calls_list:
+                            if (
+                                isinstance(item, dict)
+                                and item.get("type") == "function"
+                            ):
+                                # FILTER OUT: Skip tool calls that appear to be from history serialization
+                                # to prevent feedback loop where model repeats history as new tool calls
+                                if self._is_history_tool_call_format(item):
+                                    logger.debug(
+                                        f"Skipping history-format tool call: {item.get('function', {}).get('name', 'unknown')}"
+                                    )
+                                    continue
+
+                                func = item.get("function", {})
+                                name = func.get("name")
+                                args = func.get("arguments", {})
+                                if name:
+                                    if isinstance(args, str):
+                                        try:
+                                            args = json.loads(args)
+                                        except json.JSONDecodeError:
+                                            pass
+                                    calls.append(
+                                        ChatMessageToolCall(
+                                            id=item.get("id", f"call_{len(calls)}"),
+                                            type="function",
+                                            function=ChatMessageToolCallFunction(
+                                                name=name,
+                                                arguments=args
+                                                if isinstance(args, dict)
+                                                else {"raw": str(args)},
+                                            ),
+                                        )
+                                    )
+                        if calls:
+                            logger.debug(
+                                f"从 'Calling tools:' 格式中解析出 {len(calls)} 个工具调用"
+                            )
+                            return calls
+            except Exception:
+                pass
+
+        return None
+
+    def _is_history_tool_call_format(self, tool_call_dict):
+        """Check if a tool call dict matches the smolagents history format that causes duplication
+
+        Returns True if this appears to be a tool call from conversation history serialization
+        rather than a genuine new tool call from the model.
+        """
+        # Check for typical history format markers
+        if tool_call_dict.get("id") == "auto_final":
+            return True
+
+        # Check if it's a final_answer call (often appears in history)
+        func = tool_call_dict.get("function", {})
+        if func.get("name") == "final_answer":
+            return True
+
+        # Check if the ID looks auto-generated like in history
+        call_id = tool_call_dict.get("id", "")
+        if (
+            call_id.startswith("call_") and "_" not in call_id[5:]
+        ):  # Simple heuristic for auto-generated IDs
+            # Additional check: if it has minimal/no arguments, likely from history
+            args = func.get("arguments", {})
+            if isinstance(args, dict) and len(args) == 0:
+                return True
+
+        return False
