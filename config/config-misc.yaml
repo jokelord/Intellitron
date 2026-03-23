@@ -12,10 +12,50 @@ agent:
   max_steps: 200
   # Session 过期时间（分钟），过期后自动清理
   session_ttl_minutes: 60
-  # exec_command 工具的默认超时时间（秒）
-  exec_timeout: 60
   # 工作目录, null 表示使用当前目录
   work_dir: null
+  # PythonInterpreterTool 允许的额外 import 模块列表
+  python_authorized_imports:
+    - json
+    - os
+    - re
+    - math
+    - datetime
+    - pathlib
+    - shutil
+    - glob
+    - hashlib
+    - base64
+    - collections
+    - itertools
+    - functools
+    - typing
+  # 命令黑名单 - 命中以下任一正则的命令将被阻断
+  command_blacklist:
+    - pattern: "rm\\s+.*-[a-z]*r[a-z]*f[a-z]*\\s+/(?:\\s|$)"
+      reason: "递归删除根目录"
+    - pattern: "rm\\s+.*-[a-z]*f[a-z]*r[a-z]*\\s+/(?:\\s|$)"
+      reason: "递归删除根目录"
+    - pattern: "\\bsudo\\s+"
+      reason: "提权命令"
+    - pattern: "\\bmkfs\\b"
+      reason: "格式化设备"
+    - pattern: "\\bdd\\s+.*of=/dev/"
+      reason: "直接写入设备"
+    - pattern: ":\\(\\)\\s*\\{\\s*:\\s*\\|\\s*:\\s*&\\s*\\}\\s*;\\s*:"
+      reason: "Fork Bomb"
+    - pattern: "\\b(shutdown|reboot|poweroff|halt)\\b"
+      reason: "系统关机/重启"
+    - pattern: "\\bchmod\\s+[0-7]*7[0-7]*\\s+/(?:\\s|$)"
+      reason: "根目录权限扩大"
+    - pattern: "\\bcurl\\s+.*\\|\\s*(ba)?sh\\b"
+      reason: "远程脚本执行"
+    - pattern: "\\bwget\\s+.*\\|\\s*(ba)?sh\\b"
+      reason: "远程脚本执行"
+    - pattern: ">\\s*/dev/sd[a-z]"
+      reason: "直接写入磁盘设备"
+    - pattern: "\\bsystemctl\\s+(stop|disable|mask)\\s+"
+      reason: "禁用系统服务"
 
 # ============================================================
 # Debug 调试开关

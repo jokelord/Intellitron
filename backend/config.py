@@ -54,8 +54,12 @@ class ModelConfig:
     max_image_size: Optional[int] = None  # 最大图片大小 (字节)
     supported_formats: Optional[str] = None  # 支持的图片格式
     max_image_tokens: Optional[int] = None  # 最大图片 token 数
-    max_image_dimension: Optional[int] = None  # 图片预处理最大边长(px), 0=不缩放（文件上传路径，后端处理）
-    camera_max_dimension: Optional[int] = None  # 摄像头拍照前端 canvas 预缩最大边长(px), 0=不缩放
+    max_image_dimension: Optional[int] = (
+        None  # 图片预处理最大边长(px), 0=不缩放（文件上传路径，后端处理）
+    )
+    camera_max_dimension: Optional[int] = (
+        None  # 摄像头拍照前端 canvas 预缩最大边长(px), 0=不缩放
+    )
 
 
 @dataclass
@@ -180,7 +184,9 @@ class VLLMConfig:
     # Attention 配置
     attention_backend: Optional[str] = None
     disable_flash_attn: Optional[bool] = None
-    flash_attn_version: Optional[int] = None  # vLLM 0.17.1+ FA版本为选：2/3/4，None=自动
+    flash_attn_version: Optional[int] = (
+        None  # vLLM 0.17.1+ FA版本为选：2/3/4，None=自动
+    )
     # 性能优化配置
     enable_chunked_prefill: Optional[bool] = None
     max_seq_len_to_capture: Optional[int] = None
@@ -234,6 +240,10 @@ class AgentConfig:
     session_ttl_minutes: Optional[int] = None
     exec_timeout: Optional[int] = None
     work_dir: Optional[str] = None
+    python_authorized_imports: Optional[List[str]] = None
+    command_blacklist: Optional[List[dict]] = (
+        None  # [{"pattern": "...", "reason": "..."}]
+    )
 
 
 @dataclass
@@ -575,6 +585,10 @@ class ConfigLoader:
             session_ttl_minutes=self._get_int("agent", "session_ttl_minutes", 60),
             exec_timeout=self._get_int("agent", "exec_timeout", 60),
             work_dir=self._get("agent", "work_dir"),  # null → None（使用 cwd）
+            python_authorized_imports=self._get("agent", "python_authorized_imports"),
+            command_blacklist=self._get(
+                "agent", "command_blacklist"
+            ),  # [{"pattern": "...", "reason": "..."}]
         )
 
     def _parse_agent_prompts_config(self) -> AgentPromptsConfig:
@@ -591,8 +605,8 @@ class ConfigLoader:
         return SGLangConfig(
             host=self._get("sglang", "host", "127.0.0.1"),
             port=self._get_int("sglang", "port", 30000),
-            reasoning_parser=self._get("sglang", "reasoning_parser"),   # null → None
-            chat_template=self._get("sglang", "chat_template"),           # null → None
+            reasoning_parser=self._get("sglang", "reasoning_parser"),  # null → None
+            chat_template=self._get("sglang", "chat_template"),  # null → None
             tool_call_parser=self._get("sglang", "tool_call_parser"),
             disable_cuda_graph=self._get_bool("sglang", "disable_cuda_graph", False),
             fp8_gemm_backend=self._get("sglang", "fp8_gemm_backend", "triton"),
@@ -603,15 +617,21 @@ class ConfigLoader:
             max_running_requests=self._get_int("sglang", "max_running_requests"),
             max_prefill_tokens=self._get_int("sglang", "max_prefill_tokens"),
             chunked_prefill_size=self._get_int("sglang", "chunked_prefill_size"),
-            mamba_full_memory_ratio=self._get_float("sglang", "mamba_full_memory_ratio"),
+            mamba_full_memory_ratio=self._get_float(
+                "sglang", "mamba_full_memory_ratio"
+            ),
             mamba_ssm_dtype=self._get("sglang", "mamba_ssm_dtype"),
             max_mamba_cache_size=self._get_int("sglang", "max_mamba_cache_size"),
             skip_server_warmup=self._get_bool("sglang", "skip_server_warmup"),
             quantization=self._get("sglang", "quantization"),
             moe_runner_backend=self._get("sglang", "moe_runner_backend"),
             trust_remote_code=self._get_bool("sglang", "trust_remote_code", True),
-            speculative_algorithm=self._get("sglang", "speculative_algorithm"),    # null → None
-            speculative_draft_model_path=self._get("sglang", "speculative_draft_model_path"),
+            speculative_algorithm=self._get(
+                "sglang", "speculative_algorithm"
+            ),  # null → None
+            speculative_draft_model_path=self._get(
+                "sglang", "speculative_draft_model_path"
+            ),
             prefill_chunk_size=self._get_int("sglang", "prefill_chunk_size"),
         )
 
@@ -623,7 +643,9 @@ class ConfigLoader:
             port=self._get_int("vllm", "port", 30000),
             tensor_parallel_size=self._get_int("vllm", "tensor_parallel_size", 1),
             pipeline_parallel_size=self._get_int("vllm", "pipeline_parallel_size", 1),
-            distributed_executor_backend=self._get("vllm", "distributed_executor_backend"),
+            distributed_executor_backend=self._get(
+                "vllm", "distributed_executor_backend"
+            ),
             max_model_len=self._get_int("vllm", "max_model_len"),
             gpu_memory_utilization=self._get_float("vllm", "gpu_memory_utilization"),
             dtype=self._get("vllm", "dtype"),
@@ -657,7 +679,9 @@ class ConfigLoader:
             max_logprobs=self._get_int("vllm", "max_logprobs"),
             enable_prompt_logprobs=self._get_bool("vllm", "enable_prompt_logprobs"),
             guided_decoding_backend=self._get("vllm", "guided_decoding_backend"),
-            disable_custom_all_reduce=self._get_bool("vllm", "disable_custom_all_reduce"),
+            disable_custom_all_reduce=self._get_bool(
+                "vllm", "disable_custom_all_reduce"
+            ),
             # 推理模式配置
             enable_reasoning=self._get_bool("vllm", "enable_reasoning"),
             reasoning_parser=self._get("vllm", "reasoning_parser"),
@@ -675,7 +699,9 @@ class ConfigLoader:
             # 推测解码配置
             speculative_model=self._get("vllm", "speculative_model"),
             num_speculative_tokens=self._get_int("vllm", "num_speculative_tokens"),
-            speculative_max_model_len=self._get_int("vllm", "speculative_max_model_len"),
+            speculative_max_model_len=self._get_int(
+                "vllm", "speculative_max_model_len"
+            ),
             speculative_disable_by_batch_size=self._get_int(
                 "vllm", "speculative_disable_by_batch_size"
             ),

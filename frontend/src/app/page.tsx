@@ -411,7 +411,30 @@ export default function Home() {
               const updated = [...prev];
               const lastMessage = updated[updated.length - 1];
               if (lastMessage && lastMessage.role === 'assistant') {
-                lastMessage.agentSteps = [...(lastMessage.agentSteps || []), step];
+                const steps = lastMessage.agentSteps || [];
+                const lastStep = steps.length > 0 ? steps[steps.length - 1] : null;
+
+                if (step.step_type === 'thought') {
+                  // 如果上一个步骤是 partial 思考框，则追加内容（支持 token 流式）
+                  if (lastStep?.step_type === 'thought' && lastStep.partial) {
+                    const merged = {
+                      ...lastStep,
+                      content: (lastStep.content || '') + (step.content || ''),
+                      partial: step.partial ?? false,
+                    };
+                    lastMessage.agentSteps = [...steps.slice(0, -1), merged];
+                  } else {
+                    lastMessage.agentSteps = [...steps, step];
+                  }
+                } else {
+                  // 非思考步骤到达时，先把 partial 思考框 finalize（移除光标）
+                  if (lastStep?.step_type === 'thought' && lastStep.partial) {
+                    const finalized = { ...lastStep, partial: false };
+                    lastMessage.agentSteps = [...steps.slice(0, -1), finalized, step];
+                  } else {
+                    lastMessage.agentSteps = [...steps, step];
+                  }
+                }
               }
               return updated;
             });
@@ -433,7 +456,17 @@ export default function Home() {
             setMessages((prev: Message[]) => {
               const updated = [...prev];
               const lastMessage = updated[updated.length - 1];
-              if (lastMessage) lastMessage.isStreaming = false;
+              if (lastMessage) {
+                lastMessage.isStreaming = false;
+                // 兜底：确保完成时不留下 partial 光标
+                const steps = lastMessage.agentSteps || [];
+                if (steps.length > 0 && steps[steps.length - 1].partial) {
+                  lastMessage.agentSteps = [
+                    ...steps.slice(0, -1),
+                    { ...steps[steps.length - 1], partial: false },
+                  ];
+                }
+              }
               return updated;
             });
             setIsLoading(false);
@@ -807,7 +840,9 @@ export default function Home() {
                         remarkPlugins={[remarkGfm, remarkMath]}
                         rehypePlugins={[[rehypeKatex, { throwOnError: false }]]}
                       >
-                        {typeof message.content === 'string' ? message.content || '思考中...' : '思考中...'}
+                        {typeof message.content === 'string'
+                          ? (message.content || (message.isStreaming && (message.agentSteps?.length ?? 0) > 0 ? '' : '思考中...'))
+                          : '思考中...'}
                       </ReactMarkdown>
                       {message.isStreaming && (
                         <span className="inline-block w-2 h-4 bg-nvidia-500 animate-pulse ml-1" />

@@ -46,7 +46,7 @@ sglang:
   # Qwen3-Coder-30B-A3B-Instruct模型支持最大262,144, 但SGLang可扩展至1048576
   max_context_length: 1048576
   # 内存使用比例（限制SGLang使用的GPU内存比例，0.0-1.0，默认0.893）
-  mem_fraction_static: 0.80
+  mem_fraction_static: 0.72
   # EAGLE speculative decoding 配置（如果需要开启）
   speculative_algorithm: null
   speculative_draft_model_path: null

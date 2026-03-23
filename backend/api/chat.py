@@ -957,8 +957,11 @@ async def process_image_binary(
 
         # auto 模式：选择最快的方案
         if format_lower == "auto":
-            if not resized:
-                # 无需缩放 → 所有格式均直接透传原始字节, 零重编码!
+            # RGBA/P 等含透明通道的模式需要特殊处理：SGLang/Qwen3-VL 对 RGBA PNG 将透明区域
+            # 合成为黑色背景，导致模型只看到前景 Logo 而丢失背景内容。必须先合成白色背景再输出。
+            _needs_rgb_convert = img.mode in ("RGBA", "P", "PA", "LA")
+            if not resized and not _needs_rgb_convert:
+                # 无需缩放且格式兼容 → 直接透传原始字节, 零重编码!
                 processed_bytes = image_bytes
                 # 保留原始 MIME 类型
                 _fmt_map = {"jpeg": "jpeg", "jpg": "jpeg", "webp": "webp",
@@ -970,19 +973,32 @@ async def process_image_binary(
                     f"({original_size} bytes), 耗时: {_t_encode*1000:.1f}ms (几乎为零!)"
                 )
             else:
-                # 需要缩放 → 编码为 JPEG（最快编码速度，比 WebP 快 10-50 倍）
-                if img.mode in ("RGBA", "P"):
-                    img = img.convert("RGB")
+                # 需要缩放 或 含透明通道 → 转 RGB 后编码为 JPEG
+                img.load()
+                if img.mode == "RGBA":
+                    background = Image.new("RGB", img.size, (255, 255, 255))
+                    background.paste(img, mask=img.split()[3])  # alpha 合成到白色背景
+                    img = background
+                elif img.mode == "LA":
+                    rgba_tmp = img.convert("RGBA")
+                    background = Image.new("RGB", img.size, (255, 255, 255))
+                    background.paste(rgba_tmp, mask=rgba_tmp.split()[3])
+                    img = background
+                elif img.mode in ("P", "PA"):
+                    img = img.convert("RGBA")
+                    background = Image.new("RGB", img.size, (255, 255, 255))
+                    background.paste(img, mask=img.split()[3])
+                    img = background
                 elif img.mode != "RGB":
-                    img.load()
                     img = img.convert("RGB")
                 output_buffer = _io.BytesIO()
                 img.save(output_buffer, format="JPEG", quality=85, optimize=False)
                 processed_bytes = output_buffer.getvalue()
                 output_format = "jpeg"
                 _t_encode = _time.perf_counter() - _t_encode_start
+                reason = "含透明通道,已合成白色背景" if _needs_rgb_convert else "缩放后"
                 debug.api(
-                    f"{TAG} JPEG 编码 (auto, 缩放后): {len(processed_bytes)} bytes, "
+                    f"{TAG} JPEG 编码 (auto, {reason}): {len(processed_bytes)} bytes, "
                     f"耗时: {_t_encode*1000:.1f}ms"
                 )
         elif format_lower in ("jpeg", "jpg"):

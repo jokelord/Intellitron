@@ -242,6 +242,11 @@ class SGLangProvider(LLMProviderInterface):
             "stream": stream,
         }
 
+        # 添加重复惩罚（防止模型生成重复内容）
+        rep_penalty = self.config.inference.repetition_penalty
+        if rep_penalty and rep_penalty != 1.0:
+            request_data["repetition_penalty"] = rep_penalty
+
         # 添加转换后的工具
         if converted_tools:
             request_data["tools"] = converted_tools
@@ -365,6 +370,17 @@ class SGLangProvider(LLMProviderInterface):
                 content = msg.get("content")
                 if not isinstance(content, list):
                     continue
+                # Agent 任务消息豁免：smolagents TaskStep.to_messages() 生成的消息
+                # 第一个文本块固定以 "New task:" 开头。这类消息承载用户上传的任务图片，
+                # 需要在整个 Agent 任务的所有步骤中保持可见（多步骤推理时 obs_text 会
+                # 插在后面，导致 TaskStep 成为"非最末 user 消息"而被误删）。
+                is_task_msg = any(
+                    isinstance(item, dict) and item.get("type") == "text"
+                    and item.get("text", "").startswith("New task:")
+                    for item in content
+                )
+                if is_task_msg:
+                    continue  # 保留 Agent 任务消息中的图片
                 new_content = []
                 img_in_msg = 0
                 for item in content:
@@ -381,6 +397,62 @@ class SGLangProvider(LLMProviderInterface):
 
         _strip_old_images(messages_data)
         image_count = _normalize_and_log_images(messages_data)
+
+        # ── 诊断：将发给 SGLang 的图片保存到磁盘 ──
+        # 在 /tmp/sglang_debug/ 下保存每张图片的解码字节，
+        # 可直接用图片查看器打开，确认 SGLang 收到的图片是否正确。
+        if image_count > 0:
+            import base64 as _b64_mod
+            import os as _os
+            import time as _t
+            _debug_dir = "/tmp/sglang_debug"
+            _os.makedirs(_debug_dir, exist_ok=True)
+            _ts = _t.strftime("%H%M%S")
+            _img_idx = 0
+            for _mi, _msg in enumerate(messages_data):
+                _ct = _msg.get("content")
+                if not isinstance(_ct, list):
+                    continue
+                for _ci, _item in enumerate(_ct):
+                    if isinstance(_item, dict) and _item.get("type") == "image_url":
+                        _url = _item.get("image_url", {}).get("url", "")
+                        if _url.startswith("data:"):
+                            try:
+                                _hdr, _b64 = _url.split(",", 1)
+                                _mime = _hdr.split(":")[1].split(";")[0]
+                                _ext = _mime.split("/")[-1].replace("jpeg", "jpg")
+                                _raw = _b64_mod.b64decode(_b64)
+                                _fname = f"{_ts}_msg{_mi}_item{_ci}.{_ext}"
+                                _fpath = _os.path.join(_debug_dir, _fname)
+                                with open(_fpath, "wb") as _f:
+                                    _f.write(_raw)
+                                self.debug.inference(
+                                    f"[DIAG] 图片已保存: {_fpath} ({len(_raw)} bytes, "
+                                    f"base64_len={len(_b64)}, mime={_mime})"
+                                )
+                                _img_idx += 1
+                            except Exception as _e:
+                                self.debug.inference(f"[DIAG] 图片保存失败: {_e}")
+
+            # 同时保存消息结构（不含 base64 内容）便于分析
+            _struct_path = _os.path.join(_debug_dir, f"{_ts}_messages.json")
+            _struct = []
+            for _msg in messages_data:
+                _ct = _msg.get("content")
+                if isinstance(_ct, list):
+                    _items = []
+                    for _item in _ct:
+                        if isinstance(_item, dict) and _item.get("type") == "image_url":
+                            _url = _item.get("image_url", {}).get("url", "")
+                            _items.append({"type": "image_url", "base64_len": len(_url), "prefix": _url[:60]})
+                        else:
+                            _items.append(_item)
+                    _struct.append({"role": _msg.get("role"), "content": _items})
+                else:
+                    _struct.append({"role": _msg.get("role"), "content_type": type(_ct).__name__, "content_len": len(str(_ct))})
+            with open(_struct_path, "w") as _f:
+                json.dump(_struct, _f, ensure_ascii=False, indent=2)
+            self.debug.inference(f"[DIAG] 消息结构已保存: {_struct_path}")
 
         # 调试：非图片请求打印请求体
         if image_count > 0:
@@ -499,11 +571,13 @@ class SGLangProvider(LLMProviderInterface):
                                     )
                                     content = delta.get("content")
                                     reasoning = delta.get("reasoning_content")
-                                    if content or reasoning:
+                                    tool_calls = delta.get("tool_calls")
+                                    if content or reasoning or tool_calls:
                                         # 返回结构化数据而不是单纯字符串
                                         yield {
                                             "content": content,
                                             "reasoning": reasoning,
+                                            "tool_calls": tool_calls,
                                         }
                                 except json.JSONDecodeError as e:
                                     self.debug.inference(

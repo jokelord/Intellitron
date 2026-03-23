@@ -7,9 +7,9 @@
 
 import re
 import subprocess
+from typing import Optional
 
-# 高危命令黑名单正则（不区分大小写）
-_DANGEROUS_PATTERNS = [
+_DEFAULT_DANGEROUS_PATTERNS = [
     (r"rm\s+.*-[a-z]*r[a-z]*f[a-z]*\s+/(?:\s|$)", "递归删除根目录"),
     (r"rm\s+.*-[a-z]*f[a-z]*r[a-z]*\s+/(?:\s|$)", "递归删除根目录"),
     (r"\bsudo\s+", "提权命令"),
@@ -24,7 +24,37 @@ _DANGEROUS_PATTERNS = [
     (r"\bsystemctl\s+(stop|disable|mask)\s+", "禁用系统服务"),
 ]
 
-_compiled_patterns = [(re.compile(pattern, re.IGNORECASE), desc) for pattern, desc in _DANGEROUS_PATTERNS]
+_compiled_patterns: list = [
+    (re.compile(pattern, re.IGNORECASE), desc)
+    for pattern, desc in _DEFAULT_DANGEROUS_PATTERNS
+]
+
+
+def _load_blacklist_from_config():
+    """从配置文件加载黑名单正则，不存在时使用默认黑名单"""
+    global _compiled_patterns
+    try:
+        from backend.config import get_config
+
+        config = get_config()
+        blacklist = config.agent.command_blacklist
+        if blacklist:
+            _compiled_patterns = [
+                (re.compile(item["pattern"], re.IGNORECASE), item["reason"])
+                for item in blacklist
+            ]
+        else:
+            _compiled_patterns = [
+                (re.compile(p, re.IGNORECASE), d)
+                for p, d in _DEFAULT_DANGEROUS_PATTERNS
+            ]
+    except Exception:
+        _compiled_patterns = [
+            (re.compile(p, re.IGNORECASE), d) for p, d in _DEFAULT_DANGEROUS_PATTERNS
+        ]
+
+
+_load_blacklist_from_config()
 
 
 def _check_command_safety(command: str) -> str | None:
@@ -100,7 +130,8 @@ def check_process(name: str) -> str:
             timeout=10,
         )
         lines = [
-            line for line in result.stdout.strip().splitlines()
+            line
+            for line in result.stdout.strip().splitlines()
             if "pgrep" not in line  # 排除 pgrep 自身
         ]
         if lines:

@@ -379,7 +379,28 @@ export default function VisionChat() {
               const updated = [...prev];
               const last = updated[updated.length - 1];
               if (last && last.role === 'assistant') {
-                last.agentSteps = [...(last.agentSteps || []), step];
+                const steps = last.agentSteps || [];
+                const lastStep = steps.length > 0 ? steps[steps.length - 1] : null;
+
+                if (step.step_type === 'thought') {
+                  if (lastStep?.step_type === 'thought' && lastStep.partial) {
+                    const merged = {
+                      ...lastStep,
+                      content: (lastStep.content || '') + (step.content || ''),
+                      partial: step.partial ?? false,
+                    };
+                    last.agentSteps = [...steps.slice(0, -1), merged];
+                  } else {
+                    last.agentSteps = [...steps, step];
+                  }
+                } else {
+                  if (lastStep?.step_type === 'thought' && lastStep.partial) {
+                    const finalized = { ...lastStep, partial: false };
+                    last.agentSteps = [...steps.slice(0, -1), finalized, step];
+                  } else {
+                    last.agentSteps = [...steps, step];
+                  }
+                }
               }
               return updated;
             });
@@ -399,7 +420,17 @@ export default function VisionChat() {
             setMessages((prev: Message[]) => {
               const updated = [...prev];
               const last = updated[updated.length - 1];
-              if (last) last.isStreaming = false;
+              if (last) {
+                last.isStreaming = false;
+                // 兜底：确保完成时不留下 partial 光标
+                const steps = last.agentSteps || [];
+                if (steps.length > 0 && steps[steps.length - 1].partial) {
+                  last.agentSteps = [
+                    ...steps.slice(0, -1),
+                    { ...steps[steps.length - 1], partial: false },
+                  ];
+                }
+              }
               return updated;
             });
             setIsLoading(false);
@@ -781,7 +812,9 @@ export default function VisionChat() {
                         remarkPlugins={[remarkGfm, remarkMath]}
                         rehypePlugins={[[rehypeKatex, { throwOnError: false }]]}
                       >
-                        {typeof message.content === 'string' ? message.content || '思考中...' : '思考中...'}
+                        {typeof message.content === 'string'
+                          ? (message.content || (message.isStreaming && (message.agentSteps?.length ?? 0) > 0 ? '' : '思考中...'))
+                          : '思考中...'}
                       </ReactMarkdown>
                       {message.isStreaming && (
                         <span className="inline-block w-2 h-4 bg-nvidia-500 animate-pulse ml-1" />

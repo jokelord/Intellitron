@@ -65,12 +65,15 @@ function StepCard({ step, index }: { step: AgentStep; index: number }) {
   const icon = STEP_ICON[step.step_type] || '📌';
   const label = STEP_LABEL[step.step_type] || step.step_type;
 
+  // partial=true 时强制展开全文（流式输出中，截断无意义）
+  const isStreaming = step.partial === true;
+
   // 计算预览文本
   const fullContent = step.step_type === 'tool_call'
     ? `${step.name || ''}(${formatToolInput(step.input)})`
     : (step.content || '');
   const preview = fullContent.length > 120 ? fullContent.slice(0, 120) + '…' : fullContent;
-  const hasMore = fullContent.length > 120;
+  const hasMore = fullContent.length > 120 && !isStreaming;
 
   return (
     <div className={`border rounded-lg ${colors.border} ${colors.bg} overflow-hidden`}>
@@ -88,6 +91,10 @@ function StepCard({ step, index }: { step: AgentStep; index: number }) {
           </code>
         )}
         <span className="flex-1 min-w-0" />
+        {/* 流式输出中显示呼吸光标 */}
+        {isStreaming && (
+          <span className={`inline-block w-1.5 h-3.5 rounded-sm ${colors.text} opacity-80 animate-pulse flex-shrink-0`} />
+        )}
         {hasMore && (
           expanded
             ? <ChevronDown className="w-4 h-4 flex-shrink-0 text-gray-400" />
@@ -97,7 +104,7 @@ function StepCard({ step, index }: { step: AgentStep; index: number }) {
 
       <div className="px-3 pb-2">
         <pre className="text-xs text-gray-700 dark:text-gray-300 whitespace-pre-wrap break-words font-mono leading-relaxed">
-          {expanded ? fullContent : preview}
+          {isStreaming ? fullContent : (expanded ? fullContent : preview)}
         </pre>
       </div>
     </div>
