@@ -231,6 +231,45 @@ class VLLMConfig:
 
 
 @dataclass
+class MCPServerConfig:
+    """单个 MCP 服务器配置"""
+
+    name: str = ""
+    command: str = ""
+    args: List[str] = field(default_factory=list)
+    env: dict = field(default_factory=dict)
+    url: Optional[str] = None
+
+
+@dataclass
+class MCPConfig:
+    """MCP (Model Context Protocol) 配置"""
+
+    servers: List[MCPServerConfig] = field(default_factory=list)
+
+
+@dataclass
+class WebToolsConfig:
+    """Web 工具配置"""
+
+    # Engine providers
+    search_engine: str = "duckduckgo"
+    fallback_engine: str = "bing"
+
+    # Technical protocol
+    protocol: str = "curl"  # curl | requests
+    method: str = "POST"  # GET | POST
+
+    # Fallback protocol/method
+    fallback_protocol: str = "curl"
+    fallback_method: str = "GET"
+
+    # Other settings
+    enable_wikipedia: bool = True
+    proxy: Optional[str] = None
+
+
+@dataclass
 class AgentConfig:
     """Agent 工具调用配置"""
 
@@ -307,6 +346,8 @@ class AppConfig:
     container: ContainerConfig = field(default_factory=ContainerConfig)
     agent: AgentConfig = field(default_factory=AgentConfig)
     agent_prompts: AgentPromptsConfig = field(default_factory=AgentPromptsConfig)
+    mcp: MCPConfig = field(default_factory=MCPConfig)
+    web_tools: WebToolsConfig = field(default_factory=WebToolsConfig)
     sglang: SGLangConfig = field(default_factory=SGLangConfig)
     vllm: VLLMConfig = field(default_factory=VLLMConfig)
 
@@ -402,6 +443,8 @@ class ConfigLoader:
             container=self._parse_container_config(),
             agent=self._parse_agent_config(),
             agent_prompts=self._parse_agent_prompts_config(),
+            mcp=self._parse_mcp_config(),
+            web_tools=self._parse_web_tools_config(),
             sglang=self._parse_sglang_config(),
             vllm=self._parse_vllm_config(),
         )
@@ -598,6 +641,38 @@ class ConfigLoader:
             agent_instructions=data.get("agent_instructions"),
             toolcalling_agent=data.get("toolcalling_agent"),
             code_agent=data.get("code_agent"),
+        )
+
+    def _parse_mcp_config(self) -> MCPConfig:
+        """解析 MCP 配置"""
+        servers = []
+        for srv in self._get("mcp", "servers", []):
+            servers.append(
+                MCPServerConfig(
+                    name=srv.get("name", ""),
+                    command=srv.get("command", ""),
+                    args=srv.get("args", []),
+                    env=srv.get("env", {}),
+                    url=srv.get("url"),
+                )
+            )
+        return MCPConfig(servers=servers)
+
+    def _parse_web_tools_config(self) -> WebToolsConfig:
+        """解析 Web 工具配置"""
+        return WebToolsConfig(
+            # Engine providers
+            search_engine=self._get("web_tools", "search_engine", "duckduckgo"),
+            fallback_engine=self._get("web_tools", "fallback_engine", "bing"),
+            # Technical protocol
+            protocol=self._get("web_tools", "protocol", "curl"),
+            method=self._get("web_tools", "method", "POST"),
+            # Fallback protocol/method
+            fallback_protocol=self._get("web_tools", "fallback_protocol", "curl"),
+            fallback_method=self._get("web_tools", "fallback_method", "GET"),
+            # Other settings
+            enable_wikipedia=self._get_bool("web_tools", "enable_wikipedia", True),
+            proxy=self._get("web_tools", "proxy", None),
         )
 
     def _parse_sglang_config(self) -> SGLangConfig:

@@ -58,13 +58,77 @@ agent:
       reason: "禁用系统服务"
 
 # ============================================================
+# MCP (Model Context Protocol) 配置
+# 支持连接外部 MCP 服务器以扩展工具能力
+# ============================================================
+
+mcp:
+  # MCP 服务器列表
+  servers: []
+  # 示例配置（取消注释启用）：
+  # - name: "excel"
+  #   command: "uvx"
+  #   args: ["excel-mcp-server", "stdio"]
+  #   env:
+  #     EXCEL_FILES_PATH: "./excel_files"
+  #     FASTMCP_PORT: "8017"
+  #
+  # 常用 Excel MCP Server:
+  # 1. haris-musa/excel-mcp-server (Python, 3.5k stars) - 推荐
+  #    https://github.com/haris-musa/excel-mcp-server
+  #    安装: uvx excel-mcp-server stdio
+  #    特点: 无需 Excel 安装，支持 Linux/Mac/Windows
+  # 2. sbroenne/mcp-server-excel (C#/.NET, 活跃维护)
+  #    https://github.com/sbroenne/mcp-server-excel
+  #    特点: 使用 Excel COM API，需要 Windows + Excel
+  # 3. sbraind/excel-mcp-server (TypeScript/ExcelJS)
+  #    https://github.com/sbraind/excel-mcp-server
+  #    特点: 34 个工具，跨平台
+
+# ============================================================
+# Web 搜索工具配置
+# ============================================================
+
+web_tools:
+  # === Primary Engine Configuration ===
+  # 搜索引擎提供商: duckduckgo （首选！）/ bing (不支持中文搜索) / sogou (not available) / 360(not available)
+  search_engine: duckduckgo
+  # === Connection Protocol (连接方式) ===
+  # 连接协议: curl / requests
+  # - curl: 使用子进程调用 curl 命令 (更好的反爬能力，DuckDuckGo必选项)
+  # - requests: 使用 Python requests 库 (更快,无需启动进程，bing不能用requests)
+  protocol: curl
+  # === HTTP Method (请求方法) ===
+  # 请求方法: GET / POST
+  # - GET: 将查询参数附加到 URL (大多数搜索引擎适用)
+  # - POST: 在请求体中发送查询 (DuckDuckGo 必须使用 POST, bing不能用POST)
+  method: POST 
+
+  # === Fallback Engine (备用引擎) ===
+  # 当主引擎失败时使用的备用引擎
+  fallback_engine: bing
+  # 备用引擎的连接协议
+  fallback_protocol: curl
+  # 备用引擎的请求方法
+  fallback_method: GET
+
+  # === 代理服务器配置 ===
+  # 代理服务器地址 (中国大陆地区用户访问DuckDuckGo搜索引擎则必选)
+  # 格式: "http://127.0.0.1:10808"
+  proxy: "http://127.0.0.1:10808"
+
+  # === Wikipedia 搜索 ===
+  # 是否启用 Wikipedia 搜索
+  enable_wikipedia: true
+
+# ============================================================
 # Debug 调试开关
 # 启用后会在终端输出对应模块的详细调试信息
 # ============================================================
 
 debug:
   # 总开关：关闭后忽略所有debug子开关
-  enabled: true
+  enabled: false
   # 模型加载调试：显示模型加载进度、内存占用、设备信息
   debug_model_loading: true
   # 推理过程调试：显示推理耗时、token统计、生成速度

@@ -14,7 +14,16 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import AsyncGenerator
 
-from smolagents import CodeAgent, PythonInterpreterTool, Tool, ToolCallingAgent, tool
+from smolagents import (
+    CodeAgent,
+    MCPClient,
+    PythonInterpreterTool,
+    Tool,
+    ToolCallingAgent,
+    WikipediaSearchTool,
+    tool,
+)
+from backend.tools.web_tools import web_search, web_fetch
 from smolagents.agents import ActionOutput, FinalAnswerStep, MultiStepAgent
 from smolagents.memory import ActionStep, TaskStep
 from smolagents.models import (
@@ -82,7 +91,7 @@ def agent_edit_file(file_path: str, search_text: str, replace_text: str) -> str:
 @tool
 def agent_exec_command(command: str, timeout: int = 60) -> str:
     """执行 shell 命令并返回输出。受安全黑名单保护，高危命令会被自动拒绝。
-    启动图形界面程序时请使用 nohup 和后台运行（如 "nohup gnome-calculator &"），否则会因等待进程退出而超时。
+    运行 python 脚本或启动图形界面程序时请参考提示词中的 Bash 包装器模板。
     Args:
         command: 要执行的 shell 命令
         timeout: 超时时间（秒），默认 60 秒
@@ -114,31 +123,25 @@ def agent_read_skill(skill_name: str) -> str:
     return read_skill(skill_name)
 
 
-@tool
-def agent_web_search(query: str) -> str:
-    """搜索互联网信息（尚未实现）。
-    Args:
-        query: 搜索查询词
-    """
-    raise NotImplementedError("此工具尚未实现。请尝试其他方式获取信息。")
-
-
-@tool
-def agent_web_fetch(url: str) -> str:
-    """抓取网页内容并转换为文本（尚未实现）。
-    Args:
-        url: 要抓取的网页 URL
-    """
-    raise NotImplementedError("此工具尚未实现。请尝试其他方式获取信息。")
-
-
 # ============================================================
 # 收集所有可用工具
 # ============================================================
 
 
-def _get_tools(authorized_imports: list | None = None) -> list:
-    """构建工具列表，可自定义 PythonInterpreterTool 的 authorized_imports"""
+def _get_tools(
+    authorized_imports: list | None = None,
+    mcp_servers: list | None = None,
+    web_search_engine: str = "duckduckgo",
+    enable_wikipedia: bool = True,
+) -> list:
+    """构建工具列表
+
+    Args:
+        authorized_imports: PythonInterpreterTool 允许的 import 模块
+        mcp_servers: MCP 服务器配置列表
+        web_search_engine: Web 搜索引擎 (duckduckgo)
+        enable_wikipedia: 是否启用 Wikipedia 搜索
+    """
     if authorized_imports is None:
         authorized_imports = [
             "collections",
@@ -153,7 +156,8 @@ def _get_tools(authorized_imports: list | None = None) -> list:
             "unicodedata",
             "statistics",
         ]
-    return [
+
+    tools = [
         PythonInterpreterTool(authorized_imports=authorized_imports),
         agent_read_file,
         agent_write_file,
@@ -162,9 +166,49 @@ def _get_tools(authorized_imports: list | None = None) -> list:
         agent_check_process,
         agent_list_skills,
         agent_read_skill,
-        agent_web_search,
-        agent_web_fetch,
+        web_search,
+        web_fetch,
     ]
+
+    if enable_wikipedia:
+        tools.append(WikipediaSearchTool())
+
+    if mcp_servers:
+        from mcp import StdioServerParameters
+
+        for srv in mcp_servers:
+            if srv.command and srv.args:
+                server_params = StdioServerParameters(
+                    command=srv.command,
+                    args=srv.args,
+                    env=srv.env if srv.env else None,
+                )
+                mcp_client = MCPClient(server_params)
+                mcp_tools = mcp_client.get_tools()
+                tools.extend(mcp_tools)
+
+    return tools
+
+
+def get_tools_from_config(config: AppConfig) -> list:
+    """从 AppConfig 构建工具列表"""
+    mcp_servers = []
+    if config.mcp and config.mcp.servers:
+        mcp_servers = config.mcp.servers
+
+    web_engine = "duckduckgo"
+    if config.web_tools:
+        web_engine = config.web_tools.search_engine or "duckduckgo"
+        enable_wikipedia = config.web_tools.enable_wikipedia
+    else:
+        enable_wikipedia = True
+
+    return _get_tools(
+        authorized_imports=config.agent.python_authorized_imports,
+        mcp_servers=mcp_servers,
+        web_search_engine=web_engine,
+        enable_wikipedia=enable_wikipedia,
+    )
 
 
 ALL_TOOLS = _get_tools()
@@ -525,8 +569,9 @@ class AgentRunner:
                 prompt_templates = dict(prompts_config.code_agent)
 
         python_imports = self.config.agent.python_authorized_imports
+        tools = get_tools_from_config(self.config)
         kwargs = {
-            "tools": _get_tools(authorized_imports=python_imports),
+            "tools": tools,
             "model": self.model,
             "max_steps": self.config.agent.max_steps,
             "verbosity_level": 1,
@@ -537,19 +582,6 @@ class AgentRunner:
             kwargs["prompt_templates"] = prompt_templates
         if instructions:
             kwargs["instructions"] = instructions
-
-        # 当 model_type 为 vision 时，追加 VLM 身份指令：
-        # 否则模型会误判"没有图片处理工具"而拒绝分析图片
-        if self.config.model.model_type == "vision":
-            vlm_note = (
-                "\n\n【重要：你是视觉语言模型（VLM）】\n"
-                "用户发送的消息中可能包含图片。你可以直接看到并理解这些图片，"
-                "无需任何额外的图片处理工具。\n"
-                "当用户要求你分析、描述或基于图片完成任务时，直接利用你的视觉能力处理即可。"
-            )
-            current_instructions = kwargs.get("instructions") or ""
-            kwargs["instructions"] = current_instructions + vlm_note
-            logger.info("🖼 VLM 模式：已追加视觉语言模型身份指令")
 
         if mode == "code":
             kwargs["additional_authorized_imports"] = (

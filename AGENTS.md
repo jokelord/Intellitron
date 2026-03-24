@@ -75,6 +75,3 @@ Note: 使用uv管理环境
 3. **Qwen3-VL 在 SGLang 的 auto + stream 模式下可能返回空增量**: 已实际复现“非流式有 `<tool_call>` 文本，但流式只有空首帧和 stop，没有 content / reasoning_content / tool_calls”的情况。此时前端会看到空思考框，后端会把空字符串收敛成 final answer。修复点在 `backend/agent/local_llm_model.py`，需要对“流式空响应”回退到一次非流式解析。
 4. **vision 页面与 text 页面是两套独立前端页面**: [frontend/src/app/page.tsx](frontend/src/app/page.tsx) 对应 text， [frontend/src/app/vision/page.tsx](frontend/src/app/vision/page.tsx) 对应 vision。构建产物、页面逻辑、上传能力不同，排障时不要把两边行为混为一条链路。
 5. **Agent 链路与普通聊天链路不同**: Agent 走 `/v1/agent/chat`，普通聊天走 `/v1/chat/completions`。vision/text 页面虽然都能进 agent 模式，但问题要先区分是“前端页面差异”还是“后端 agent/tool calling 差异”。
-6. **Agent 会话记忆丧失**: 模型在连续对话中丧失记忆，忘记之前设置的变量值。**根本原因**: 双重 Bug 导致每次请求都新建 Session 或清空历史。**Bug 1**: `agent.run()` 默认 `reset=True`，每次调用都执行 `memory.reset()` 清空 `memory.steps`。**Bug 2**: `done` 事件不携带 `session_id`，前端始终拿不到 UUID，下次请求传 `undefined`，后端每次都新建 Session。**修复方法**: 1) `agent.run()` 改为 `reset=False`；2) `done` 事件改为 `{'type': 'done', 'session_id': session.session_id}`。
-
-7. 如果模型可以读图但无法有效读取图中信息（输出与图完全无关的文本），尤其当它说看到了某种规律相间纹路、或者对图片的描述为重复多遍的文字如/123/123 or 000000时，此时重启一遍推理框架（如sglang）大概率可以解决问题
