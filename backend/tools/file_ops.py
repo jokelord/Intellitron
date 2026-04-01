@@ -56,8 +56,9 @@ def read_file(
 
 def write_file(file_path: str, content: str) -> str:
     """
-    写入文件（覆盖），自动创建父目录。
-    使用指数退避重试应对文件锁。
+    写入新文件（覆盖），自动创建父目录。
+    【重要提示】如已有同名文件，将被覆盖且无法恢复，请谨慎使用。
+    如果需求是添加（如 append )、修改、删除特定文本，则使用工具 edit_file 来实现更安全的行级编辑，而非直接本工具覆盖整个文件。
 
     Args:
         file_path: 目标文件路径
@@ -114,19 +115,33 @@ def edit_file(file_path: str, search_text: str, replace_text: str) -> str:
     精确编辑文件：在文件中查找 search_text 并替换为 replace_text。
     使用 4 层匹配策略（精确 → 空白归一化 → 省略号 → 模糊匹配）。
 
-    如果 search_text 含有字面转义序列（如 ``\\n``），会自动尝试
-    将其还原为真实换行后再匹配，作为回退策略。
+    【追加模式】若 search_text 为空字符串 ""，则将 replace_text 追加到文件末尾，无需先读取文件内容。
+    例如：edit_file("readme.md", "", "\\n新增的一行文本") 会在文件末尾追加内容。
+
+    如果 search_text 含有字面转义序列（如 ``\\n``），会自动尝试将其还原为真实换行后再匹配，作为回退策略。
+
+    因一个文件中可能出现多个关键词，所以 search_text 一般不能过于简短，而是一整行或多行文本 (line block)，以提高匹配准确率
 
     Args:
         file_path: 要编辑的文件路径
-        search_text: 要查找的代码片段（SEARCH 块）
-        replace_text: 替换后的代码片段（REPLACE 块）
+        search_text: 要查找的代码片段（SEARCH 块）。若为空字符串则追加 replace_text 到文件末尾。
+        replace_text: 替换后的代码片段（REPLACE 块），或追加模式下要追加的内容
 
     Returns:
         操作结果描述（成功或包含最相似片段的错误信息）
     """
     with open(file_path, "r", encoding="utf-8") as f:
         content = f.read()
+
+    # 追加模式：search_text 为空时直接追加到文件末尾
+    if not search_text or not search_text.strip():
+        append_text = replace_text
+        if _has_literal_escapes(append_text):
+            append_text = _normalize_escape_sequences(append_text)
+        new_content = content + append_text
+        with open(file_path, "w", encoding="utf-8") as f:
+            f.write(new_content)
+        return f"文件已追加: {file_path} (追加了 {len(append_text)} 字节)"
 
     new_content = replace_most_similar_chunk(content, search_text, replace_text)
 

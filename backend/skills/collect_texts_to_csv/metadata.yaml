@@ -1,0 +1,7 @@
+name: collect_texts_to_csv
+description: "将指定目录下的 .log / .txt / .md 文件整理合并为一份 CSV 汇总表（含文件名、创建时间、修改时间、文本内容）"
+tags:
+  - file-management
+  - csv
+  - text-collection
+  - data-organization

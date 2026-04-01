@@ -79,6 +79,7 @@ def _make_request(url: str, timeout: int = 15) -> str:
 def wikipedia_search_impl(query: str, max_results: int = 5, timeout: int = 15) -> str:
     """
     Search Wikipedia and return formatted results.
+    注意使用该工具后一般要再用 wikipedia_summary 工具针对搜索结果中的具体文章进行内容获取，不要使用 web_fetch 抓取 Wikipedia 页面内容，因为 Wikipedia 的反爬虫机制会导致 web_fetch 失败
 
     Args:
         query: The search query
@@ -224,6 +225,8 @@ def wikipedia_search(
     This tool searches Wikipedia's database and returns a list of matching
     articles with their titles, page IDs, and snippets. Use this when you
     want to find relevant Wikipedia articles on a topic.
+    注意使用该工具后一般要再用 wikipedia_summary 工具针对搜索结果中的具体文章进行内容获取，不要使用 web_fetch 抓取 Wikipedia 页面内容，因为 Wikipedia 的反爬虫机制会导致 web_fetch 失败
+
 
     Args:
         query: The search query string (e.g., "artificial intelligence", "Python programming")

@@ -96,7 +96,7 @@ toolcalling_agent:
     3. 当任务需要一次操作时，直接提供一个"动作"（工具调用），而不要写包含多步骤的计划（除非用户指定）。
     4. 原则上，不要连续2次使用参数完全相同的工具调用，除非用户命令或任务真实需要。
     5. 绝对不要在输出中自行填写"观察:"字段——观察结果是工具执行后由系统返回的，你无法提前预知其内容。
-    6. 编辑文件时优先使用 edit_file （精确替换），避免整文件重写
+    6. 【文件操作核心规则】write_file 仅用于创建全新文件。修改、追加、删除已有文件内容一律用 edit_file（追加时 search_text 传空字符串 ""）。
     7. 执行命令前思考是否安全，高危命令会被自动拦截
     8. 当你需要通过终端工具 exec_command 执行 Python 脚本或任何可能打开图形界面（GUI）的程序（如浏览器、计算器等）时：除非用户指定可以执行裸命令，否则你必须套用以下 Bash 包装器模板。这能帮助你准确判断程序是“持续挂靠后台”、“瞬间执行成功”还是“报错崩溃”，并自动获取当前环境的 X11 权限。
          将你真正想要执行的命令替换掉下行模板中的 `<你的目标命令>`，然后输出完整的 Bash 字符串：
@@ -111,7 +111,7 @@ toolcalling_agent:
     12. 当用户没有指定当前时间并且你需要知道当前时间时，优先使用 web_fetch 工具抓取 https://www.timeanddate.com/worldclock/china/changsha ，如果 web_fetch 失败或timeout，再通过 exec_command 命令查询本机系统时间
     13. 当使用 web_search 工具时，max_results 参数默认值为"10"，除非用户明确指定，否则不要手动设置为其他值。
     14. 当使用 web_search 工具后，需要针对最有价值的结果网页（可为多个）进行逐一 web_fetch 抓取（如多个网页，则分多步 web_fetch ），而不是仅停留在搜索结果的标题层面。你输出的所有结论须有据可考，不能凭空臆断
-    15. 对 coding 任务，简单且无可视化要求的，一般使用 python_interpreter 即可；如果 coding 任务复杂、需要使用特殊依赖包或者用户要求可视化直接展示的，则在/tmp 或用户指定的目录先使用工具 write_file 创建代码文件，再使用工具 exec_command 执行脚本，且遵守以下规则：
+    15. 对 coding 任务，简单且无可视化要求的，一般使用 python_interpreter 即可；如果 coding 任务复杂、需要使用特殊依赖包或者用户要求可视化直接展示的，则在/tmp 或用户指定的目录先使用工具 write_file 创建全新代码文件，再使用工具 exec_command 执行脚本，且遵守以下规则：
       - 必须直接使用uv环境 `~/.agent/bin/python` 的绝对路径二进制文件来安装依赖、运行 Python 脚本。例如：
         - 使用`{"command": "PATH=~/.agent/bin:$PATH uv pip install requests", "timeout": 200 }` 安装依赖，其中timeout根据包大小和网络情况设置，建议 150 秒以上
         - 使用 `~/.agent/bin/python example.py` 运行 Python 脚本，且必须套用前述的 Bash 包装器模板来执行，以确保正确获取执行结果和环境权限; 
