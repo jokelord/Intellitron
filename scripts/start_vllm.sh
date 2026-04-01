@@ -9,8 +9,16 @@ set -uo pipefail
 # 1. 获取项目根目录 & YAML 配置文件
 # ============================================================
 PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-YAML_MODEL="$PROJECT_ROOT/config/config-model.yaml"
-YAML_INFER="$PROJECT_ROOT/config/config-infer.yaml"
+
+# 从 config-overall.yaml 读取实际配置文件路径
+YAML_OVERALL="$PROJECT_ROOT/config/config-overall.yaml"
+[[ ! -f "$YAML_OVERALL" ]] && { echo "❌ 配置文件不存在: $YAML_OVERALL"; exit 1; }
+
+OVERALL_MODEL=$(python3 -c "import yaml; print(yaml.safe_load(open('$YAML_OVERALL')).get('model', ''))")
+OVERALL_INFER=$(python3 -c "import yaml; print(yaml.safe_load(open('$YAML_OVERALL')).get('infer', ''))")
+
+YAML_MODEL="$PROJECT_ROOT/$OVERALL_MODEL"
+YAML_INFER="$PROJECT_ROOT/$OVERALL_INFER"
 
 [[ ! -f "$YAML_MODEL" ]] && { echo "❌ 配置文件不存在: $YAML_MODEL"; exit 1; }
 [[ ! -f "$YAML_INFER" ]] && { echo "❌ 配置文件不存在: $YAML_INFER"; exit 1; }

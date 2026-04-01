@@ -7,7 +7,7 @@ model:
   tensor_parallel_size: 1
   # 上下文长度（模型固有的最大上下文长度，通常对应max_position_embeddings，可被SGLang扩展）
   # Qwen3-VL-30B-A3B-Instruct模型支持最大262,144，但SGLang可扩展至1048576
-  max_context_length: 1048576
+  max_context_length: 262144
   # 模型类型: text | vision
   # 当设置为 vision 时，前端将启用视觉聊天模式（图片上传/摄像头拍照）
   model_type: vision

@@ -11,12 +11,77 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import AsyncGenerator, Generator, List, Optional, Union, Union
 import threading
+import uuid
 
 from .config import AppConfig, get_config
 from .utils.logger import DebugLogger, get_logger, get_memory_usage
 
 # 获取模块日志记录器
 logger = get_logger(__name__)
+
+# Active request tracking for abort mechanism
+_active_requests: dict = {}
+_requests_lock = threading.Lock()
+
+
+def create_request_id() -> str:
+    """Create a unique request ID for tracking."""
+    return str(uuid.uuid4())
+
+
+def register_request(request_id: str) -> None:
+    """Register a new active request."""
+    with _requests_lock:
+        _active_requests[request_id] = {"aborted": False}
+
+
+def abort_request(request_id: str) -> None:
+    """Mark a request as aborted."""
+    with _requests_lock:
+        if request_id in _active_requests:
+            _active_requests[request_id]["aborted"] = True
+
+
+def is_request_aborted(request_id: str) -> bool:
+    """Check if a request has been aborted."""
+    with _requests_lock:
+        return _active_requests.get(request_id, {}).get("aborted", False)
+
+
+def unregister_request(request_id: str) -> None:
+    """Remove a request from tracking."""
+    with _requests_lock:
+        _active_requests.pop(request_id, None)
+
+
+def abort_sglang_all(sglang_url: str) -> bool:
+    """
+    Call SGLang's /abort_request endpoint with abort_all=True to stop all running requests.
+
+    Args:
+        sglang_url: Base URL of SGLang server (e.g., http://localhost:30000)
+
+    Returns:
+        bool: True if abort was successful, False otherwise
+    """
+    import httpx
+
+    try:
+        with httpx.Client(timeout=10) as client:
+            response = client.post(
+                f"{sglang_url}/abort_request", json={"abort_all": True}
+            )
+            if response.status_code == 200:
+                logger.info("Successfully sent abort_all to SGLang")
+                return True
+            else:
+                logger.warning(
+                    f"SGLang abort_all failed: {response.status_code} - {response.text}"
+                )
+                return False
+    except Exception as e:
+        logger.error(f"Failed to call SGLang abort_all endpoint: {e}")
+        return False
 
 
 @dataclass
@@ -200,12 +265,22 @@ class SGLangProvider(LLMProviderInterface):
         top_p: Optional[float] = None,
         stream: bool = False,
         tools: Optional[List[dict]] = None,
+        request_id: Optional[str] = None,
     ) -> Union[GenerationResult, Generator[dict, None, None]]:
         """
         调用 SGLang 服务生成回复
+
+        Args:
+            request_id: Optional request ID for abort tracking. If provided and stream=True,
+                        the stream can be aborted by calling abort_request(request_id).
         """
         import httpx
         from .api.chat import convert_tools_for_sglang
+
+        # Register request for abort tracking if stream mode
+        if stream and request_id:
+            register_request(request_id)
+            logger.info(f"[ABORT] Registered request_id: {request_id}")
 
         # 转换工具格式以兼容 SGLang
         converted_tools = None
@@ -258,6 +333,7 @@ class SGLangProvider(LLMProviderInterface):
             """归一化消息中的图片尺寸，返回图片总数"""
             import base64 as _b64
             import io as _io
+
             try:
                 from PIL import Image as _PIL
             except ImportError:
@@ -303,11 +379,16 @@ class SGLangProvider(LLMProviderInterface):
                         self.debug.inference(
                             f"{TAG} 消息{i}[{j}]: {w}x{h} {kb:.1f}KB "
                             f"({mime}) ≈ {tokens_est} visual tokens"
-                            + (f" ⚠️  超限 max_dim={max_dim}, 将缩放" if need_resize else "")
+                            + (
+                                f" ⚠️  超限 max_dim={max_dim}, 将缩放"
+                                if need_resize
+                                else ""
+                            )
                         )
 
                         if need_resize:
                             import time as _t
+
                             _ts = _t.perf_counter()
                             img.load()
                             if w > h:
@@ -324,13 +405,17 @@ class SGLangProvider(LLMProviderInterface):
                             new_bytes = out_buf.getvalue()
                             new_b64 = _b64.b64encode(new_bytes).decode()
                             # 更新 messages_data in-place
-                            item["image_url"]["url"] = f"data:image/jpeg;base64,{new_b64}"
+                            item["image_url"]["url"] = (
+                                f"data:image/jpeg;base64,{new_b64}"
+                            )
                             new_tokens = (nw * nh) // PATCH_SQ
-                            total_tokens_estimate = total_tokens_estimate - tokens_est + new_tokens
+                            total_tokens_estimate = (
+                                total_tokens_estimate - tokens_est + new_tokens
+                            )
                             elapsed = (_t.perf_counter() - _ts) * 1000
                             self.debug.inference(
                                 f"{TAG} 消息{i}[{j}]: 缩放归一化 {w}x{h}→{nw}x{nh} "
-                                f"{kb:.1f}KB→{len(new_bytes)/1024:.1f}KB "
+                                f"{kb:.1f}KB→{len(new_bytes) / 1024:.1f}KB "
                                 f"tokens {tokens_est}→{new_tokens}, 耗时: {elapsed:.1f}ms"
                             )
                     except Exception as _e:
@@ -375,7 +460,8 @@ class SGLangProvider(LLMProviderInterface):
                 # 需要在整个 Agent 任务的所有步骤中保持可见（多步骤推理时 obs_text 会
                 # 插在后面，导致 TaskStep 成为"非最末 user 消息"而被误删）。
                 is_task_msg = any(
-                    isinstance(item, dict) and item.get("type") == "text"
+                    isinstance(item, dict)
+                    and item.get("type") == "text"
                     and item.get("text", "").startswith("New task:")
                     for item in content
                 )
@@ -391,68 +477,14 @@ class SGLangProvider(LLMProviderInterface):
                         new_content.append(item)
                 if img_in_msg > 0:
                     # 在文本列表开头插入占位符
-                    new_content.insert(0, {"type": "text", "text": f"[图片×{img_in_msg}]"})
+                    new_content.insert(
+                        0, {"type": "text", "text": f"[图片×{img_in_msg}]"}
+                    )
                     msg["content"] = new_content
             return stripped
 
         _strip_old_images(messages_data)
         image_count = _normalize_and_log_images(messages_data)
-
-        # ── 诊断：将发给 SGLang 的图片保存到磁盘 ──
-        # 在 /tmp/sglang_debug/ 下保存每张图片的解码字节，
-        # 可直接用图片查看器打开，确认 SGLang 收到的图片是否正确。
-        if image_count > 0:
-            import base64 as _b64_mod
-            import os as _os
-            import time as _t
-            _debug_dir = "/tmp/sglang_debug"
-            _os.makedirs(_debug_dir, exist_ok=True)
-            _ts = _t.strftime("%H%M%S")
-            _img_idx = 0
-            for _mi, _msg in enumerate(messages_data):
-                _ct = _msg.get("content")
-                if not isinstance(_ct, list):
-                    continue
-                for _ci, _item in enumerate(_ct):
-                    if isinstance(_item, dict) and _item.get("type") == "image_url":
-                        _url = _item.get("image_url", {}).get("url", "")
-                        if _url.startswith("data:"):
-                            try:
-                                _hdr, _b64 = _url.split(",", 1)
-                                _mime = _hdr.split(":")[1].split(";")[0]
-                                _ext = _mime.split("/")[-1].replace("jpeg", "jpg")
-                                _raw = _b64_mod.b64decode(_b64)
-                                _fname = f"{_ts}_msg{_mi}_item{_ci}.{_ext}"
-                                _fpath = _os.path.join(_debug_dir, _fname)
-                                with open(_fpath, "wb") as _f:
-                                    _f.write(_raw)
-                                self.debug.inference(
-                                    f"[DIAG] 图片已保存: {_fpath} ({len(_raw)} bytes, "
-                                    f"base64_len={len(_b64)}, mime={_mime})"
-                                )
-                                _img_idx += 1
-                            except Exception as _e:
-                                self.debug.inference(f"[DIAG] 图片保存失败: {_e}")
-
-            # 同时保存消息结构（不含 base64 内容）便于分析
-            _struct_path = _os.path.join(_debug_dir, f"{_ts}_messages.json")
-            _struct = []
-            for _msg in messages_data:
-                _ct = _msg.get("content")
-                if isinstance(_ct, list):
-                    _items = []
-                    for _item in _ct:
-                        if isinstance(_item, dict) and _item.get("type") == "image_url":
-                            _url = _item.get("image_url", {}).get("url", "")
-                            _items.append({"type": "image_url", "base64_len": len(_url), "prefix": _url[:60]})
-                        else:
-                            _items.append(_item)
-                    _struct.append({"role": _msg.get("role"), "content": _items})
-                else:
-                    _struct.append({"role": _msg.get("role"), "content_type": type(_ct).__name__, "content_len": len(str(_ct))})
-            with open(_struct_path, "w") as _f:
-                json.dump(_struct, _f, ensure_ascii=False, indent=2)
-            self.debug.inference(f"[DIAG] 消息结构已保存: {_struct_path}")
 
         # 调试：非图片请求打印请求体
         if image_count > 0:
@@ -463,7 +495,7 @@ class SGLangProvider(LLMProviderInterface):
             )
 
         if stream:
-            return self._stream_generate(request_data)
+            return self._stream_generate(request_data, request_id)
         else:
             return self._sync_generate(request_data)
 
@@ -512,8 +544,15 @@ class SGLangProvider(LLMProviderInterface):
             tool_calls=raw_tool_calls,
         )
 
-    def _stream_generate(self, request_data: dict) -> Generator[dict, None, None]:
-        """流式生成"""
+    def _stream_generate(
+        self, request_data: dict, request_id: Optional[str] = None
+    ) -> Generator[dict, None, None]:
+        """流式生成
+
+        Args:
+            request_data: The request payload to send to SGLang
+            request_id: Optional request ID for abort tracking
+        """
         import httpx
         import json
         import time
@@ -543,6 +582,17 @@ class SGLangProvider(LLMProviderInterface):
 
                     buffer = ""
                     for chunk in response.iter_text():
+                        # Check abort flag before processing each chunk
+                        if request_id and is_request_aborted(request_id):
+                            self.debug.inference(f"请求 {request_id} 已中止")
+                            # Yield abort signal before returning
+                            yield {
+                                "content": None,
+                                "reasoning": None,
+                                "aborted": True,
+                            }
+                            return
+
                         buffer += chunk
 
                         # 解析 SSE 数据
@@ -554,6 +604,17 @@ class SGLangProvider(LLMProviderInterface):
                                 data = line[6:]
 
                                 if data == "[DONE]":
+                                    # Check abort before returning
+                                    if request_id and is_request_aborted(request_id):
+                                        self.debug.inference(
+                                            f"请求 {request_id} 在 [DONE] 处中止"
+                                        )
+                                        yield {
+                                            "content": None,
+                                            "reasoning": None,
+                                            "aborted": True,
+                                        }
+                                        return
                                     return
 
                                 # 记录首次收到数据的时间
@@ -591,6 +652,9 @@ class SGLangProvider(LLMProviderInterface):
                 "content": f"\n[流式生成错误] {type(e).__name__}: {e}\n",
                 "reasoning": None,
             }
+        finally:
+            if request_id:
+                unregister_request(request_id)
 
     def is_loaded(self) -> bool:
         """检查是否已连接"""
@@ -1020,6 +1084,7 @@ class OpenAICompatibleProxyProvider(LLMProviderInterface):
         )
 
         if stream:
+            self._last_stream_request = request_data
             return self._stream_generate(request_data)
         else:
             return self._sync_generate(request_data)
@@ -1200,6 +1265,7 @@ class LLMService:
         top_p: Optional[float] = None,
         stream: bool = False,
         tools: Optional[List[dict]] = None,
+        request_id: Optional[str] = None,
     ) -> Union[GenerationResult, Generator[dict, None, None]]:
         """
         对话接口
@@ -1210,6 +1276,7 @@ class LLMService:
             temperature: 采样温度
             top_p: Top-P 采样参数
             stream: 是否流式输出
+            request_id: Optional request ID for abort tracking (for stream mode)
 
         Returns:
             生成结果或流式生成器 (字典形式 {"content": str, "reasoning": str})
@@ -1217,7 +1284,18 @@ class LLMService:
         if self._provider is None or not self._provider.is_loaded():
             raise RuntimeError("服务未初始化，请先调用 initialize()")
 
-        self.debug.inference(f"收到对话请求，消息数: {len(messages)}")
+        self.debug.inference(
+            f"收到对话请求，消息数: {len(messages)}, stream: {stream}, request_id: {request_id}"
+        )
+
+        if stream:
+            self._last_stream_request = {
+                "messages": [{"role": m.role, "content": m.content} for m in messages],
+                "max_new_tokens": max_new_tokens
+                or self.config.inference.max_new_tokens,
+                "temperature": temperature or self.config.inference.temperature,
+                "top_p": top_p or self.config.inference.top_p,
+            }
 
         return self._provider.generate(
             messages=messages,
@@ -1226,6 +1304,7 @@ class LLMService:
             top_p=top_p,
             stream=stream,
             tools=tools,
+            request_id=request_id,
         )
 
     async def chat_async(
@@ -1263,11 +1342,15 @@ class LLMService:
         temperature: Optional[float] = None,
         top_p: Optional[float] = None,
         tools: Optional[List[dict]] = None,
+        request_id: Optional[str] = None,
     ) -> AsyncGenerator[dict, None]:
         """
         异步流式对话接口
 
         将同步流式生成器包装为异步生成器。
+
+        Args:
+            request_id: Optional request ID for abort tracking
         """
         # 注意：直接在事件循环里迭代同步生成器会阻塞整个 FastAPI worker。
         # 这里把同步生成器放到后台线程里跑，用 asyncio.Queue 转发，保证 SSE 流式不阻塞。
@@ -1278,6 +1361,7 @@ class LLMService:
             top_p=top_p,
             stream=True,
             tools=tools,
+            request_id=request_id,
         )
 
         q: asyncio.Queue[Optional[dict]] = asyncio.Queue()
@@ -1324,9 +1408,99 @@ class LLMService:
             self._provider = None
             logger.info("LLM 服务已关闭")
 
+    def get_stream_usage(self, output_text: str) -> dict | None:
+        """
+        流式调用完成后获取 token 统计。
+        由于 SGLang 不在流式响应中返回 usage，需要本地估算。
+        """
+        if not hasattr(self, "_last_stream_request"):
+            return None
+
+        request_data = self._last_stream_request
+
+        prompt_tokens = 0
+        for msg in request_data.get("messages", []):
+            content = msg.get("content", "")
+            if isinstance(content, str):
+                prompt_tokens += len(content) // 4
+            elif isinstance(content, list):
+                for item in content:
+                    if isinstance(item, dict):
+                        if item.get("type") == "text":
+                            text = item.get("text", "")
+                            prompt_tokens += len(text) // 4
+                        elif item.get("type") == "image_url":
+                            url = item.get("image_url", {}).get("url", "")
+                            if url.startswith("data:"):
+                                b64_part = url.split(",", 1)[1] if "," in url else ""
+                                prompt_tokens += len(b64_part) * 3 // 4 // 4
+
+        completion_tokens = len(output_text) // 4
+
+        return {
+            "prompt_tokens": prompt_tokens,
+            "completion_tokens": completion_tokens,
+            "total_tokens": prompt_tokens + completion_tokens,
+        }
+
 
 # 全局服务实例
 _llm_service: Optional[LLMService] = None
+
+
+def abort_sglang_request(sglang_url: str, request_id: str) -> bool:
+    """
+    Call SGLang's /abort_request endpoint to actually stop the inference.
+
+    Args:
+        sglang_url: Base URL of SGLang server (e.g., http://localhost:30000)
+        request_id: The request ID to abort
+
+    Returns:
+        bool: True if abort was successful, False otherwise
+    """
+    import httpx
+
+    try:
+        with httpx.Client(timeout=10) as client:
+            response = client.post(
+                f"{sglang_url}/abort_request", json={"request_id": request_id}
+            )
+            if response.status_code == 200:
+                logger.info(
+                    f"Successfully sent abort to SGLang for request: {request_id}"
+                )
+                return True
+            else:
+                logger.warning(
+                    f"SGLang abort failed: {response.status_code} - {response.text}"
+                )
+                return False
+    except Exception as e:
+        logger.error(f"Failed to call SGLang abort endpoint: {e}")
+        return False
+
+
+def abort_request_by_id(request_id: str, sglang_url: Optional[str] = None) -> bool:
+    """
+    Abort a running request by its ID.
+
+    Args:
+        request_id: The request ID to abort
+        sglang_url: Optional SGLang server URL. If provided, will also call SGLang's
+                    /abort_request endpoint to actually stop GPU inference.
+
+    Returns:
+        bool: True if the request was found and marked as aborted, False otherwise
+    """
+    abort_request(request_id)
+
+    if sglang_url:
+        abort_sglang_request(sglang_url, request_id)
+        # Also try abort_all as fallback to ensure GPU stops generating
+        abort_sglang_all(sglang_url)
+
+    return is_request_aborted(request_id)
 
 
 def get_llm_service(use_mock: bool = False) -> LLMService:

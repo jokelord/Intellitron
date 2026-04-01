@@ -6,6 +6,9 @@ export const metadata: Metadata = {
   description: '基于 Qwen3-Next-80B-A3B-Instruct-NVFP4 的对话体验程序，支持 NVIDIA Jetson Thor 部署',
   keywords: ['LLM', 'Qwen3', 'NVIDIA', 'Jetson Thor', 'ChatBot'],
   authors: [{ name: 'LLM-Test Team' }],
+  icons: {
+    icon: '/favicon.svg',
+  },
 }
 
 export default function RootLayout({

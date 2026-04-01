@@ -16,7 +16,13 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from ..config import get_config
-from ..llm_service import LLMService, Message, get_llm_service
+from ..llm_service import (
+    LLMService,
+    Message,
+    abort_request_by_id,
+    create_request_id,
+    get_llm_service,
+)
 from ..utils.logger import DebugLogger, get_logger
 
 # 创建路由器
@@ -96,6 +102,15 @@ class ChatCompletionRequest(BaseModel):
     stream: bool = Field(default=False, description="是否流式输出")
     tools: Optional[List[dict]] = Field(default=None, description="可用工具列表")
     tool_choice: Optional[str] = Field(default=None, description="工具选择策略")
+    request_id: Optional[str] = Field(
+        default=None, description="请求 ID（用于中止流式请求）"
+    )
+
+
+class ChatStopRequest(BaseModel):
+    """停止聊天请求"""
+
+    request_id: str = Field(..., description="要中止的请求 ID")
 
 
 class ChatCompletionChoice(BaseModel):
@@ -215,6 +230,8 @@ async def create_chat_completion(request: ChatCompletionRequest):
     # 处理流式请求
     if request.stream:
         debug.api("使用流式输出模式")
+        # Use provided request_id or create a new one
+        req_id = request.request_id or create_request_id()
         return StreamingResponse(
             _generate_stream_response(
                 service=service,
@@ -224,6 +241,7 @@ async def create_chat_completion(request: ChatCompletionRequest):
                 temperature=request.temperature,
                 top_p=request.top_p,
                 tools=converted_tools,
+                request_id=req_id,
             ),
             media_type="text/event-stream",
         )
@@ -272,6 +290,41 @@ async def create_chat_completion(request: ChatCompletionRequest):
         raise HTTPException(status_code=500, detail=f"生成失败: {str(e)}")
 
 
+@router.post("/chat/stop")
+async def stop_chat(request: ChatStopRequest):
+    """
+    停止正在进行的聊天请求
+
+    通过 request_id 标记流式请求为中止状态，同时调用 SGLang 的 /abort_request
+    端点立即停止 GPU 推理。
+    """
+    from ..llm_service import _active_requests, abort_request, is_request_aborted
+    from ..llm_service import abort_sglang_all
+    from ..config import get_config
+    import httpx
+
+    config = get_config()
+    sglang_url = f"http://{config.sglang.host}:{config.sglang.port}"
+
+    debug.api(f"[STOP] 收到停止请求: request_id={request.request_id}")
+
+    # Mark as aborted in our tracking
+    abort_request(request.request_id)
+
+    # Call SGLang abort_all to stop GPU inference - use httpx directly for more control
+    try:
+        debug.api(f"[STOP] Calling SGLang abort_all at {sglang_url}...")
+        with httpx.Client(timeout=10) as client:
+            resp = client.post(f"{sglang_url}/abort_request", json={"abort_all": True})
+            debug.api(
+                f"[STOP] SGLang abort_all response: {resp.status_code} - {resp.text}"
+            )
+    except Exception as e:
+        debug.api(f"[STOP] SGLang abort_all error: {e}")
+
+    return {"status": "stopped", "request_id": request.request_id}
+
+
 async def _generate_stream_response(
     service: LLMService,
     messages: List[Message],
@@ -280,11 +333,15 @@ async def _generate_stream_response(
     temperature: Optional[float],
     top_p: Optional[float],
     tools: Optional[List[dict]] = None,
+    request_id: Optional[str] = None,
 ) -> AsyncGenerator[str, None]:
     """
     生成流式响应
 
     格式化为 SSE (Server-Sent Events) 格式，兼容 OpenAI 流式 API。
+
+    Args:
+        request_id: Optional request ID for abort tracking
     """
     response_id = f"chatcmpl-{uuid.uuid4().hex[:8]}"
     created = int(time.time())
@@ -310,7 +367,15 @@ async def _generate_stream_response(
             temperature=temperature,
             top_p=top_p,
             tools=tools,
+            request_id=request_id,
         ):
+            # Check for abort signal from LLM service
+            if chunk_data.get("aborted"):
+                debug.api(f"请求 {request_id} 已被中止")
+                # Send stop signal
+                yield f"data: [DONE]\n\n"
+                return
+
             chunk = ChatCompletionChunk(
                 id=response_id,
                 created=created,
@@ -741,6 +806,7 @@ async def process_image(request: ImageProcessRequest):
     )
 
     import time as _time
+
     _t0 = _time.perf_counter()
 
     try:
@@ -759,7 +825,7 @@ async def process_image(request: ImageProcessRequest):
 
         debug.api(
             f"[process-image] Base64 解码: {len(request.image)} chars → {original_size} bytes, "
-            f"耗时: {_t_b64dec*1000:.1f}ms"
+            f"耗时: {_t_b64dec * 1000:.1f}ms"
         )
 
         # 使用 Pillow 处理图片
@@ -788,7 +854,7 @@ async def process_image(request: ImageProcessRequest):
 
         debug.api(
             f"[process-image] PIL 解码+缩放: {original_width}x{original_height} → {new_width}x{new_height}, "
-            f"耗时: {_t_pil*1000:.1f}ms"
+            f"耗时: {_t_pil * 1000:.1f}ms"
         )
 
         # 转换格式并压缩
@@ -826,8 +892,8 @@ async def process_image(request: ImageProcessRequest):
         debug.api(
             f"[process-image] ✅ 完成: {original_width}x{original_height} → {new_width}x{new_height} {output_format}, "
             f"原始 {original_size} → 处理后 {len(processed_bytes)} bytes, "
-            f"总耗时: {_t_total*1000:.1f}ms "
-            f"[b64解码={_t_b64dec*1000:.1f} + PIL={_t_pil*1000:.1f} + 转换+b64编码={_t_encode*1000:.1f}]"
+            f"总耗时: {_t_total * 1000:.1f}ms "
+            f"[b64解码={_t_b64dec * 1000:.1f} + PIL={_t_pil * 1000:.1f} + 转换+b64编码={_t_encode * 1000:.1f}]"
         )
 
         return ImageProcessResponse(
@@ -842,7 +908,7 @@ async def process_image(request: ImageProcessRequest):
     except Exception as e:
         _t_total = _time.perf_counter() - _t0
         logger.error(
-            f"[process-image] ❌ 失败: 耗时 {_t_total*1000:.1f}ms, "
+            f"[process-image] ❌ 失败: 耗时 {_t_total * 1000:.1f}ms, "
             f"错误: {type(e).__name__}: {e}",
             exc_info=True,
         )
@@ -856,10 +922,13 @@ async def process_image(request: ImageProcessRequest):
 #   新链路：前端直接发送原始字节 → HTTP 传输 → 后端 BytesIO → 处理 → 一次 Base64 编码 → 返回
 # ============================================================
 
+
 @router.post("/process-image-binary", response_model=ImageProcessResponse)
 async def process_image_binary(
     file: UploadFile = File(..., description="原始图片文件（multipart/form-data）"),
-    format: str = Form(default="auto", description="输出格式: auto, webp, jpeg, png (auto=智能选择)"),
+    format: str = Form(
+        default="auto", description="输出格式: auto, webp, jpeg, png (auto=智能选择)"
+    ),
 ):
     """
     处理图片（二进制上传版 v2）—— 针对 VLM TTFT 全链路优化。
@@ -899,8 +968,8 @@ async def process_image_binary(
         _t_read = _time.perf_counter() - _t_read_start
 
         debug.api(
-            f"{TAG} 读取原始字节: {original_size} bytes ({original_size/1024:.1f} KB), "
-            f"耗时: {_t_read*1000:.1f}ms (无 Base64 解码)"
+            f"{TAG} 读取原始字节: {original_size} bytes ({original_size / 1024:.1f} KB), "
+            f"耗时: {_t_read * 1000:.1f}ms (无 Base64 解码)"
         )
 
         # ── 阶段 2: PIL 解码 + 获取原始尺寸 ──
@@ -912,14 +981,13 @@ async def process_image_binary(
 
         debug.api(
             f"{TAG} PIL 图片解码: {original_width}x{original_height}, "
-            f"mode={img.mode}, format={original_format}, 耗时: {_t_decode*1000:.1f}ms "
+            f"mode={img.mode}, format={original_format}, 耗时: {_t_decode * 1000:.1f}ms "
             f"(lazy decode, 未 load 像素)"
         )
 
         # ── 阶段 3: 判断是否需要缩放 ──
-        need_resize = (
-            max_dim > 0
-            and (original_width > max_dim or original_height > max_dim)
+        need_resize = max_dim > 0 and (
+            original_width > max_dim or original_height > max_dim
         )
 
         if need_resize:
@@ -938,9 +1006,9 @@ async def process_image_binary(
 
             debug.api(
                 f"{TAG} 缩放: {original_width}x{original_height} → {new_width}x{new_height} "
-                f"(max_dim={max_dim}), 耗时: {_t_resize*1000:.1f}ms, "
-                f"像素数: {original_width*original_height} → {new_width*new_height} "
-                f"(减少 {(1 - new_width*new_height/(original_width*original_height))*100:.0f}%)"
+                f"(max_dim={max_dim}), 耗时: {_t_resize * 1000:.1f}ms, "
+                f"像素数: {original_width * original_height} → {new_width * new_height} "
+                f"(减少 {(1 - new_width * new_height / (original_width * original_height)) * 100:.0f}%)"
             )
         else:
             new_width, new_height = original_width, original_height
@@ -964,13 +1032,19 @@ async def process_image_binary(
                 # 无需缩放且格式兼容 → 直接透传原始字节, 零重编码!
                 processed_bytes = image_bytes
                 # 保留原始 MIME 类型
-                _fmt_map = {"jpeg": "jpeg", "jpg": "jpeg", "webp": "webp",
-                            "png": "png", "gif": "gif", "bmp": "jpeg"}
+                _fmt_map = {
+                    "jpeg": "jpeg",
+                    "jpg": "jpeg",
+                    "webp": "webp",
+                    "png": "png",
+                    "gif": "gif",
+                    "bmp": "jpeg",
+                }
                 output_format = _fmt_map.get(original_format, "jpeg")
                 _t_encode = _time.perf_counter() - _t_encode_start
                 debug.api(
                     f"{TAG} ⚡ 原格式透传 ({original_format}): 跳过 PIL 重编码, 直接使用原始字节 "
-                    f"({original_size} bytes), 耗时: {_t_encode*1000:.1f}ms (几乎为零!)"
+                    f"({original_size} bytes), 耗时: {_t_encode * 1000:.1f}ms (几乎为零!)"
                 )
             else:
                 # 需要缩放 或 含透明通道 → 转 RGB 后编码为 JPEG
@@ -999,7 +1073,7 @@ async def process_image_binary(
                 reason = "含透明通道,已合成白色背景" if _needs_rgb_convert else "缩放后"
                 debug.api(
                     f"{TAG} JPEG 编码 (auto, {reason}): {len(processed_bytes)} bytes, "
-                    f"耗时: {_t_encode*1000:.1f}ms"
+                    f"耗时: {_t_encode * 1000:.1f}ms"
                 )
         elif format_lower in ("jpeg", "jpg"):
             if not resized and original_format in ("jpeg", "jpg"):
@@ -1008,7 +1082,7 @@ async def process_image_binary(
                 _t_encode = _time.perf_counter() - _t_encode_start
                 debug.api(
                     f"{TAG} ⚡ JPEG 透传: 直接使用原始字节, "
-                    f"耗时: {_t_encode*1000:.1f}ms"
+                    f"耗时: {_t_encode * 1000:.1f}ms"
                 )
             else:
                 if img.mode in ("RGBA", "P"):
@@ -1020,7 +1094,7 @@ async def process_image_binary(
                 _t_encode = _time.perf_counter() - _t_encode_start
                 debug.api(
                     f"{TAG} JPEG 编码: {len(processed_bytes)} bytes, "
-                    f"耗时: {_t_encode*1000:.1f}ms"
+                    f"耗时: {_t_encode * 1000:.1f}ms"
                 )
         elif format_lower == "webp":
             if not resized:
@@ -1032,7 +1106,7 @@ async def process_image_binary(
             _t_encode = _time.perf_counter() - _t_encode_start
             debug.api(
                 f"{TAG} WebP 编码: {len(processed_bytes)} bytes, "
-                f"耗时: {_t_encode*1000:.1f}ms (注意: WebP 编码远慢于 JPEG)"
+                f"耗时: {_t_encode * 1000:.1f}ms (注意: WebP 编码远慢于 JPEG)"
             )
         elif format_lower == "png":
             if not resized:
@@ -1044,7 +1118,7 @@ async def process_image_binary(
             _t_encode = _time.perf_counter() - _t_encode_start
             debug.api(
                 f"{TAG} PNG 编码: {len(processed_bytes)} bytes, "
-                f"耗时: {_t_encode*1000:.1f}ms"
+                f"耗时: {_t_encode * 1000:.1f}ms"
             )
         else:
             # 未知格式 fallback 到 JPEG
@@ -1057,7 +1131,7 @@ async def process_image_binary(
             _t_encode = _time.perf_counter() - _t_encode_start
             debug.api(
                 f"{TAG} JPEG fallback 编码: {len(processed_bytes)} bytes, "
-                f"耗时: {_t_encode*1000:.1f}ms"
+                f"耗时: {_t_encode * 1000:.1f}ms"
             )
 
         # ── 阶段 5: Base64 编码（唯一一次，为 SGLang data URL 服务）──
@@ -1071,23 +1145,24 @@ async def process_image_binary(
 
         debug.api(
             f"{TAG} Base64 编码(唯一一次): "
-            f"{len(processed_b64)} chars ({len(processed_b64)/1024:.1f} KB), "
-            f"耗时: {_t_b64*1000:.1f}ms"
+            f"{len(processed_b64)} chars ({len(processed_b64) / 1024:.1f} KB), "
+            f"耗时: {_t_b64 * 1000:.1f}ms"
         )
 
         # ── 总结 ──
         pixel_reduction = (
-            f", 像素缩减 {(1 - new_width*new_height/(original_width*original_height))*100:.0f}%"
-            if resized else ""
+            f", 像素缩减 {(1 - new_width * new_height / (original_width * original_height)) * 100:.0f}%"
+            if resized
+            else ""
         )
         debug.api(
             f"{TAG} ✅ 完成: {original_width}x{original_height} → "
             f"{new_width}x{new_height} {output_format}, "
-            f"原始 {original_size/1024:.1f}KB → 处理后 {len(processed_bytes)/1024:.1f}KB "
-            f"(压缩比 {len(processed_bytes)/original_size*100:.1f}%{pixel_reduction}), "
-            f"总耗时: {_t_total*1000:.1f}ms "
-            f"[读取={_t_read*1000:.1f} + 解码={_t_decode*1000:.1f} + "
-            f"缩放={_t_resize*1000:.1f} + 编码={_t_encode*1000:.1f} + b64={_t_b64*1000:.1f}]"
+            f"原始 {original_size / 1024:.1f}KB → 处理后 {len(processed_bytes) / 1024:.1f}KB "
+            f"(压缩比 {len(processed_bytes) / original_size * 100:.1f}%{pixel_reduction}), "
+            f"总耗时: {_t_total * 1000:.1f}ms "
+            f"[读取={_t_read * 1000:.1f} + 解码={_t_decode * 1000:.1f} + "
+            f"缩放={_t_resize * 1000:.1f} + 编码={_t_encode * 1000:.1f} + b64={_t_b64 * 1000:.1f}]"
         )
 
         return ImageProcessResponse(
@@ -1103,12 +1178,12 @@ async def process_image_binary(
         _t_total = _time.perf_counter() - _t0
         logger.error(
             f"{TAG} ❌ 失败: filename={file.filename}, "
-            f"耗时: {_t_total*1000:.1f}ms, 错误: {type(e).__name__}: {e}",
+            f"耗时: {_t_total * 1000:.1f}ms, 错误: {type(e).__name__}: {e}",
             exc_info=True,
         )
         debug.api(
             f"{TAG} ❌ 失败: {type(e).__name__}: {e}, "
-            f"耗时: {_t_total*1000:.1f}ms — "
+            f"耗时: {_t_total * 1000:.1f}ms — "
             f"请检查图片文件是否损坏或格式不受支持"
         )
         raise HTTPException(status_code=400, detail=f"图片处理失败: {str(e)}")

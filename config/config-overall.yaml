@@ -3,10 +3,20 @@
 # 目标平台: NVIDIA Jetson Thor (ARM64, Ubuntu) / Desktop GPU
 # 作者: 
 # ============================================================
-model: config/config-model.yaml
-infer: config/config-infer.yaml
+
+# 模型的路径等基本信息
+model: config/qwen3-vl-config-model.yaml
+
+# 推理相关配置（如sglang的注意力后端、推理模式等），对应的启动sh启动脚本位于/scripts目录
+infer: config/qwen3-vl-config-infer.yaml
+
+# 服务器和前端相关配置（如API端口、跨域设置等）
 server: config/config-server.yaml
+
+# 其他杂项配置（如agentic tool设置等）
 misc: config/config-misc.yaml
+
+# Agentic工具相关的提示词配置
 agent_prompts: config/config-agent-prompts.yaml
 
 

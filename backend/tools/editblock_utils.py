@@ -45,7 +45,9 @@ def perfect_or_whitespace(whole_lines, part_lines, replace_lines):
     if res:
         return res
 
-    res = replace_part_with_missing_leading_whitespace(whole_lines, part_lines, replace_lines)
+    res = replace_part_with_missing_leading_whitespace(
+        whole_lines, part_lines, replace_lines
+    )
     if res:
         return res
 
@@ -69,7 +71,9 @@ def match_but_for_leading_whitespace(whole_lines, part_lines):
     return add.pop()
 
 
-def replace_part_with_missing_leading_whitespace(whole_lines, part_lines, replace_lines):
+def replace_part_with_missing_leading_whitespace(
+    whole_lines, part_lines, replace_lines
+):
     """策略 2：修复 LLM 常见的前导空白偏差"""
     leading = [len(p) - len(p.lstrip()) for p in part_lines if p.strip()] + [
         len(p) - len(p.lstrip()) for p in replace_lines if p.strip()
@@ -90,8 +94,12 @@ def replace_part_with_missing_leading_whitespace(whole_lines, part_lines, replac
         if add_leading is None:
             continue
 
-        replace_lines = [add_leading + rline if rline.strip() else rline for rline in replace_lines]
-        whole_lines = whole_lines[:i] + replace_lines + whole_lines[i + num_part_lines :]
+        adjusted_replace = [
+            add_leading + rline if rline.strip() else rline for rline in replace_lines
+        ]
+        whole_lines = (
+            whole_lines[:i] + adjusted_replace + whole_lines[i + num_part_lines :]
+        )
         return "".join(whole_lines)
 
     return None
@@ -203,7 +211,9 @@ def replace_most_similar_chunk(whole, part, replace):
     # 策略 2: 跳过 LLM 偶尔添加的首行空行
     if len(part_lines) > 2 and not part_lines[0].strip():
         skip_blank_line_part_lines = part_lines[1:]
-        res = perfect_or_whitespace(whole_lines, skip_blank_line_part_lines, replace_lines)
+        res = perfect_or_whitespace(
+            whole_lines, skip_blank_line_part_lines, replace_lines
+        )
         if res:
             return res
 

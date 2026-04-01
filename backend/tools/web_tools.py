@@ -12,6 +12,13 @@ from smolagents import tool
 
 from backend.config import ConfigLoader
 
+
+class AbortError(Exception):
+    """Raised when operation is aborted by user."""
+
+    pass
+
+
 ENGINE_DEFAULTS = {
     "duckduckgo": {
         "endpoint": "https://html.duckduckgo.com/html/",
@@ -348,9 +355,17 @@ def parse_360_html(html: str) -> List[dict]:
 
 
 def execute_curl_search(
-    endpoint: str, query: str, method: str, proxy: Optional[str], engine: str = ""
+    endpoint: str,
+    query: str,
+    method: str,
+    proxy: Optional[str],
+    engine: str = "",
+    check_abort: callable = None,
+    timeout: int = 30,
 ) -> str:
     """Execute search using curl."""
+    import time
+
     if engine == "bing":
         user_agent = "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1"
     else:
@@ -360,7 +375,7 @@ def execute_curl_search(
         "curl",
         "-s",
         "--max-time",
-        "30",
+        str(timeout),
         "-L",
         "-H",
         f"User-Agent: {user_agent}",
@@ -389,16 +404,45 @@ def execute_curl_search(
         curl_args.append(f"{endpoint}?q={urllib.parse.quote(query)}")
 
     try:
-        result = subprocess.run(
+        proc = subprocess.Popen(
             curl_args,
-            capture_output=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
             text=True,
-            timeout=35,
         )
-    except subprocess.TimeoutExpired:
-        raise TimeoutError("Search timed out")
+        start_time = time.time()
+        proc_timeout = timeout + 5  # 给 curl 多 5 秒的宽限
 
-    return result.stdout
+        while True:
+            if check_abort and check_abort():
+                proc.terminate()
+                try:
+                    proc.wait(timeout=2)
+                except subprocess.TimeoutExpired:
+                    proc.kill()
+                raise AbortError("Search aborted by user")
+
+            retcode = proc.poll()
+            if retcode is not None:
+                stdout, stderr = proc.communicate()
+                return stdout
+
+            elapsed = time.time() - start_time
+            if elapsed > proc_timeout:
+                proc.terminate()
+                try:
+                    proc.wait(timeout=2)
+                except subprocess.TimeoutExpired:
+                    proc.kill()
+                raise TimeoutError("Search timed out")
+
+            time.sleep(0.5)
+    except TimeoutError:
+        raise
+    except AbortError:
+        raise
+    except Exception as e:
+        raise RuntimeError(f"Search failed: {e}")
 
 
 def _detect_results(html: str, engine: str) -> bool:
@@ -438,10 +482,14 @@ def _do_search(
     method: str,
     query: str,
     proxy: Optional[str],
+    check_abort: callable = None,
+    timeout: int = 30,
 ) -> List[dict]:
     """Execute search with specified engine."""
     if protocol == "curl":
-        html = execute_curl_search(endpoint, query, method, proxy, engine)
+        html = execute_curl_search(
+            endpoint, query, method, proxy, engine, check_abort, timeout
+        )
     else:
         raise ValueError(f"Unsupported protocol: {protocol}")
 
@@ -458,17 +506,26 @@ def _do_search(
 
 
 @tool
-def web_search(query: str, max_results: int = 10, use_fallback: bool = True) -> str:
+def web_search(
+    query: str,
+    max_results: int = 10,
+    timeout: int = 30,
+    use_fallback: bool = True,
+    check_abort: callable = None,
+) -> str:
     """Search the web using configured search engine.
 
     Args:
         query: The search query string.
         max_results: Maximum number of results to return (default: 10).
+        timeout: Request timeout in seconds (default: 30). Increase for slow networks.
         use_fallback: Whether to use fallback engine on failure (default: True).
+        check_abort: Optional callback to check if operation should be aborted.
 
     Returns:
         Formatted search results as markdown with titles, URLs, and descriptions.
     """
+    timeout = timeout or 30
     cfg = _get_config()
 
     engine = cfg["search_engine"]
@@ -497,8 +554,13 @@ def web_search(query: str, max_results: int = 10, use_fallback: bool = True) -> 
         if not endpoint:
             continue
 
+        if check_abort and check_abort():
+            return "搜索已被用户中止"
+
         try:
-            results = _do_search(eng, endpoint, prot, met, query, proxy)
+            results = _do_search(
+                eng, endpoint, prot, met, query, proxy, check_abort, timeout
+            )
             if results:
                 results = results[:max_results]
                 output = "## Search Results\n\n"
@@ -508,6 +570,8 @@ def web_search(query: str, max_results: int = 10, use_fallback: bool = True) -> 
                         output += f"  {r['description']}\n"
                     output += "\n"
                 return output
+        except AbortError:
+            return "搜索已被用户中止"
         except Exception as e:
             continue
 
@@ -515,20 +579,26 @@ def web_search(query: str, max_results: int = 10, use_fallback: bool = True) -> 
 
 
 @tool
-def web_fetch(url: str) -> str:
+def web_fetch(url: str, timeout: int = 30, check_abort: callable = None) -> str:
     """Fetch a webpage and convert it to text.
 
     Args:
         url: The URL of the webpage to fetch.
+        timeout: Request timeout in seconds (default: 30). Increase for slow networks.
+        check_abort: Optional callback to check if operation should be aborted.
 
     Returns:
         The webpage content converted to text/markdown format.
     """
+    import time
+
+    timeout = timeout or 30
+
     curl_args = [
         "curl",
         "-s",
         "--max-time",
-        "30",
+        str(timeout),
         "-L",
         "-H",
         "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
@@ -541,65 +611,95 @@ def web_fetch(url: str) -> str:
         curl_args.extend(["-x", proxy])
 
     try:
-        result = subprocess.run(
+        proc = subprocess.Popen(
             curl_args + [url],
-            capture_output=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
             text=True,
-            timeout=35,
         )
-    except subprocess.TimeoutExpired:
-        return "Failed to fetch webpage: request timed out."
+        start_time = time.time()
+        proc_timeout = timeout + 5  # 给 curl 多 5 秒的宽限
 
-    if not result.stdout:
-        return "Failed to fetch webpage: empty response."
+        while True:
+            if check_abort and check_abort():
+                proc.terminate()
+                try:
+                    proc.wait(timeout=2)
+                except subprocess.TimeoutExpired:
+                    proc.kill()
+                return "网页获取已被用户中止"
 
-    html = result.stdout
+            retcode = proc.poll()
+            if retcode is not None:
+                stdout, stderr = proc.communicate()
+                result_stdout = stdout
+                break
 
-    output = f"# Content from {url}\n\n"
+            elapsed = time.time() - start_time
+            if elapsed > proc_timeout:
+                proc.terminate()
+                try:
+                    proc.wait(timeout=2)
+                except subprocess.TimeoutExpired:
+                    proc.kill()
+                return "Failed to fetch webpage: request timed out."
 
-    text = re.sub(
-        r"<script[^>]*>.*?</script>", "", html, flags=re.DOTALL | re.IGNORECASE
-    )
-    text = re.sub(r"<style[^>]*>.*?</style>", "", text, flags=re.DOTALL | re.IGNORECASE)
-    text = re.sub(
-        r"<header[^>]*>.*?</header>", "", text, flags=re.DOTALL | re.IGNORECASE
-    )
-    text = re.sub(
-        r"<footer[^>]*>.*?</footer>", "", text, flags=re.DOTALL | re.IGNORECASE
-    )
-    text = re.sub(r"<nav[^>]*>.*?</nav>", "", text, flags=re.DOTALL | re.IGNORECASE)
-    text = re.sub(
-        r"<iframe[^>]*>.*?</iframe>", "", text, flags=re.DOTALL | re.IGNORECASE
-    )
+            time.sleep(0.5)
 
-    text = re.sub(
-        r"<h[1-6][^>]*>(.*?)</h[1-6]>",
-        r"\n\n## \1\n\n",
-        text,
-        flags=re.DOTALL | re.IGNORECASE,
-    )
-    text = re.sub(
-        r"<p[^>]*>(.*?)</p>", r"\1\n\n", text, flags=re.DOTALL | re.IGNORECASE
-    )
-    text = re.sub(r"<br\s*/?>", "\n", text, flags=re.IGNORECASE)
-    text = re.sub(
-        r"<li[^>]*>(.*?)</li>", r"- \1\n", text, flags=re.DOTALL | re.IGNORECASE
-    )
-    text = re.sub(
-        r"<a[^>]*href=\"([^\"]*)\"[^>]*>(.*?)</a>",
-        r"[\2](\1)",
-        text,
-        flags=re.DOTALL | re.IGNORECASE,
-    )
+        if not result_stdout:
+            return "Failed to fetch webpage: empty response."
 
-    text = re.sub(r"<[^>]+>", "", text)
-    text = _html_unescape(text)
+        html = result_stdout
 
-    text = re.sub(r"\n{3,}", "\n\n", text)
-    text = text.strip()
+        output = f"# Content from {url}\n\n"
 
-    max_length = 8000
-    if len(text) > max_length:
-        text = text[:max_length] + "\n\n...(content truncated)"
+        text = re.sub(
+            r"<script[^>]*>.*?</script>", "", html, flags=re.DOTALL | re.IGNORECASE
+        )
+        text = re.sub(
+            r"<style[^>]*>.*?</style>", "", text, flags=re.DOTALL | re.IGNORECASE
+        )
+        text = re.sub(
+            r"<header[^>]*>.*?</header>", "", text, flags=re.DOTALL | re.IGNORECASE
+        )
+        text = re.sub(
+            r"<footer[^>]*>.*?</footer>", "", text, flags=re.DOTALL | re.IGNORECASE
+        )
+        text = re.sub(r"<nav[^>]*>.*?</nav>", "", text, flags=re.DOTALL | re.IGNORECASE)
+        text = re.sub(
+            r"<iframe[^>]*>.*?</iframe>", "", text, flags=re.DOTALL | re.IGNORECASE
+        )
 
-    return output + text
+        text = re.sub(
+            r"<h[1-6][^>]*>(.*?)</h[1-6]>",
+            r"\n\n## \1\n\n",
+            text,
+            flags=re.DOTALL | re.IGNORECASE,
+        )
+        text = re.sub(
+            r"<p[^>]*>(.*?)</p>", r"\1\n\n", text, flags=re.DOTALL | re.IGNORECASE
+        )
+        text = re.sub(r"<br\s*/?>", "\n", text, flags=re.IGNORECASE)
+        text = re.sub(
+            r"<li[^>]*>(.*?)</li>", r"- \1\n", text, flags=re.DOTALL | re.IGNORECASE
+        )
+        text = re.sub(
+            r"<a[^>]*href=\"([^\"]*)\"[^>]*>(.*?)</a>",
+            r"[\2](\1)",
+            text,
+            flags=re.DOTALL | re.IGNORECASE,
+        )
+
+        text = re.sub(r"<[^>]+>", "", text)
+        text = _html_unescape(text)
+
+        text = re.sub(r"\n{3,}", "\n\n", text)
+        text = text.strip()
+
+        max_length = 8000
+        if len(text) > max_length:
+            text = text[:max_length] + "\n\n...(content truncated)"
+
+        return output + text
+    except Exception as e:
+        return f"Failed to fetch webpage: {str(e)}"

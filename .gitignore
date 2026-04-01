@@ -197,11 +197,12 @@ datasets/
 weights/
 checkpoints/
 
-# 推理框架源码库
+# 参考源码库
 vllm-main/
 sglang-main/
 aider-main/
 smolagents-main/
+claude-code-main/
 
 # 备忘录
 踩坑记录.md

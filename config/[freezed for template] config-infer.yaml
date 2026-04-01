@@ -40,13 +40,13 @@ sglang:
   tool_call_parser: qwen3_coder
   # 是否禁用 CUDA 图优化
   disable_cuda_graph: false
-  # 张量并行大小(Thor单卡设为1)
+  # 张量并行大小(Thor必须设为1)
   tensor_parallel_size: 1
   # 上下文长度（传递给SGLang服务器的--context-length参数，可覆盖模型默认值）
   # Qwen3-Coder-30B-A3B-Instruct模型支持最大262,144, 但SGLang可扩展至1048576
-  max_context_length: 1048576
+  max_context_length: 562144
   # 内存使用比例（限制SGLang使用的GPU内存比例，0.0-1.0，默认0.893）
-  mem_fraction_static: 0.72
+  mem_fraction_static: 0.65
   # EAGLE speculative decoding 配置（如果需要开启）
   speculative_algorithm: null
   speculative_draft_model_path: null
@@ -54,7 +54,7 @@ sglang:
   trust_remote_code: true
   # 注意力后端：triton /trtllm_mha / torch_native / flashinfer（最快，v0.5.9已支持Thor）/FA4（仅在prefill阶段支持，不推荐在Thor上使用） 等
   # ⚠️ Qwen3.5 是 hybrid GDN 模型（混合 Attention + Mamba/SSM），Blackwell GPU 上
-  #    hybrid 模型只支持 triton 或 trtllm_mha，flashinfer 会报 AssertionError。
+  #    hybrid 模型只支持 triton 或 trtllm_mha，而flashinfer 会报 AssertionError。
   #    纯 Attention 模型（如 Qwen3）才可以使用 flashinfer。
   attention_backend: flashinfer
   # 多模态视觉编码器（ViT）注意力后端：triton_attn / fa3
@@ -72,9 +72,9 @@ sglang:
   #     FP8模型请使用 triton（无 SM 版本限制），性能不如 cutlass 但兼容所有架构。
   #（4）gptq_marlin 量化要求 moe_runner_backend 必须为 auto（内部断言），不能设为 triton
   moe_runner_backend: triton
-  # 量化格式：
-  #（1）对于 flashinfer_cutlass moe，必须明确指定 modelopt_fp4/ modelopt_nvfp8 /or bfloat16 (None)
-  #（2）gptq MoE 模型必须使用 gptq_marlin，普通 gptq 不支持 MoE（会报 TypeError）
+  # 量化格式：fp8/ modelopt_fp4/ gptq_marlin
+  #（1）对于MoE 运行器后端为flashinfer_cutlass 的，必须明确指定 modelopt_fp4/ modelopt_nvfp8 /or bfloat16 (None)
+  #（2）gptq MoE 模型必须使用 gptq_marlin ，普通 gptq 不支持 MoE（会报 TypeError）
   quantization: fp8
   # FP8 GEMM 后端：triton / cutlass
   # cutlass 的 fp8_blockwise_scaled_mm 内核不支持 SM110（NotImplementedError），
@@ -133,7 +133,7 @@ vllm:
   # 模型下载目录（设“null”使用默认缓存）
   download_dir: null
   # 是否信任远程代码
-  trust_remote_code: true
+  trust_remote_code: false
   # 是否强制使用eager模式（禁用CUDA图）
   # vLLM 0.17.1 默认 False（启用 CUDA Graph，混合 eager+graph 最高性能）
   # 对 VLM+摄像头场景：保持 False，vLLM 会通过多档 CUDA Graph capture 处理可变图像 token 长度

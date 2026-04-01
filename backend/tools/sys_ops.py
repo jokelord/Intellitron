@@ -70,44 +70,112 @@ def _check_command_safety(command: str) -> str | None:
     return None
 
 
-def exec_command(command: str, timeout: int = 60) -> str:
+def exec_command(command: str, timeout: int = 60, check_abort: callable = None) -> str:
     """
     执行 shell 命令，受黑名单安全保护。
 
     Args:
         command: 要执行的 shell 命令
         timeout: 超时时间（秒），防止死循环卡死
+        check_abort: 可选的中止检查回调，返回 True 表示已被中止
 
     Returns:
         命令输出结果（stdout + stderr），或安全阻断/错误信息
     """
-    # 安全检查
+    if check_abort and check_abort():
+        return "命令已被用户中止"
+
     blocked_reason = _check_command_safety(command)
     if blocked_reason:
         return f"命令被安全策略阻断: {blocked_reason}\n被阻断的命令: {command}"
 
     try:
-        result = subprocess.run(
+        proc = subprocess.Popen(
             command,
             shell=True,
-            capture_output=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
             text=True,
-            timeout=timeout,
-            cwd=None,  # 默认使用当前工作目录
+            cwd=None,
         )
 
+        import select
+        import time
+
+        start_time = time.time()
+        stdout_chunks = []
+        stderr_chunks = []
+
+        while True:
+            if check_abort and check_abort():
+                proc.terminate()
+                try:
+                    proc.wait(timeout=2)
+                except subprocess.TimeoutExpired:
+                    proc.kill()
+                return "命令已被用户中止"
+
+            elapsed = time.time() - start_time
+            remaining = timeout - elapsed
+            if remaining <= 0:
+                proc.terminate()
+                try:
+                    proc.wait(timeout=2)
+                except subprocess.TimeoutExpired:
+                    proc.kill()
+                return f"命令执行超时 ({timeout} 秒): {command}"
+
+            reads = []
+            if proc.stdout:
+                reads.append(proc.stdout)
+            if proc.stderr:
+                reads.append(proc.stderr)
+
+            if not reads:
+                break
+
+            readable, _, _ = select.select(reads, [], [], min(1, remaining))
+
+            if not readable:
+                if proc.poll() is not None:
+                    break
+                continue
+
+            for stream in readable:
+                if stream == proc.stdout:
+                    chunk = stream.read(4096)
+                    if chunk:
+                        stdout_chunks.append(chunk)
+                elif stream == proc.stderr:
+                    chunk = stream.read(4096)
+                    if chunk:
+                        stderr_chunks.append(chunk)
+
+            if proc.poll() is not None:
+                # 进程已退出，排空管道中剩余数据
+                if proc.stdout:
+                    remaining_out = proc.stdout.read()
+                    if remaining_out:
+                        stdout_chunks.append(remaining_out)
+                if proc.stderr:
+                    remaining_err = proc.stderr.read()
+                    if remaining_err:
+                        stderr_chunks.append(remaining_err)
+                break
+
+        stdout = "".join(stdout_chunks)
+        stderr = "".join(stderr_chunks)
+
         output_parts = []
-        if result.stdout:
-            output_parts.append(result.stdout)
-        if result.stderr:
-            output_parts.append(f"[stderr]\n{result.stderr}")
-        if result.returncode != 0:
-            output_parts.append(f"[退出码: {result.returncode}]")
+        if stdout:
+            output_parts.append(stdout)
+        if stderr:
+            output_parts.append(f"[stderr]\n{stderr}")
+        if proc.returncode != 0:
+            output_parts.append(f"[退出码: {proc.returncode}]")
 
         return "\n".join(output_parts) if output_parts else "(无输出)"
 
-    except subprocess.TimeoutExpired:
-        return f"命令执行超时 ({timeout} 秒): {command}"
     except Exception as e:
         return f"命令执行异常: {type(e).__name__}: {e}"
 

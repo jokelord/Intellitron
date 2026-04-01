@@ -8,11 +8,91 @@ Agent 调度与会话管理 (Agent Runner)
 import asyncio
 import json
 import logging
+import threading
 import time
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import AsyncGenerator
+
+
+class SessionAbortManager:
+    """全局会话中止管理器
+
+    用于在会话中止时向正在执行的工具发送中止信号。
+    支持:
+    - 为每个 session_id 注册独立的 threading.Event
+    - 工具执行时检查中止信号并提前返回
+    - 清理已结束的会话事件
+    """
+
+    def __init__(self):
+        self._events: dict[str, threading.Event] = {}
+        self._lock = threading.Lock()
+
+    def get_event(self, session_id: str) -> threading.Event:
+        """获取或创建会话的中止事件"""
+        with self._lock:
+            if session_id not in self._events:
+                self._events[session_id] = threading.Event()
+            return self._events[session_id]
+
+    def abort(self, session_id: str) -> bool:
+        """触发会话中止
+
+        Returns:
+            bool: 是否成功触发（会话存在）
+        """
+        with self._lock:
+            if session_id in self._events:
+                self._events[session_id].set()
+                return True
+            return False
+
+    def is_aborted(self, session_id: str) -> bool:
+        """检查会话是否已中止"""
+        with self._lock:
+            event = self._events.get(session_id)
+            if event:
+                return event.is_set()
+            return False
+
+    def clear(self, session_id: str):
+        """清除会话中止状态（可选，用于重用）"""
+        with self._lock:
+            if session_id in self._events:
+                self._events[session_id].clear()
+
+    def cleanup(self, session_id: str):
+        """清理会话事件"""
+        with self._lock:
+            self._events.pop(session_id, None)
+
+
+abort_manager = SessionAbortManager()
+
+
+class _CurrentSessionContext:
+    """线程局部存储：记录当前正在处理的 session_id
+
+    工具执行时可通过此类查询当前 session 是否已被中止。
+    """
+
+    def __init__(self):
+        self._storage = threading.local()
+
+    def set(self, session_id: str):
+        self._storage.session_id = session_id
+
+    def get(self) -> str | None:
+        return getattr(self._storage, "session_id", None)
+
+    def clear(self):
+        if hasattr(self._storage, "session_id"):
+            del self._storage.session_id
+
+
+current_session_context = _CurrentSessionContext()
 
 from smolagents import (
     CodeAgent,
@@ -20,10 +100,8 @@ from smolagents import (
     PythonInterpreterTool,
     Tool,
     ToolCallingAgent,
-    WikipediaSearchTool,
     tool,
 )
-from backend.tools.web_tools import web_search, web_fetch
 from smolagents.agents import ActionOutput, FinalAnswerStep, MultiStepAgent
 from smolagents.memory import ActionStep, TaskStep
 from smolagents.models import (
@@ -33,94 +111,346 @@ from smolagents.models import (
     ChatMessageToolCallFunction,
     MessageRole,
 )
-from smolagents.monitoring import LogLevel
+from smolagents.monitoring import LogLevel, TokenUsage
 
 from backend.agent.local_llm_model import LocalLLMModel
 from backend.config import AppConfig
 from backend.llm_service import LLMService
 from backend.tools.file_ops import edit_file, read_file, write_file
 from backend.tools.skill_ops import list_skills, read_skill
-from backend.tools.sys_ops import exec_command
-from backend.tools.sys_ops import check_process
+from backend.tools.sys_ops import exec_command, check_process
+from backend.tools.web_tools import web_search, web_fetch
+from backend.tools.wikipedia_tools import wikipedia_search, wikipedia_summary
 
 logger = logging.getLogger(__name__)
 
 
 # ============================================================
-# smolagents @tool 注册：将纯函数包装为 smolagents Tool 对象
+# 自定义 PythonInterpreterTool：支持运行时 timeout 参数
 # ============================================================
-# 注意：smolagents 的 @tool 装饰器必须可以通过 inspect.getsource
-# 获取源码，因此这些函数必须定义在文件中（不能在 -c 或 exec 中）。
 
 
-@tool
-def agent_read_file(file_path: str, start_line: int = 0, end_line: int = 0) -> str:
-    """读取文件内容，每行前附行号，方便后续定位和编辑。
-    Args:
-        file_path: 文件的绝对或相对路径
-        start_line: 起始行号（1-based），0 表示从第一行开始
-        end_line: 结束行号（1-based），0 表示到最后一行
+class CustomPythonInterpreterTool(PythonInterpreterTool):
+    """支持运行时 timeout 参数的 Python 解释器工具"""
+
+    skip_forward_signature_validation = True
+
+    def __init__(self, *args, timeout_seconds=60, **kwargs):
+        super().__init__(*args, timeout_seconds=timeout_seconds, **kwargs)
+        self._default_timeout = timeout_seconds
+        self.inputs = {
+            "code": {
+                "type": "string",
+                "description": "The python code to run in interpreter",
+            },
+            "timeout": {
+                "type": "integer",
+                "description": "Timeout in seconds for code execution (default: 60)",
+            },
+        }
+
+    def forward(self, code: str, timeout: int = None) -> str:
+        timeout_seconds = timeout if timeout is not None else self._default_timeout
+        state = {}
+        output = str(
+            self.python_evaluator(
+                code,
+                state=state,
+                static_tools=self.base_python_tools,
+                custom_tools={},
+                authorized_imports=self.authorized_imports,
+                timeout_seconds=timeout_seconds,
+            )
+        )
+        return output
+
+
+# ============================================================
+# 工具包装器：为 base tools 添加 session-aware abort 支持
+# ============================================================
+
+
+def _make_session_aware_wrapper(base_func, tool_name: str):
+    """创建带 session-aware abort 支持的工具包装器
+
+    生成的 forward() 方法会：
+    - 从原始工具输入定义中继承默认值（解决 nullable 参数缺省值丢失的 TypeError）
+    - 接受 **_kwargs 以容忍 LLM 传入的多余参数
+    - 在执行前检查 session 是否已中止
+    - 向原始函数传递 check_abort 回调
     """
-    sl = start_line if start_line > 0 else None
-    el = end_line if end_line > 0 else None
-    return read_file(file_path, sl, el)
+    from smolagents import Tool
+
+    if isinstance(base_func, Tool):
+        original_forward = base_func.forward
+        original_inputs = base_func.inputs
+
+        # 过滤掉内部参数
+        input_params = [
+            p
+            for p in original_inputs.keys()
+            if p not in ("check_abort", "use_fallback")
+        ]
+
+        type_map = {
+            "string": "str",
+            "integer": "int",
+            "number": "float",
+            "boolean": "bool",
+            "array": "list",
+            "object": "dict",
+        }
+
+        # 只对支持 start_line/end_line/timeout 的工具添加这些参数
+        for p in ("timeout", "start_line", "end_line"):
+            if p not in input_params:
+                # 只有当原始工具有这个参数时才添加
+                if p in original_inputs:
+                    input_params.append(p)
+
+        # 构建带默认值的参数列表
+        param_list = ["self"]
+        for p in input_params:
+            prop = original_inputs.get(p, {})
+            json_type = prop.get("type", "any")
+            py_type = type_map.get(json_type, json_type)
+
+            # 从 inputs 的 default 字段提取默认值
+            has_default = "default" in prop
+            default_val = prop.get("default")
+
+            if prop.get("nullable"):
+                # nullable 参数：若有 default 则继承，否则默认 None
+                if has_default:
+                    param_list.append(f"{p}: {py_type} | None = {repr(default_val)}")
+                else:
+                    param_list.append(f"{p}: {py_type} | None = None")
+            elif json_type in type_map:
+                if has_default:
+                    param_list.append(f"{p}: {py_type} = {repr(default_val)}")
+                else:
+                    param_list.append(f"{p}: {py_type}")
+            else:
+                if has_default:
+                    param_list.append(f"{p} = {repr(default_val)}")
+                else:
+                    param_list.append(f"{p}")
+
+        # 添加 **_kwargs 以容忍 LLM 传入的多余参数（如 timeout 给不支持的工具）
+        param_list.append("**_kwargs")
+
+        # 构建参数字典
+        args_dict_parts = [f"'{p}': {p}" for p in input_params]
+        args_dict_str = "{" + ", ".join(args_dict_parts) + "}"
+
+        # 检查原始函数是否支持 timeout 参数
+        _has_timeout = "timeout" in original_inputs
+
+        forward_code = f"""def forward({", ".join(param_list)}) -> str:
+    session_id = current_session_context.get()
+    if session_id and abort_manager.is_aborted(session_id):
+        return f'{tool_name} 已被用户中止'
+    def check_abort():
+        if session_id and abort_manager.is_aborted(session_id):
+            return True
+        return False
+    args_dict = {args_dict_str}
+    args_dict['check_abort'] = check_abort
+    # 仅当原始函数支持 timeout 参数时才添加
+    if 'timeout' not in args_dict and {_has_timeout}:
+        args_dict['timeout'] = 60
+    return original_forward(**args_dict)"""
+        forward_ns = {
+            "current_session_context": current_session_context,
+            "abort_manager": abort_manager,
+            "original_forward": original_forward,
+        }
+        exec(forward_code, forward_ns)
+        forward_method = forward_ns["forward"]
+
+        class WrappedTool(Tool):
+            # 跳过签名校验：forward 含 **_kwargs 以容忍 LLM 传入的多余参数
+            skip_forward_signature_validation = True
+            name = base_func.name
+            description = base_func.description
+            # 过滤掉内部参数
+            inputs = {
+                k: v.copy()
+                for k, v in base_func.inputs.items()
+                if k not in ("check_abort", "use_fallback")
+            }
+            # 仅当原始函数支持 timeout 参数时才添加（保留原描述，仅补充 default）
+            if "timeout" in original_inputs:
+                if "timeout" not in inputs:
+                    inputs["timeout"] = original_inputs["timeout"].copy()
+                if "default" not in inputs["timeout"]:
+                    inputs["timeout"]["default"] = 60
+            # 只对支持 start_line/end_line 的工具添加这些参数（如 read_file）
+            if "start_line" in original_inputs:
+                if "start_line" not in inputs:
+                    inputs["start_line"] = original_inputs["start_line"].copy()
+            if "end_line" in original_inputs:
+                if "end_line" not in inputs:
+                    inputs["end_line"] = original_inputs["end_line"].copy()
+            output_type = base_func.output_type
+            forward = forward_method
+
+        return WrappedTool()
 
 
-@tool
-def agent_write_file(file_path: str, content: str) -> str:
-    """写入文件（覆盖已有内容），自动创建父目录。
-    Args:
-        file_path: 目标文件路径
-        content: 要写入的完整内容
+def _create_tool_wrapper(base_func, tool_name: str):
+    """创建工具包装器（用于需要传递额外参数的函数）
+
+    生成的 forward() 方法会：
+    - 从原始函数签名中继承默认值（解决 nullable 参数缺省值丢失的 TypeError）
+    - 接受 **_kwargs 以容忍 LLM 传入的多余参数（如 timeout 给不支持的工具）
+    - 以关键字参数形式调用原始函数，避免位置参数错位
+    - 若原始函数支持 check_abort，自动注入 session-aware 中止回调
     """
-    return write_file(file_path, content)
+    import functools
+    import inspect
+    from smolagents._function_type_hints_utils import get_json_schema
 
+    sig = inspect.signature(base_func)
 
-@tool
-def agent_edit_file(file_path: str, search_text: str, replace_text: str) -> str:
-    """精确编辑文件：查找 search_text 并替换为 replace_text。
-    支持精确匹配、缩进容错和模糊匹配。无需重写整个文件，只需提供要修改的几行上下文。
-    Args:
-        file_path: 要编辑的文件路径
-        search_text: 要查找的代码片段（需包含足够上下文以唯一匹配）
-        replace_text: 替换后的代码片段
-    """
-    return edit_file(file_path, search_text, replace_text)
+    @functools.wraps(base_func)
+    def forward_func(*args, **kwargs):
+        return base_func(*args, **kwargs)
 
+    forward_func.__name__ = tool_name
 
-@tool
-def agent_exec_command(command: str, timeout: int = 60) -> str:
-    """执行 shell 命令并返回输出。受安全黑名单保护，高危命令会被自动拒绝。
-    运行 python 脚本或启动图形界面程序时请参考提示词中的 Bash 包装器模板。
-    Args:
-        command: 要执行的 shell 命令
-        timeout: 超时时间（秒），默认 60 秒
-    """
-    return exec_command(command, timeout)
+    tool_json_schema = get_json_schema(forward_func)["function"]
 
+    for prop_name, prop_info in tool_json_schema["parameters"]["properties"].items():
+        if prop_info.get("type") == "null":
+            del prop_info["type"]
+            prop_info["nullable"] = True
 
-@tool
-def agent_check_process(name: str) -> str:
-    """查询正在运行的进程（只读，不会修改任何进程）。可用于验证程序是否已成功启动。
-    Args:
-        name: 进程名称或关键词
-    """
-    return check_process(name)
+    type_map = {
+        "string": "str",
+        "integer": "int",
+        "number": "float",
+        "boolean": "bool",
+        "array": "list",
+        "object": "dict",
+    }
 
+    # 过滤掉内部参数，不暴露给 LLM
+    original_params = set(tool_json_schema["parameters"]["properties"].keys())
+    input_params = [
+        p
+        for p in tool_json_schema["parameters"]["properties"].keys()
+        if p not in ("check_abort", "use_fallback")
+    ]
+    # 只对支持 start_line/end_line/timeout 的工具添加这些参数到 forward
+    for p in ("timeout", "start_line", "end_line"):
+        if p not in input_params:
+            # 只有当原始工具有这个参数时才添加
+            if p in original_params:
+                input_params.append(p)
 
-@tool
-def agent_list_skills() -> str:
-    """列出所有可用的 Skills（标准作业程序/SOP）。遇到复杂任务时优先查找是否有标准流程可参考。"""
-    return list_skills()
+    # 构建带默认值的参数列表
+    param_list = ["self"]
+    for p in input_params:
+        # 优先使用原始 schema 中的参数信息
+        prop = tool_json_schema["parameters"]["properties"].get(p, {"type": "any"})
+        json_type = prop.get("type", "any")
+        py_type = type_map.get(json_type, json_type)
 
+        # 从原始函数签名中提取默认值
+        has_default = (
+            p in sig.parameters
+            and sig.parameters[p].default is not inspect.Parameter.empty
+        )
+        default_val = sig.parameters[p].default if has_default else None
 
-@tool
-def agent_read_skill(skill_name: str) -> str:
-    """读取指定 Skill 的详细指令内容。先用 agent_list_skills 查找可用 Skill，再用本工具加载具体指令。
-    Args:
-        skill_name: Skill 名称（目录名）
-    """
-    return read_skill(skill_name)
+        if prop.get("nullable"):
+            # nullable 参数：若原始函数有默认值则继承，否则默认 None
+            if has_default:
+                param_list.append(f"{p}: {py_type} | None = {repr(default_val)}")
+            else:
+                param_list.append(f"{p}: {py_type} | None = None")
+        elif json_type in type_map:
+            if has_default:
+                param_list.append(f"{p}: {py_type} = {repr(default_val)}")
+            else:
+                param_list.append(f"{p}: {py_type}")
+        else:
+            if has_default:
+                param_list.append(f"{p} = {repr(default_val)}")
+            else:
+                param_list.append(f"{p}")
+
+    # 添加 **_kwargs 以容忍 LLM 传入的多余参数（如 timeout 给 read_file）
+    param_list.append("**_kwargs")
+
+    # 以关键字参数形式调用原始函数，避免位置参数错位
+    kw_parts = [f"{p}={p}" for p in input_params]
+
+    # 检查原始函数是否支持 check_abort 参数
+    has_check_abort = "check_abort" in sig.parameters
+
+    if has_check_abort:
+        # 注入 session-aware check_abort 回调
+        kw_parts_with_abort = kw_parts + ["check_abort=_check_abort"]
+        forward_code = (
+            f"def forward({', '.join(param_list)}) -> str:\n"
+            f"    session_id = current_session_context.get()\n"
+            f"    if session_id and abort_manager.is_aborted(session_id):\n"
+            f"        return '{tool_name} 已被用户中止'\n"
+            f"    def _check_abort():\n"
+            f"        return bool(session_id and abort_manager.is_aborted(session_id))\n"
+            f"    return forward_func({', '.join(kw_parts_with_abort)})"
+        )
+        forward_ns = {
+            "forward_func": forward_func,
+            "current_session_context": current_session_context,
+            "abort_manager": abort_manager,
+        }
+    else:
+        forward_code = (
+            f"def forward({', '.join(param_list)}) -> str:\n"
+            f"    return forward_func({', '.join(kw_parts)})"
+        )
+        forward_ns = {"forward_func": forward_func}
+
+    exec(forward_code, forward_ns)
+    forward_method = forward_ns["forward"]
+
+    class WrappedTool(Tool):
+        # 跳过签名校验：forward 含 **_kwargs 以容忍 LLM 传入的多余参数
+        skip_forward_signature_validation = True
+        name = tool_json_schema["name"]
+        description = tool_json_schema["description"]
+        # 过滤掉内部参数
+        inputs = {
+            k: v.copy()
+            for k, v in tool_json_schema["parameters"]["properties"].items()
+            if k not in ("check_abort", "use_fallback")
+        }
+        # 仅当原始函数支持 timeout 参数时才添加（保留原描述，仅补充 default）
+        if "timeout" in tool_json_schema["parameters"]["properties"]:
+            if "timeout" not in inputs:
+                inputs["timeout"] = tool_json_schema["parameters"]["properties"][
+                    "timeout"
+                ].copy()
+            if "default" not in inputs["timeout"]:
+                inputs["timeout"]["default"] = 60
+        # 只对支持 start_line/end_line 的工具添加这些参数
+        if "start_line" in tool_json_schema["parameters"]["properties"]:
+            if "start_line" not in inputs:
+                inputs["start_line"] = tool_json_schema["parameters"]["properties"][
+                    "start_line"
+                ].copy()
+        if "end_line" in tool_json_schema["parameters"]["properties"]:
+            if "end_line" not in inputs:
+                inputs["end_line"] = tool_json_schema["parameters"]["properties"][
+                    "end_line"
+                ].copy()
+        output_type = tool_json_schema["return"]["type"]
+        forward = forward_method
+
+    return WrappedTool()
 
 
 # ============================================================
@@ -157,21 +487,38 @@ def _get_tools(
             "statistics",
         ]
 
+    read_file_tool = _create_tool_wrapper(read_file, "read_file")
+    write_file_tool = _create_tool_wrapper(write_file, "write_file")
+    edit_file_tool = _create_tool_wrapper(edit_file, "edit_file")
+    exec_command_tool = _create_tool_wrapper(exec_command, "exec_command")
+    check_process_tool = _create_tool_wrapper(check_process, "check_process")
+    list_skills_tool = _create_tool_wrapper(list_skills, "list_skills")
+    read_skill_tool = _create_tool_wrapper(read_skill, "read_skill")
+    web_search_tool = _make_session_aware_wrapper(web_search, "web_search")
+    web_fetch_tool = _make_session_aware_wrapper(web_fetch, "web_fetch")
+
     tools = [
-        PythonInterpreterTool(authorized_imports=authorized_imports),
-        agent_read_file,
-        agent_write_file,
-        agent_edit_file,
-        agent_exec_command,
-        agent_check_process,
-        agent_list_skills,
-        agent_read_skill,
-        web_search,
-        web_fetch,
+        CustomPythonInterpreterTool(authorized_imports=authorized_imports),
+        read_file_tool,
+        write_file_tool,
+        edit_file_tool,
+        exec_command_tool,
+        check_process_tool,
+        list_skills_tool,
+        read_skill_tool,
+        web_search_tool,
+        web_fetch_tool,
     ]
 
     if enable_wikipedia:
-        tools.append(WikipediaSearchTool())
+        wikipedia_search_tool = _make_session_aware_wrapper(
+            wikipedia_search, "wikipedia_search"
+        )
+        wikipedia_summary_tool = _make_session_aware_wrapper(
+            wikipedia_summary, "wikipedia_summary"
+        )
+        tools.append(wikipedia_search_tool)
+        tools.append(wikipedia_summary_tool)
 
     if mcp_servers:
         from mcp import StdioServerParameters
@@ -332,7 +679,26 @@ class SmartToolCallingAgent(ToolCallingAgent):
 
             memory_step.model_output_message = chat_message
             memory_step.model_output = chat_message.content
-            memory_step.token_usage = chat_message.token_usage
+            # 流式模式下 chat_message.token_usage 为 None，需要从 model 获取
+            if _used_streaming and hasattr(self.model, "_last_stream_content"):
+                output_text = self.model._last_stream_content
+                usage = (
+                    self.model.llm_service.get_stream_usage(output_text)
+                    if hasattr(self.model, "llm_service")
+                    else None
+                )
+                if usage:
+                    memory_step.token_usage = TokenUsage(
+                        input_tokens=usage.get("prompt_tokens", 0),
+                        output_tokens=usage.get("completion_tokens", 0),
+                    )
+                    logger.info(
+                        f"📊 流式 token 统计: input={memory_step.token_usage.input_tokens}, output={memory_step.token_usage.output_tokens}"
+                    )
+                else:
+                    memory_step.token_usage = chat_message.token_usage
+            else:
+                memory_step.token_usage = chat_message.token_usage
         except Exception as e:
             from smolagents.agents import AgentGenerationError
 
@@ -393,11 +759,20 @@ class SmartToolCallingAgent(ToolCallingAgent):
                 )
 
             if parsed_calls:
-                chat_message.tool_calls = parsed_calls
-                has_tool_calls = True
-                logger.info(
-                    f"💡 从文本中解析出 {len(parsed_calls)} 个工具调用: {[tc.function.name for tc in parsed_calls]}"
-                )
+                # 过滤 final_answer：模型完成任务后应直接返回文本，而非调用 final_answer 工具
+                real_calls = [
+                    tc for tc in parsed_calls if tc.function.name != "final_answer"
+                ]
+                if real_calls:
+                    chat_message.tool_calls = real_calls
+                    has_tool_calls = True
+                    logger.info(
+                        f"💡 从文本中解析出 {len(real_calls)} 个工具调用: {[tc.function.name for tc in real_calls]}"
+                    )
+                else:
+                    # 仅解析出 final_answer，视为纯文本响应
+                    has_tool_calls = False
+                    logger.info("💡 从文本中仅解析出 final_answer，视为纯文本响应")
 
         # ── 2. 分离 final_answer 和真实工具调用 ──
         real_tool_calls = []
@@ -497,6 +872,30 @@ class AgentSession:
     mode: str
     created_at: datetime = field(default_factory=datetime.now)
     last_activity: datetime = field(default_factory=datetime.now)
+    aborted: bool = False
+    answer_now: bool = False
+    accumulated_content: str = ""
+    accumulated_thought: str = ""
+
+    def abort(self):
+        """标记会话为中止状态"""
+        self.aborted = True
+
+    def request_answer_now(self):
+        """请求立即返回当前累积的内容"""
+        self.answer_now = True
+
+    def check_aborted(self) -> bool:
+        """检查是否已中止"""
+        return self.aborted
+
+    def check_answer_now(self) -> bool:
+        """检查是否请求立即返回答案"""
+        return self.answer_now
+
+    def reset_answer_now(self):
+        """重置 answer_now 标志"""
+        self.answer_now = False
 
 
 class SessionStore:
@@ -580,6 +979,12 @@ class AgentRunner:
 
         if prompt_templates:
             kwargs["prompt_templates"] = prompt_templates
+
+        # VLM 模式：动态追加视觉语言模型身份指令
+        if self.config.model.model_type == "vision" and prompts_config.vlm_instructions:
+            vlm_note = prompts_config.vlm_instructions
+            instructions = f"{instructions}\n\n{vlm_note}" if instructions else vlm_note
+
         if instructions:
             kwargs["instructions"] = instructions
 
@@ -612,7 +1017,20 @@ class AgentRunner:
         if session_id:
             session = self.sessions.get(session_id)
             if session:
-                return session
+                # 检查 session 是否已被中止或已完成（answer_now 触发后）
+                # 如果是，需要创建新 session，避免旧状态泄漏到新一轮请求
+                if session.aborted or session.answer_now:
+                    logger.info(
+                        f"Session {session_id} 状态为 aborted={session.aborted} 或 answer_now={session.answer_now}，"
+                        "创建新 session 以避免旧状态泄漏"
+                    )
+                    self.sessions.delete(session_id)
+                    abort_manager.cleanup(session_id)
+                else:
+                    # 重置中止标志，允许会话继续
+                    session.aborted = False
+                    session.answer_now = False
+                    return session
 
         # 创建新 session
         sid = session_id or str(uuid.uuid4())
@@ -856,13 +1274,24 @@ class AgentRunner:
                 _buf_observations.clear()
 
             try:
-                # 当用户上传了新图片时，重置 agent 记忆：避免旧轮对话中对先前图片的
-                # 描述污染当前轮——模型会照搬旧轮描述而非真正分析新图片。
-                # 无图片时保持 reset=False，支持跨轮上下文（如「把刚才的内容写入文件」）。
+                current_session_context.set(session_id)
+                abort_manager.get_event(session_id)
+
+                loop.call_soon_threadsafe(
+                    queue.put_nowait,
+                    {"type": "session_start", "session_id": session.session_id},
+                )
+
                 _should_reset = pil_images is not None
                 for step_output in agent.run(
                     message, stream=True, images=pil_images, reset=_should_reset
-                ):  # type: ignore[union-attr]
+                ):
+                    if session.check_aborted():
+                        logger.info(
+                            f"Session {session_id} 在 Agent 循环中检测到中止信号，终止执行"
+                        )
+                        break
+
                     if isinstance(step_output, ChatMessageStreamDelta):
                         # _step_stream 在工具执行前 yield 的思考预览 token
                         # 立即推送到前端，让用户在工具运行期间就能看到思考内容
@@ -890,7 +1319,13 @@ class AgentRunner:
                         )
 
                     elif isinstance(step_output, SmolToolOutput):
-                        # 缓冲观察结果，等思考内容到达后再统一发送
+                        # 检查是否已中止 - 如果是，直接跳出循环，不发送观察结果
+                        if session.check_aborted():
+                            logger.info(
+                                f"Session {session_id} 在工具执行后检测到中止信号，终止 Agent"
+                            )
+                            break
+
                         obs = step_output.observation or ""
                         _buf_observations.append(
                             {
@@ -912,7 +1347,13 @@ class AgentRunner:
                         # 非 final 的 ActionOutput.output 始终是 None，不处理
 
                     elif isinstance(step_output, MemoryActionStep):
-                        # ActionStep 到达：拿到思考，按正确顺序 flush 本步骤所有事件
+                        # 检查是否已中止
+                        if session.check_aborted():
+                            logger.info(
+                                f"Session {session_id} 在步骤结束后检测到中止信号，终止 Agent"
+                            )
+                            break
+
                         thought = None
                         if step_output.model_output and isinstance(
                             step_output.model_output, str
@@ -920,7 +1361,6 @@ class AgentRunner:
                             thought = step_output.model_output
                         _flush_step(thought)
 
-                        # 步骤 flush 完毕后，再发送最终答案内容（如有）
                         if _pending_final_content:
                             loop.call_soon_threadsafe(
                                 queue.put_nowait,
@@ -943,6 +1383,13 @@ class AgentRunner:
                     queue.put_nowait, {"type": "error", "content": str(e)}
                 )
             finally:
+                current_session_context.clear()
+                if session.check_aborted():
+                    loop.call_soon_threadsafe(
+                        queue.put_nowait,
+                        {"type": "aborted", "session_id": session.session_id},
+                    )
+                abort_manager.cleanup(session_id)
                 loop.call_soon_threadsafe(queue.put_nowait, None)
 
         # 启动后台线程
@@ -953,6 +1400,29 @@ class AgentRunner:
 
         # 从队列中消费事件并转为 SSE
         while True:
+            # Check abort flag
+            if session.check_aborted():
+                logger.info(f"Session {session_id} 检测到中止信号")
+                yield f"data: {json.dumps({'type': 'aborted', 'session_id': session.session_id})}\n\n"
+                yield f"data: {json.dumps({'type': 'done', 'session_id': session.session_id})}\n\n"
+                break
+
+            # Check answer_now flag
+            if session.check_answer_now():
+                logger.info(f"Session {session_id} 检测到 answer_now 信号")
+                # Extract accumulated content from agent memory
+                accumulated = ""
+                if hasattr(agent, "memory") and agent.memory:
+                    for step in agent.memory.steps:
+                        if hasattr(step, "model_output") and step.model_output:
+                            accumulated += str(step.model_output)
+
+                # Send the accumulated content as final answer
+                yield f"data: {json.dumps({'type': 'content', 'content': accumulated, 'answer_now': True})}\n\n"
+                session.reset_answer_now()
+                yield f"data: {json.dumps({'type': 'done', 'session_id': session.session_id})}\n\n"
+                break
+
             event = await queue.get()
             if event is None:
                 yield f"data: {json.dumps({'type': 'done', 'session_id': session.session_id})}\n\n"
@@ -1057,6 +1527,33 @@ class AgentRunner:
             "answer": str(result) if result is not None else "",
             "steps": steps,
         }
+
+    def abort_session(self, session_id: str) -> bool:
+        """中止指定会话的 Agent 执行
+
+        Returns:
+            bool: 是否成功中止
+        """
+        session = self.sessions.get(session_id)
+        if session:
+            session.abort()
+            abort_manager.abort(session_id)
+            logger.info(f"Session {session_id} 已标记为中止")
+            return True
+        return False
+
+    def answer_now_session(self, session_id: str) -> bool:
+        """请求立即返回当前累积的内容
+
+        Returns:
+            bool: 是否成功触发
+        """
+        session = self.sessions.get(session_id)
+        if session:
+            session.request_answer_now()
+            logger.info(f"Session {session_id} 已请求立即返回答案")
+            return True
+        return False
 
     @staticmethod
     def _safe_serialize(obj) -> str | dict | list:

@@ -9,12 +9,13 @@ agent:
   # Agent 模式: tool_calling (原生工具调用) | code (生成 Python 代码)
   agent_mode: tool_calling
   # 最大推理步数
-  max_steps: 200
+  max_steps: 120
   # Session 过期时间（分钟），过期后自动清理
-  session_ttl_minutes: 60
+  session_ttl_minutes: 100
   # 工作目录, null 表示使用当前目录
-  work_dir: null
+  work_dir: /tmp/agent_workdir
   # PythonInterpreterTool 允许的额外 import 模块列表
+  # 最后6个还没有加到默认列表里，后续会加上
   python_authorized_imports:
     - json
     - os
@@ -30,6 +31,12 @@ agent:
     - itertools
     - functools
     - typing
+    - sympy
+    - matplotlib
+    - numpy
+    - scipy
+    - pandas
+    - openpyxl
   # 命令黑名单 - 命中以下任一正则的命令将被阻断
   command_blacklist:
     - pattern: "rm\\s+.*-[a-z]*r[a-z]*f[a-z]*\\s+/(?:\\s|$)"
@@ -128,7 +135,7 @@ web_tools:
 
 debug:
   # 总开关：关闭后忽略所有debug子开关
-  enabled: false
+  enabled: true
   # 模型加载调试：显示模型加载进度、内存占用、设备信息
   debug_model_loading: true
   # 推理过程调试：显示推理耗时、token统计、生成速度

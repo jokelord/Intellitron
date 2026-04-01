@@ -291,6 +291,8 @@ class AgentPromptsConfig:
 
     # 自定义指令（注入到 system_prompt 模板的 {{ custom_instructions }} 位置）
     agent_instructions: Optional[str] = None
+    # VLM 专用指令（仅当 model_type=vision 时由 _build_agent() 动态追加到 instructions）
+    vlm_instructions: Optional[str] = None
     # ToolCallingAgent 的完整 prompt_templates 字典
     toolcalling_agent: Optional[dict] = None
     # CodeAgent 的完整 prompt_templates 字典
@@ -639,6 +641,7 @@ class ConfigLoader:
         data = self._agent_prompts_data
         return AgentPromptsConfig(
             agent_instructions=data.get("agent_instructions"),
+            vlm_instructions=data.get("vlm_instructions"),
             toolcalling_agent=data.get("toolcalling_agent"),
             code_agent=data.get("code_agent"),
         )

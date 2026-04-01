@@ -74,7 +74,8 @@ class LocalLLMModel(Model):
                 continue
 
             has_pil = any(
-                isinstance(item, dict) and item.get("type") == "image"
+                isinstance(item, dict)
+                and item.get("type") == "image"
                 and isinstance(item.get("image"), _PILImage.Image)
                 for item in content
             )
@@ -84,13 +85,18 @@ class LocalLLMModel(Model):
 
             new_content = []
             for item in content:
-                if (isinstance(item, dict) and item.get("type") == "image"
-                        and isinstance(item.get("image"), _PILImage.Image)):
+                if (
+                    isinstance(item, dict)
+                    and item.get("type") == "image"
+                    and isinstance(item.get("image"), _PILImage.Image)
+                ):
                     pil_img = item["image"]
 
                     # 优先使用预编码字节（由 agent_runner 处理后一次性编码），
                     # 避免对已经是 JPEG 的像素再次 JPEG 编码导致的质量损失。
-                    if hasattr(pil_img, '_pre_encoded_b64') and hasattr(pil_img, '_pre_encoded_mime'):
+                    if hasattr(pil_img, "_pre_encoded_b64") and hasattr(
+                        pil_img, "_pre_encoded_mime"
+                    ):
                         b64 = pil_img._pre_encoded_b64
                         mime = pil_img._pre_encoded_mime
                         logger.debug(
@@ -114,10 +120,12 @@ class LocalLLMModel(Model):
                             f"_pre_encode_images: {pil_img.mode} {pil_img.size} {fmt} "
                             f"→ {len(buf.getvalue()) / 1024:.1f}KB"
                         )
-                    new_content.append({
-                        "type": "image_url",
-                        "image_url": {"url": f"data:{mime};base64,{b64}"},
-                    })
+                    new_content.append(
+                        {
+                            "type": "image_url",
+                            "image_url": {"url": f"data:{mime};base64,{b64}"},
+                        }
+                    )
                 else:
                     new_content.append(item)
 
@@ -147,11 +155,13 @@ class LocalLLMModel(Model):
             if not has_image:
                 continue
             images = [
-                item for item in content
+                item
+                for item in content
                 if isinstance(item, dict) and item.get("type") == "image_url"
             ]
             others = [
-                item for item in content
+                item
+                for item in content
                 if not (isinstance(item, dict) and item.get("type") == "image_url")
             ]
             msg["content"] = images + others
@@ -195,13 +205,17 @@ class LocalLLMModel(Model):
 
         # ── 诊断：确认系统提示中包含 VLM 指令 ──
         if llm_messages and llm_messages[0].role == "system":
-            _sys_content = str(llm_messages[0].content) if llm_messages[0].content else ""
+            _sys_content = (
+                str(llm_messages[0].content) if llm_messages[0].content else ""
+            )
             _has_vlm = "视觉语言模型" in _sys_content or "VLM" in _sys_content
             logger.info(
                 f"📋 系统提示: {len(_sys_content)} 字符, 包含VLM指令: {_has_vlm}"
             )
             if not _has_vlm:
-                logger.warning("⚠️ 系统提示中未包含 VLM 身份指令！模型可能误判为无法看到图片")
+                logger.warning(
+                    "⚠️ 系统提示中未包含 VLM 身份指令！模型可能误判为无法看到图片"
+                )
 
         # 2. 转换工具定义
         # 过滤掉 final_answer：不让模型看到这个工具，
@@ -283,13 +297,17 @@ class LocalLLMModel(Model):
 
         # ── 诊断：确认系统提示中包含 VLM 指令 ──
         if llm_messages and llm_messages[0].role == "system":
-            _sys_content = str(llm_messages[0].content) if llm_messages[0].content else ""
+            _sys_content = (
+                str(llm_messages[0].content) if llm_messages[0].content else ""
+            )
             _has_vlm = "视觉语言模型" in _sys_content or "VLM" in _sys_content
             logger.info(
                 f"📋 系统提示: {len(_sys_content)} 字符, 包含VLM指令: {_has_vlm}"
             )
             if not _has_vlm:
-                logger.warning("⚠️ 系统提示中未包含 VLM 身份指令！模型可能误判为无法看到图片")
+                logger.warning(
+                    "⚠️ 系统提示中未包含 VLM 身份指令！模型可能误判为无法看到图片"
+                )
 
         # 2. 转换工具定义（仅用于空流回退的非流式调用，不传给流式调用）
         tools_json = None
@@ -310,7 +328,7 @@ class LocalLLMModel(Model):
         self._last_stream_reasoning = ""  # 追踪 reasoning 部分，用于工具调用回退搜索
 
         # 重复检测参数
-        _repeat_window = 200   # 固定窗口长度（字符），用于短片段检测
+        _repeat_window = 200  # 固定窗口长度（字符），用于短片段检测
         _repeat_threshold = 3  # 同一片段出现次数阈值
         _repetition_detected = False
 
@@ -334,9 +352,9 @@ class LocalLLMModel(Model):
             # 规则一：若当前处于未闭合的 JSON 块内（{ > }），跳过检测。
             #         这样模型在 JSON arguments 里写入合法的重复数据（如 "123\n" × N）
             #         不会被误判为重复循环而中断。
-            _open_braces = (
-                self._last_stream_content.count('{') - self._last_stream_content.count('}')
-            )
+            _open_braces = self._last_stream_content.count(
+                "{"
+            ) - self._last_stream_content.count("}")
             if _open_braces > 0:
                 continue  # 在 JSON 块内，不检测，等待 JSON 完成
 
@@ -359,7 +377,7 @@ class LocalLLMModel(Model):
             # 固定窗口因窗口边界偏移无法稳定捕捉 ~130 字符的段落重复；
             # 段落级检测可在第 4 次重复时立即触发，节省 90%+ 的无效推理时间。
             if len(combined) > 200:
-                blocks = [b.strip() for b in combined.split('\n\n') if b.strip()]
+                blocks = [b.strip() for b in combined.split("\n\n") if b.strip()]
                 if len(blocks) >= 4:
                     last_blocks = blocks[-4:]
                     if len(set(last_blocks)) <= 2:
@@ -389,7 +407,9 @@ class LocalLLMModel(Model):
             logger.warning("generate_stream: 重复输出 → 非流式回退（不推流，静默修正）")
             self._last_stream_content = ""
             self._last_stream_reasoning = ""
-            _fb_result = self.llm_service.chat(messages=llm_messages, stream=False, tools=None)
+            _fb_result = self.llm_service.chat(
+                messages=llm_messages, stream=False, tools=None
+            )
             _fb_text = _fb_result.text or ""
             self._last_stream_content = _fb_text
             logger.info(f"非流式回退完成: content={len(_fb_text)} 字符")
@@ -398,7 +418,9 @@ class LocalLLMModel(Model):
         # 4b. 空流回退（Qwen3-VL 在特殊条件下可能返回空增量）
         if not has_content:
             logger.warning("generate_stream: 流式响应为空，回退到非流式生成")
-            result = self.llm_service.chat(messages=llm_messages, stream=False, tools=tools_json)
+            result = self.llm_service.chat(
+                messages=llm_messages, stream=False, tools=tools_json
+            )
             text = result.text or ""
             if text:
                 self._last_stream_content = text
@@ -433,8 +455,10 @@ class LocalLLMModel(Model):
                         header, b64_part = url.split(",", 1)
                         mime = header.split(":")[1].split(";")[0]
                         data_size = len(b64_part) * 3 // 4  # base64 → bytes approx
-                        logger.info(f"🖼 _convert_content: pass-through image_url, mime={mime}, "
-                                   f"base64_len={len(b64_part)}, approx_bytes={data_size}")
+                        logger.info(
+                            f"🖼 _convert_content: pass-through image_url, mime={mime}, "
+                            f"base64_len={len(b64_part)}, approx_bytes={data_size}"
+                        )
                     except Exception:
                         pass
                 converted.append(item)
@@ -444,6 +468,7 @@ class LocalLLMModel(Model):
                     continue  # 无内容，跳过
                 try:
                     from PIL import Image as PILImage
+
                     if isinstance(img_val, PILImage.Image):
                         # (a) PIL 对象：直接编码
                         buf = io.BytesIO()
@@ -453,8 +478,10 @@ class LocalLLMModel(Model):
                         img_val.save(buf, format=fmt)
                         b64 = base64.b64encode(buf.getvalue()).decode()
                         mime = f"image/{fmt.lower()}"
-                        logger.info(f"🖼 _convert_content: PIL→base64, mode={img_val.mode}, "
-                                   f"size={img_val.size}, fmt={fmt}, bytes={len(buf.getvalue())}")
+                        logger.info(
+                            f"🖼 _convert_content: PIL→base64, mode={img_val.mode}, "
+                            f"size={img_val.size}, fmt={fmt}, bytes={len(buf.getvalue())}"
+                        )
                     elif isinstance(img_val, str):
                         # (b) 裸 base64 字符串（smolagents 默认转换结果）：
                         #     直接复用，格式未知时默认 png（与 smolagents 一致）
@@ -467,10 +494,12 @@ class LocalLLMModel(Model):
                     else:
                         logger.warning(f"未知图片类型 {type(img_val)}，跳过")
                         continue
-                    converted.append({
-                        "type": "image_url",
-                        "image_url": {"url": f"data:{mime};base64,{b64}"},
-                    })
+                    converted.append(
+                        {
+                            "type": "image_url",
+                            "image_url": {"url": f"data:{mime};base64,{b64}"},
+                        }
+                    )
                 except Exception as e:
                     logger.warning(f"图片内容转换失败，跳过: {e}")
             else:
@@ -486,17 +515,30 @@ class LocalLLMModel(Model):
         优先从 GenerationResult 的结构化 tool_calls 字段提取（SGLang tool_call_parser 解析结果），
         回退到从文本内容中解析。
 
-        注意：final_answer 不过滤，交由 SmartToolCallingAgent._step_stream 拦截处理。
+        注意：final_answer 会在本方法末尾过滤掉，确保不作为工具调用返回。
         """
         # 优先使用 SGLang 结构化 tool_calls
         raw_tool_calls = getattr(result, "tool_calls", None)
         if raw_tool_calls:
             parsed = self._parse_raw_tool_calls(raw_tool_calls)
             if parsed:
-                return parsed
+                # 过滤 final_answer
+                filtered = [tc for tc in parsed if tc.function.name != "final_answer"]
+                if filtered:
+                    return filtered
+                # 仅剩 final_answer，返回 None 让上层视为纯文本响应
+                return None
 
         # 回退：从文本内容中解析工具调用
-        return self._parse_tool_calls_from_text(content)
+        parsed = self._parse_tool_calls_from_text(content)
+        if parsed:
+            # 过滤 final_answer
+            filtered = [tc for tc in parsed if tc.function.name != "final_answer"]
+            if filtered:
+                return filtered
+            # 仅剩 final_answer，返回 None 让上层视为纯文本响应
+            return None
+        return None
 
     def _parse_raw_tool_calls(
         self, raw_tool_calls: list[dict]
@@ -538,7 +580,7 @@ class LocalLLMModel(Model):
             if escape_next:
                 escape_next = False
                 continue
-            if c == '\\' and in_string:
+            if c == "\\" and in_string:
                 escape_next = True
                 continue
             if c == '"':
@@ -546,12 +588,12 @@ class LocalLLMModel(Model):
                 continue
             if in_string:
                 continue
-            if c == '{':
+            if c == "{":
                 depth += 1
-            elif c == '}':
+            elif c == "}":
                 depth -= 1
                 if depth == 0:
-                    return text[start:i + 1]
+                    return text[start : i + 1]
         return None
 
     def _try_parse_json(self, json_str: str) -> Any:
@@ -576,7 +618,7 @@ class LocalLLMModel(Model):
                 fixed_chars.append(c)
                 escape_next = False
                 continue
-            if c == '\\' and in_str:
+            if c == "\\" and in_str:
                 fixed_chars.append(c)
                 escape_next = True
                 continue
@@ -584,21 +626,21 @@ class LocalLLMModel(Model):
                 in_str = not in_str
                 fixed_chars.append(c)
                 continue
-            if in_str and c == '\n':
-                fixed_chars.append('\\')
-                fixed_chars.append('n')
+            if in_str and c == "\n":
+                fixed_chars.append("\\")
+                fixed_chars.append("n")
                 continue
-            if in_str and c == '\r':
-                fixed_chars.append('\\')
-                fixed_chars.append('r')
+            if in_str and c == "\r":
+                fixed_chars.append("\\")
+                fixed_chars.append("r")
                 continue
-            if in_str and c == '\t':
-                fixed_chars.append('\\')
-                fixed_chars.append('t')
+            if in_str and c == "\t":
+                fixed_chars.append("\\")
+                fixed_chars.append("t")
                 continue
             fixed_chars.append(c)
 
-        fixed = ''.join(fixed_chars)
+        fixed = "".join(fixed_chars)
         try:
             return json.loads(fixed)
         except json.JSONDecodeError as e:
@@ -621,7 +663,9 @@ class LocalLLMModel(Model):
         logger.debug(f"🔍 _parse_tool_calls_from_text: 输入 {len(content)} 字符")
 
         # 格式1：<tool_call> XML 标签格式（Qwen 等模型常用）
-        xml_matches = re.findall(r'<tool_call>\s*(.*?)\s*</tool_call>', content, re.DOTALL)
+        xml_matches = re.findall(
+            r"<tool_call>\s*(.*?)\s*</tool_call>", content, re.DOTALL
+        )
         if xml_matches:
             calls: list[ChatMessageToolCall] = []
             for match in xml_matches:
@@ -641,12 +685,14 @@ class LocalLLMModel(Model):
                 except (json.JSONDecodeError, KeyError):
                     continue
             if calls:
-                logger.info(f"🔍 格式1(tool_call标签) 匹配成功: {[c.function.name for c in calls]}")
+                logger.info(
+                    f"🔍 格式1(tool_call标签) 匹配成功: {[c.function.name for c in calls]}"
+                )
                 return calls
 
         # 格式2：带动作前缀的 JSON（如 "动作:\n{...}"、"Action:\n{...}"）
         action_json_match = re.search(
-            r'(?:动作|Action)\s*[：:]\s*(\{)',
+            r"(?:动作|Action)\s*[：:]\s*(\{)",
             content,
             re.IGNORECASE,
         )
@@ -669,7 +715,9 @@ class LocalLLMModel(Model):
                         )
                     ]
                 else:
-                    logger.warning(f"🔍 格式2(动作:) 找到JSON但解析失败, 提取的字符串长度: {len(extracted)}")
+                    logger.warning(
+                        f"🔍 格式2(动作:) 找到JSON但解析失败, 提取的字符串长度: {len(extracted)}"
+                    )
             else:
                 # 回退到 raw_decode
                 json_str = content[json_start:].lstrip()
@@ -677,7 +725,9 @@ class LocalLLMModel(Model):
                     decoder = json.JSONDecoder()
                     parsed, _ = decoder.raw_decode(json_str)
                     if isinstance(parsed, dict) and "name" in parsed:
-                        logger.info(f"🔍 格式2(动作:) raw_decode 匹配成功: {parsed['name']}")
+                        logger.info(
+                            f"🔍 格式2(动作:) raw_decode 匹配成功: {parsed['name']}"
+                        )
                         return [
                             ChatMessageToolCall(
                                 id="call_0",
@@ -692,9 +742,11 @@ class LocalLLMModel(Model):
                     logger.warning(f"🔍 格式2(动作:) raw_decode 也失败: {e}")
         else:
             # 检查是否包含 "动作" 或类似关键词但格式不匹配
-            if '动作' in content or 'Action' in content.lower():
-                logger.warning(f"🔍 检测到 '动作/Action' 关键词但正则未匹配，内容片段: "
-                             f"...{content[max(0, content.find('动作')-20):content.find('动作')+50]}...")
+            if "动作" in content or "Action" in content.lower():
+                logger.warning(
+                    f"🔍 检测到 '动作/Action' 关键词但正则未匹配，内容片段: "
+                    f"...{content[max(0, content.find('动作') - 20) : content.find('动作') + 50]}..."
+                )
 
         # 格式3：纯 JSON（以 { 或 [ 开头）
         stripped = content.strip()
@@ -729,12 +781,16 @@ class LocalLLMModel(Model):
         # 模型可能在大段文字之后直接输出 JSON，不使用 "动作:" 前缀
         if '"name"' in content and '"arguments"' in content:
             # 找到最后一个看起来像工具调用的 JSON 对象
-            last_brace = content.rfind('{')
+            last_brace = content.rfind("{")
             while last_brace >= 0:
                 extracted = self._extract_balanced_json(content, last_brace)
                 if extracted:
                     parsed = self._try_parse_json(extracted)
-                    if isinstance(parsed, dict) and "name" in parsed and "arguments" in parsed:
+                    if (
+                        isinstance(parsed, dict)
+                        and "name" in parsed
+                        and "arguments" in parsed
+                    ):
                         logger.info(f"🔍 格式4(行内JSON) 匹配成功: {parsed['name']}")
                         return [
                             ChatMessageToolCall(
@@ -746,13 +802,14 @@ class LocalLLMModel(Model):
                                 ),
                             )
                         ]
-                last_brace = content.rfind('{', 0, last_brace)
+                last_brace = content.rfind("{", 0, last_brace)
 
         # 格式5：smolagents 历史记录格式 "Calling tools:\n[{...}]"（Python dict with single quotes）
         # 当模型在对话历史中见过此格式后，会直接将其作为文本输出，需要用 ast.literal_eval 解析
         if "Calling tools:" in content:
             try:
                 import ast
+
                 # 找到 [ 开头的列表部分
                 bracket_pos = content.find("[", content.find("Calling tools:"))
                 if bracket_pos != -1:
@@ -760,7 +817,10 @@ class LocalLLMModel(Model):
                     if isinstance(calls_list, list):
                         calls = []
                         for item in calls_list:
-                            if isinstance(item, dict) and item.get("type") == "function":
+                            if (
+                                isinstance(item, dict)
+                                and item.get("type") == "function"
+                            ):
                                 func = item.get("function", {})
                                 name = func.get("name")
                                 args = func.get("arguments", {})
@@ -776,12 +836,16 @@ class LocalLLMModel(Model):
                                             type="function",
                                             function=ChatMessageToolCallFunction(
                                                 name=name,
-                                                arguments=args if isinstance(args, dict) else {"raw": str(args)},
+                                                arguments=args
+                                                if isinstance(args, dict)
+                                                else {"raw": str(args)},
                                             ),
                                         )
                                     )
                         if calls:
-                            logger.debug(f"从 'Calling tools:' 格式中解析出 {len(calls)} 个工具调用")
+                            logger.debug(
+                                f"从 'Calling tools:' 格式中解析出 {len(calls)} 个工具调用"
+                            )
                             return calls
             except Exception:
                 pass

@@ -1,0 +1,37 @@
+model:
+  # 模型权重路径（本地路径或 HuggingFace 模型ID）
+  model_path: /home/zk/Project/LLM-weight/Qwen3-VL-30B-A3B-Instruct-FP8/
+  # 模型名称（用于日志和前端显示）
+  model_name: Qwen3-VL-30B-A3B-Instruct-FP8
+  # 张量并行数（根据GPU数量调整，Thor单卡设为1）
+  tensor_parallel_size: 1
+  # 上下文长度（模型固有的最大上下文长度，通常对应max_position_embeddings，可被SGLang扩展）
+  # Qwen3-VL-30B-A3B-Instruct模型支持最大262,144，但SGLang可扩展至1048576
+  max_context_length: 262144
+  # 模型类型: text | vision
+  # 当设置为 vision 时，前端将启用视觉聊天模式（图片上传/摄像头拍照）
+  model_type: vision
+  
+  # ========== VLA 专用配置 (当 model_type=vision 时生效) ==========
+  # 最大图片大小 (字节, 默认 10MB)
+  max_image_size: 10485760
+  # 支持的图片格式 (逗号分隔)
+  supported_formats: png,jpg,jpeg,gif,webp
+  # 最大图片 token 数
+  max_image_tokens: 8192
+
+  # ========== 图片预处理（降低 TTFT）==========
+  # 文件上传图片最大边长（像素）：上传图片在后端预处理时缩放到此尺寸以内
+  #   原理：Qwen3-VL visual encoder 的 token 数 ∝ 像素数，2560x1600 ≈ 4M 像素 → ~8000 token → TTFT ~100s
+  #         缩放到 1280 max → ~1M 像素 → ~2000 token → TTFT ~25s（约 4x 加速）
+  #   设为 0 / null = 不缩放（保持原始分辨率，供需要最高精度的场景使用）
+  #   作用链路: config.ini → backend ModelConfig → /config 端点 vision.max_image_dimension
+  #             → 后端 process_image_binary 实际缩放（ImageUploader 上传路径）
+  max_image_dimension: 1280
+  # 摄像头拍照图片的前端 canvas 预缩最大边长（像素）
+  #   摄像头路径在前端 canvas 阶段即完成缩放，后端不会二次触发缩放（因低于 max_image_dimension）
+  #   适当降低此值可进一步减少拍照场景的 TTFT，但会损失细节
+  #   设为 0 / null = 不缩放（保持摄像头原始分辨率）
+  #   作用链路: config.ini → backend ModelConfig → /config 端点 vision.camera_max_dimension
+  #             → 前端 CameraCapture.tsx canvas 预缩（CameraCapture 拍照路径）
+  camera_max_dimension: 1024
