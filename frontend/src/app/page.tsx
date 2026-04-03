@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { Send, Trash2, Settings, Bot, User, Loader2, Zap, StopCircle } from 'lucide-react';
+import { Send, Trash2, Settings, Bot, User, Loader2, Zap, StopCircle, RefreshCw } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
@@ -10,6 +10,13 @@ import rehypeKatex from 'rehype-katex';
 import { llmClient, ChatMessage, AgentStep, AgentChatRequest, stopChat, stopAgent, stopAllAgents, answerNow } from '@/lib/api';
 import AgentStepDisplay from '@/components/AgentStepDisplay';
 import { ToggleSwitch } from '@/components/ToggleSwitch';
+import CycleEditor from '@/components/CycleEditor';
+import CycleProgress from '@/components/CycleProgress';
+import {
+  CycleStep,
+  CycleSSEEvent,
+  CycleExecutionStatus,
+} from '@/lib/cycle-types';
 
 /**
  * 对话消息接口（包含UI状态）
@@ -180,6 +187,18 @@ export default function Home() {
   const [agentSessionId, setAgentSessionId] = useState<string | undefined>(undefined);
   const [currentRequestId, setCurrentRequestId] = useState<string | undefined>(undefined);
 
+  // Cycle state
+  const [cycleStatus, setCycleStatus] = useState<CycleExecutionStatus>('idle');
+  const [cycleSessionId, setCycleSessionId] = useState<string | null>(null);
+  const [cycleEvents, setCycleEvents] = useState<CycleSSEEvent[]>([]);
+  const [cycleAbortController, setCycleAbortController] = useState<AbortController | null>(null);
+  const [cycleConfig, setCycleConfig] = useState<{
+    enabled: boolean;
+    max_depth: number;
+    default_sequence: CycleStep[];
+  }>({ enabled: false, max_depth: 5, default_sequence: [] });
+  const [showCycle, setShowCycle] = useState(false);
+
   // refs
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -326,6 +345,23 @@ export default function Home() {
     const interval = setInterval(checkConnection, 30000);
     return () => clearInterval(interval);
   }, [fetchModelInfo, router]);
+
+  /**
+   * 获取 Cycle 配置
+   */
+  useEffect(() => {
+    llmClient.getConfig()
+      .then((data: any) => {
+        if (data.cycle?.enabled) {
+          setCycleConfig({
+            enabled: true,
+            max_depth: data.cycle.max_depth || 5,
+            default_sequence: data.cycle.default_sequence || [],
+          });
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   /**
    * 消息更新时滚动到底部
@@ -750,6 +786,83 @@ export default function Home() {
   }, [agentSessionId]);
 
   /**
+   * 启动 Cycle 执行
+   */
+  const handleCycleStart = useCallback(async (steps: CycleStep[], shareContext: boolean) => {
+    setCycleStatus('running');
+    setCycleEvents([]);
+
+    const controller = await llmClient.startCycle(
+      {
+        steps,
+        agent_mode: settings.agentMode,
+        share_context: shareContext,
+      },
+      (event) => {
+        setCycleEvents((prev) => [...prev, event]);
+
+        // Merge LLM responses into chat messages
+        if (event.type === 'llm_done') {
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: generateId(),
+              role: 'assistant' as const,
+              content: event.content,
+              timestamp: new Date(),
+            },
+          ]);
+        }
+
+        // Show message steps in chat
+        if (event.type === 'step_begin' && event.step_type === 'message') {
+          const detail = event.detail as { message?: string };
+          const msg = detail.message;
+          if (msg) {
+            setMessages((prev) => [
+              ...prev,
+              {
+                id: generateId(),
+                role: 'user' as const,
+                content: msg,
+                timestamp: new Date(),
+              },
+            ]);
+          }
+        }
+
+        // Track session ID
+        if (event.type === 'cycle_started') {
+          setCycleSessionId(event.session_id);
+        }
+      },
+      () => {
+        setCycleStatus('completed');
+        setCycleAbortController(null);
+      },
+      (error) => {
+        setCycleStatus('error');
+        setCycleAbortController(null);
+        console.error('Cycle error:', error);
+      },
+    );
+
+    setCycleAbortController(controller);
+  }, [settings.agentMode]);
+
+  /**
+   * 停止 Cycle 执行
+   */
+  const handleCycleStop = useCallback(async () => {
+    if (cycleSessionId) {
+      await llmClient.stopCycle(cycleSessionId);
+    }
+    cycleAbortController?.abort();
+    setCycleStatus('stopped');
+    setCycleAbortController(null);
+  }, [cycleSessionId, cycleAbortController]);
+
+  /**
    * 渲染连接状态指示器
    */
   const renderConnectionStatus = () => {
@@ -1068,7 +1181,54 @@ export default function Home() {
 
       {/* 输入区域 */}
       <footer className="flex-shrink-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 px-4 py-4">
-        <div className="max-w-4xl mx-auto">
+        <div className="max-w-4xl mx-auto space-y-3">
+          {/* 编程循环按钮 */}
+          {cycleConfig.enabled && (
+            <div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setShowCycle(!showCycle)}
+                  className={`flex-1 flex items-center justify-center gap-2 
+                    px-4 py-2 border-2 border-dashed rounded-lg transition-colors
+                    ${showCycle
+                      ? 'border-nvidia-500 bg-nvidia-500/10'
+                      : cycleStatus === 'running'
+                        ? 'border-blue-500 bg-blue-500/10'
+                        : 'border-gray-300 dark:border-gray-600 hover:border-nvidia-500 hover:bg-gray-50 dark:hover:bg-gray-800'
+                    }`}
+                >
+                  <RefreshCw className={`w-5 h-5 ${
+                    showCycle ? 'text-nvidia-500' 
+                    : cycleStatus === 'running' ? 'text-blue-400 animate-spin' 
+                    : 'text-gray-500'
+                  }`} />
+                  <span className={`text-sm ${
+                    showCycle ? 'text-nvidia-500' 
+                    : cycleStatus === 'running' ? 'text-blue-400'
+                    : 'text-gray-600 dark:text-gray-400'
+                  }`}>
+                    {cycleStatus === 'running' ? '循环运行中' : '编程循环'}
+                  </span>
+                </button>
+              </div>
+              {showCycle && (
+                <div className="mt-2 bg-gray-800/30 border border-gray-700/50 rounded-lg p-3 space-y-3">
+                  <CycleEditor
+                    isVisionMode={false}
+                    maxDepth={cycleConfig.max_depth}
+                    defaultSteps={cycleConfig.default_sequence}
+                    executionStatus={cycleStatus}
+                    onStart={handleCycleStart}
+                    onStop={handleCycleStop}
+                  />
+                  {cycleStatus !== 'idle' && (
+                    <CycleProgress status={cycleStatus} events={cycleEvents} />
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="flex items-center space-x-3">
             <div className="flex-1 relative">
               <textarea
@@ -1083,7 +1243,7 @@ export default function Home() {
                   minHeight: '48px',
                   maxHeight: '200px',
                 }}
-                disabled={isLoading || connectionStatus === 'error'}
+                disabled={isLoading || connectionStatus === 'error' || cycleStatus === 'running'}
               />
             </div>
 
