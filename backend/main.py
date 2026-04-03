@@ -27,6 +27,7 @@ from fastapi.responses import JSONResponse
 
 from backend.api import chat_router
 from backend.api.agent import router as agent_router
+from backend.api.cycle import router as cycle_router
 from backend.config import get_config, PROJECT_ROOT
 from backend.llm_service import get_llm_service
 from backend.utils.logger import DebugLogger, get_logger
@@ -70,6 +71,7 @@ async def lifespan(app: FastAPI):
     if config.agent.enabled:
         try:
             from backend.agent.agent_runner import AgentRunner
+
             agent_runner = AgentRunner(llm_service=service, config=config)
             app.state.agent_runner = agent_runner
             logger.info(f"Agent 服务已启用 (mode={config.agent.agent_mode})")
@@ -79,12 +81,39 @@ async def lifespan(app: FastAPI):
     else:
         logger.info("Agent 服务未启用")
 
+    # 初始化 Cycle 服务
+    app.state.cycle_executor = None
+    app.state.camera_service = None
+    if config.cycle.enabled:
+        try:
+            from backend.cycle.camera import CameraService
+            from backend.cycle.executor import CycleExecutor
+
+            camera_service = CameraService()
+            app.state.camera_service = camera_service
+
+            cycle_executor = CycleExecutor(
+                agent_runner=app.state.agent_runner,
+                camera_service=camera_service,
+                max_depth=config.cycle.max_depth,
+                max_duration=config.cycle.max_duration,
+            )
+            app.state.cycle_executor = cycle_executor
+            logger.info(
+                f"Cycle 服务已启用 (max_depth={config.cycle.max_depth}, "
+                f"max_duration={config.cycle.max_duration}s)"
+            )
+        except Exception as e:
+            logger.warning(f"Cycle 服务初始化失败: {e}")
+    else:
+        logger.info("Cycle 服务未启用")
+
     yield
 
     # 关闭时
     logger.info("正在关闭服务...")
     # 清理 Agent sessions
-    if hasattr(app.state, 'agent_runner') and app.state.agent_runner:
+    if hasattr(app.state, "agent_runner") and app.state.agent_runner:
         app.state.agent_runner.sessions.cleanup_expired(0)  # 清理所有
     service.shutdown()
     logger.info("服务已停止")
@@ -162,6 +191,10 @@ app.include_router(chat_router)
 if config.agent.enabled:
     app.include_router(agent_router)
 
+# 注册 Cycle API 路由（按配置启用）
+if config.cycle.enabled:
+    app.include_router(cycle_router)
+
 
 @app.get("/", tags=["root"])
 async def root():
@@ -192,6 +225,28 @@ async def health_check():
         "model_name": config.model.model_name,
         "platform": config.platform.current,
     }
+
+
+def _serialize_cycle_steps(steps) -> list[dict]:
+    """将 CycleStepConfig 列表序列化为前端可用的格式"""
+    result = []
+    for step in steps:
+        if step.step_type == "wait":
+            result.append({"type": "wait", "wait": step.wait_seconds})
+        elif step.step_type == "message":
+            item: dict = {"type": "message", "message": step.message}
+            if step.photo:
+                item["photo"] = step.photo
+            result.append(item)
+        elif step.step_type == "cycle":
+            result.append(
+                {
+                    "type": "cycle",
+                    "cycle_count": step.cycle_count,
+                    "cycle_steps": _serialize_cycle_steps(step.cycle_steps),
+                }
+            )
+    return result
 
 
 @app.get("/config", tags=["config"])
@@ -240,6 +295,12 @@ async def get_current_config():
         "agent": {
             "enabled": config.agent.enabled,
             "mode": config.agent.agent_mode,
+        },
+        "cycle": {
+            "enabled": config.cycle.enabled,
+            "max_depth": config.cycle.max_depth,
+            "max_duration": config.cycle.max_duration,
+            "default_sequence": _serialize_cycle_steps(config.cycle.default_sequence),
         },
     }
 
