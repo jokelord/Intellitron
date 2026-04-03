@@ -18,6 +18,12 @@ import ImagePreview from '@/components/ImagePreview';
 import AgentStepDisplay from '@/components/AgentStepDisplay';
 import { ToggleSwitch } from '@/components/ToggleSwitch';
 
+import {
+  CycleStep,
+  CycleSSEEvent,
+  CycleExecutionStatus,
+} from '@/lib/cycle-types';
+
 /**
  * 对话消息接口（包含UI状态）
  */
@@ -151,6 +157,17 @@ export default function VisionChat() {
   const [agentSessionId, setAgentSessionId] = useState<string | undefined>(undefined);
   const [currentRequestId, setCurrentRequestId] = useState<string | undefined>(undefined);
 
+  // Cycle state
+  const [cycleStatus, setCycleStatus] = useState<CycleExecutionStatus>('idle');
+  const [cycleSessionId, setCycleSessionId] = useState<string | null>(null);
+  const [cycleEvents, setCycleEvents] = useState<CycleSSEEvent[]>([]);
+  const [cycleAbortController, setCycleAbortController] = useState<AbortController | null>(null);
+  const [cycleConfig, setCycleConfig] = useState<{
+    enabled: boolean;
+    max_depth: number;
+    default_sequence: CycleStep[];
+  }>({ enabled: false, max_depth: 5, default_sequence: [] });
+
   // 监听图片被清空时，强制 remount ImageUploader（重置 file input 等内部状态）
   useEffect(() => {
     if (images.length === 0) {
@@ -267,6 +284,23 @@ export default function VisionChat() {
     const interval = setInterval(checkConnection, 30000);
     return () => clearInterval(interval);
   }, [fetchConfig]);
+
+  /**
+   * 获取 Cycle 配置
+   */
+  useEffect(() => {
+    llmClient.getConfig()
+      .then((data: any) => {
+        if (data.cycle?.enabled) {
+          setCycleConfig({
+            enabled: true,
+            max_depth: data.cycle.max_depth || 5,
+            default_sequence: data.cycle.default_sequence || [],
+          });
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   /**
    * 消息更新时滚动到底部
@@ -717,6 +751,83 @@ export default function VisionChat() {
   }, []);
 
   /**
+   * 启动 Cycle 执行
+   */
+  const handleCycleStart = useCallback(async (steps: CycleStep[], shareContext: boolean) => {
+    setCycleStatus('running');
+    setCycleEvents([]);
+
+    const controller = await llmClient.startCycle(
+      {
+        steps,
+        agent_mode: settings.agentMode,
+        share_context: shareContext,
+      },
+      (event) => {
+        setCycleEvents((prev) => [...prev, event]);
+
+        // Merge LLM responses into chat messages
+        if (event.type === 'llm_done') {
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: generateId(),
+              role: 'assistant',
+              content: event.content,
+              timestamp: new Date(),
+            },
+          ]);
+        }
+
+        // Show message steps in chat
+        if (event.type === 'step_begin' && event.step_type === 'message') {
+          const detail = event.detail as { message?: string };
+          const msg = detail.message;
+          if (msg) {
+            setMessages((prev) => [
+              ...prev,
+              {
+                id: generateId(),
+                role: 'user' as const,
+                content: msg,
+                timestamp: new Date(),
+              },
+            ]);
+          }
+        }
+
+        // Track session ID
+        if (event.type === 'cycle_started') {
+          setCycleSessionId(event.session_id);
+        }
+      },
+      () => {
+        setCycleStatus('completed');
+        setCycleAbortController(null);
+      },
+      (error) => {
+        setCycleStatus('error');
+        setCycleAbortController(null);
+        console.error('Cycle error:', error);
+      },
+    );
+
+    setCycleAbortController(controller);
+  }, [settings.agentMode]);
+
+  /**
+   * 停止 Cycle 执行
+   */
+  const handleCycleStop = useCallback(async () => {
+    if (cycleSessionId) {
+      await llmClient.stopCycle(cycleSessionId);
+    }
+    cycleAbortController?.abort();
+    setCycleStatus('stopped');
+    setCycleAbortController(null);
+  }, [cycleSessionId, cycleAbortController]);
+
+  /**
    * 渲染连接状态指示器
    */
   const renderConnectionStatus = () => {
@@ -1044,12 +1155,14 @@ export default function VisionChat() {
             ))
           )}
           <div ref={messagesEndRef} />
+
         </div>
       </main>
 
       {/* 输入区域 */}
       <footer className="flex-shrink-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 px-4 py-4">
         <div className="max-w-4xl mx-auto space-y-3">
+
           {/* 图片上传区域 */}
           <ImageUploader
             key={`uploader-${imagesKey}`}
@@ -1059,6 +1172,13 @@ export default function VisionChat() {
             maxFileSize={visionConfig?.maxImageSize || 10 * 1024 * 1024}
             acceptedFormats={visionConfig?.supportedFormats || ['png', 'jpg', 'jpeg', 'gif', 'webp']}
             cameraDimension={visionConfig?.cameraDimension || 768}
+            cycleEnabled={cycleConfig.enabled}
+            cycleMaxDepth={cycleConfig.max_depth}
+            cycleDefaultSteps={cycleConfig.default_sequence}
+            cycleExecutionStatus={cycleStatus}
+            cycleEvents={cycleEvents}
+            onCycleStart={handleCycleStart}
+            onCycleStop={handleCycleStop}
           />
 
           {/* 已选图片预览 - 仅显示小缩略图 */}
@@ -1099,7 +1219,7 @@ export default function VisionChat() {
                   minHeight: '48px',
                   maxHeight: '200px',
                 }}
-                disabled={isLoading || connectionStatus === 'error'}
+                disabled={isLoading || connectionStatus === 'error' || cycleStatus === 'running'}
               />
             </div>
 
