@@ -8,18 +8,33 @@
 'use client';
 
 import React, { useRef, useState, useCallback } from 'react';
-import { Upload, Image as ImageIcon, Camera, X, AlertCircle, Loader2 } from 'lucide-react';
+import { Upload, Image as ImageIcon, Camera, X, AlertCircle, Loader2, RefreshCw } from 'lucide-react';
 import ImagePreview from './ImagePreview';
 import CameraCapture from './CameraCapture';
+import CycleEditor from './CycleEditor';
+import CycleProgress from './CycleProgress';
 import { llmClient } from '@/lib/api';
+import {
+  CycleStep,
+  CycleSSEEvent,
+  CycleExecutionStatus,
+} from '@/lib/cycle-types';
 
 interface ImageUploaderProps {
   onImagesChange: (images: string[] | ((prev: string[]) => string[])) => void;
-  images?: string[];  // 可选：接收父组件的图片列表
+  images?: string[];
   maxImages?: number;
-  maxFileSize?: number; // 字节
+  maxFileSize?: number;
   acceptedFormats?: string[];
-  cameraDimension?: number; // 摄像头拍照前端 canvas 预缩最大边长(px)，来自 config.ini camera_max_dimension
+  cameraDimension?: number;
+  // Cycle props
+  cycleEnabled?: boolean;
+  cycleMaxDepth?: number;
+  cycleDefaultSteps?: CycleStep[];
+  cycleExecutionStatus?: CycleExecutionStatus;
+  cycleEvents?: CycleSSEEvent[];
+  onCycleStart?: (steps: CycleStep[], shareContext: boolean) => void;
+  onCycleStop?: () => void;
 }
 
 interface UploadError {
@@ -42,6 +57,13 @@ export default function ImageUploader({
   maxFileSize = 10 * 1024 * 1024,
   acceptedFormats = ['png', 'jpg', 'jpeg', 'gif', 'webp'],
   cameraDimension = 768,
+  cycleEnabled = false,
+  cycleMaxDepth = 5,
+  cycleDefaultSteps = [],
+  cycleExecutionStatus = 'idle',
+  cycleEvents = [],
+  onCycleStart,
+  onCycleStop,
 }: ImageUploaderProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   // 使用外部传入的图片列表，如果没有则使用内部状态
@@ -55,6 +77,7 @@ export default function ImageUploader({
     : setInternalImages;
   const [error, setError] = useState<UploadError | null>(null);
   const [showCamera, setShowCamera] = useState(false);
+  const [showCycle, setShowCycle] = useState(false);
 
   const canAddMore = images.length < maxImages;
 
@@ -199,10 +222,10 @@ export default function ImageUploader({
         </div>
       )}
 
-      {/* 上传按钮区域 */}
-      {canAddMore && (
-        <div className="flex gap-2">
-          {/* 文件选择按钮 */}
+      {/* 工具按钮栏 */}
+      <div className="flex gap-2">
+        {/* 文件选择按钮 */}
+        {canAddMore && (
           <button
             onClick={() => fileInputRef.current?.click()}
             className="flex-1 flex items-center justify-center gap-2 
@@ -216,8 +239,10 @@ export default function ImageUploader({
             </span>
             <Upload className="w-4 h-4 text-gray-400" />
           </button>
+        )}
 
-          {/* 摄像头按钮 */}
+        {/* 摄像头按钮 */}
+        {canAddMore && (
           <button
             onClick={() => setShowCamera(!showCamera)}
             className={`flex-1 flex items-center justify-center gap-2 
@@ -232,8 +257,36 @@ export default function ImageUploader({
               {showCamera ? '关闭摄像头' : '摄像头拍照'}
             </span>
           </button>
-        </div>
-      )}
+        )}
+
+        {/* 编程循环按钮 */}
+        {cycleEnabled && (
+          <button
+            onClick={() => setShowCycle(!showCycle)}
+            className={`flex-1 flex items-center justify-center gap-2 
+              px-4 py-2 border-2 border-dashed rounded-lg transition-colors
+              ${showCycle
+                ? 'border-nvidia-500 bg-nvidia-500/10'
+                : cycleExecutionStatus === 'running'
+                  ? 'border-blue-500 bg-blue-500/10'
+                  : 'border-gray-300 dark:border-gray-600 hover:border-nvidia-500 hover:bg-gray-50 dark:hover:bg-gray-800'
+              }`}
+          >
+            <RefreshCw className={`w-5 h-5 ${
+              showCycle ? 'text-nvidia-500' 
+              : cycleExecutionStatus === 'running' ? 'text-blue-400 animate-spin' 
+              : 'text-gray-500'
+            }`} />
+            <span className={`text-sm ${
+              showCycle ? 'text-nvidia-500' 
+              : cycleExecutionStatus === 'running' ? 'text-blue-400'
+              : 'text-gray-600 dark:text-gray-400'
+            }`}>
+              {cycleExecutionStatus === 'running' ? '循环运行中' : '编程循环'}
+            </span>
+          </button>
+        )}
+      </div>
 
       {/* 隐藏的文件输入 */}
       <input
@@ -254,6 +307,23 @@ export default function ImageUploader({
             currentImageCount={images.length}
             maxDimension={cameraDimension}
           />
+        </div>
+      )}
+
+      {/* 编程循环编辑区域 */}
+      {showCycle && cycleEnabled && (
+        <div className="mt-2 bg-gray-800/30 border border-gray-700/50 rounded-lg p-3 space-y-3">
+          <CycleEditor
+            isVisionMode={true}
+            maxDepth={cycleMaxDepth}
+            defaultSteps={cycleDefaultSteps}
+            executionStatus={cycleExecutionStatus}
+            onStart={onCycleStart || (() => {})}
+            onStop={onCycleStop || (() => {})}
+          />
+          {cycleExecutionStatus !== 'idle' && (
+            <CycleProgress status={cycleExecutionStatus} events={cycleEvents} />
+          )}
         </div>
       )}
 
