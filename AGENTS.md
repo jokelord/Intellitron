@@ -85,3 +85,5 @@ Note: 使用uv管理环境
    - 不能用 `wrapper.__doc__ = ...` 在装饰**之后**赋值
    - Args 中的参数名要用 `args` 和 `kwargs`（无 `*` 前缀），不是 `*args` 和 `**kwargs`
    - 参考 `backend/agent/agent_runner.py` 中的 `_make_session_aware_wrapper` 和 `_create_tool_wrapper`
+
+7. **Agent 工具 session_id 为 None**: `run_stream()` 的 `session_id` 参数可能为 `None`（前端首次请求），但 `get_or_create_session()` 会内部生成 UUID。如果不在调用后立即 `session_id = session.session_id` 回写，`_run_agent()` 闭包捕获的仍是 `None`，导致所有依赖 session_id 的工具（如 `load_images`）失败。同理 `run_sync()` 也需要回写。

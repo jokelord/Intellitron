@@ -205,6 +205,9 @@ smolagents-main/
 claude-code-main/
 
 # 备忘录
-踩坑记录.md
+#踩坑记录.md
 vllm_Compilation_Turitorial.md
 MIGRATION_SUMMARY.md
+
+# 文档
+docs/

@@ -71,11 +71,17 @@ class SessionAbortManager:
 
 abort_manager = SessionAbortManager()
 
+# ── 线程→会话ID 映射 ──────────────────────────────────────
+# 用 plain dict + thread ident 作为主要机制，避免 threading.local() 在 exec'd 代码中的潜在问题
+_thread_session_map: dict[int, str] = {}
+_thread_session_lock = threading.Lock()
+
 
 class _CurrentSessionContext:
     """线程局部存储：记录当前正在处理的 session_id
 
     工具执行时可通过此类查询当前 session 是否已被中止。
+    同时维护 _thread_session_map 作为备份机制。
     """
 
     def __init__(self):
@@ -83,13 +89,23 @@ class _CurrentSessionContext:
 
     def set(self, session_id: str):
         self._storage.session_id = session_id
+        # 同时写入 plain dict
+        with _thread_session_lock:
+            _thread_session_map[threading.current_thread().ident] = session_id
 
     def get(self) -> str | None:
-        return getattr(self._storage, "session_id", None)
+        # 先尝试 thread-local，失败则查 plain dict
+        val = getattr(self._storage, "session_id", None)
+        if val is None:
+            with _thread_session_lock:
+                val = _thread_session_map.get(threading.current_thread().ident)
+        return val
 
     def clear(self):
         if hasattr(self._storage, "session_id"):
             del self._storage.session_id
+        with _thread_session_lock:
+            _thread_session_map.pop(threading.current_thread().ident, None)
 
 
 current_session_context = _CurrentSessionContext()
@@ -121,6 +137,7 @@ from backend.tools.skill_ops import list_skills, read_skill
 from backend.tools.sys_ops import exec_command, check_process
 from backend.tools.web_tools import web_search, web_fetch
 from backend.tools.wikipedia_tools import wikipedia_search, wikipedia_summary
+from backend.tools.image_ops import load_images, get_and_clear_tool_images
 
 logger = logging.getLogger(__name__)
 
@@ -247,7 +264,12 @@ def _make_session_aware_wrapper(base_func, tool_name: str):
         _has_timeout = "timeout" in original_inputs
 
         forward_code = f"""def forward({", ".join(param_list)}) -> str:
-    session_id = current_session_context.get()
+    import threading as _thr
+    session_id = (
+        _get_attr(self, '_injected_session_id', None)
+        or current_session_context.get()
+        or _thread_map.get(_thr.current_thread().ident)
+    )
     if session_id and abort_manager.is_aborted(session_id):
         return f'{tool_name} 已被用户中止'
     def check_abort():
@@ -264,6 +286,8 @@ def _make_session_aware_wrapper(base_func, tool_name: str):
             "current_session_context": current_session_context,
             "abort_manager": abort_manager,
             "original_forward": original_forward,
+            "_get_attr": getattr,
+            "_thread_map": _thread_session_map,
         }
         exec(forward_code, forward_ns)
         forward_method = forward_ns["forward"]
@@ -340,7 +364,7 @@ def _create_tool_wrapper(base_func, tool_name: str):
     input_params = [
         p
         for p in tool_json_schema["parameters"]["properties"].keys()
-        if p not in ("check_abort", "use_fallback")
+        if p not in ("check_abort", "use_fallback", "session_id")
     ]
     # 只对支持 start_line/end_line/timeout 的工具添加这些参数到 forward
     for p in ("timeout", "start_line", "end_line"):
@@ -387,25 +411,54 @@ def _create_tool_wrapper(base_func, tool_name: str):
     # 以关键字参数形式调用原始函数，避免位置参数错位
     kw_parts = [f"{p}={p}" for p in input_params]
 
-    # 检查原始函数是否支持 check_abort 参数
+    # 检查原始函数是否支持 check_abort / session_id 参数
     has_check_abort = "check_abort" in sig.parameters
+    has_session_id = "session_id" in sig.parameters
 
     if has_check_abort:
         # 注入 session-aware check_abort 回调
-        kw_parts_with_abort = kw_parts + ["check_abort=_check_abort"]
+        kw_parts_call = kw_parts + ["check_abort=_check_abort"]
+        if has_session_id:
+            kw_parts_call.append("session_id=_session_id")
         forward_code = (
             f"def forward({', '.join(param_list)}) -> str:\n"
-            f"    session_id = current_session_context.get()\n"
-            f"    if session_id and abort_manager.is_aborted(session_id):\n"
+            f"    import threading as _thr\n"
+            f"    _session_id = (\n"
+            f"        _get_attr(self, '_injected_session_id', None)\n"
+            f"        or current_session_context.get()\n"
+            f"        or _thread_map.get(_thr.current_thread().ident)\n"
+            f"    )\n"
+            f"    if _session_id and abort_manager.is_aborted(_session_id):\n"
             f"        return '{tool_name} 已被用户中止'\n"
             f"    def _check_abort():\n"
-            f"        return bool(session_id and abort_manager.is_aborted(session_id))\n"
-            f"    return forward_func({', '.join(kw_parts_with_abort)})"
+            f"        return bool(_session_id and abort_manager.is_aborted(_session_id))\n"
+            f"    return forward_func({', '.join(kw_parts_call)})"
         )
         forward_ns = {
             "forward_func": forward_func,
             "current_session_context": current_session_context,
             "abort_manager": abort_manager,
+            "_get_attr": getattr,
+            "_thread_map": _thread_session_map,
+        }
+    elif has_session_id:
+        # 仅注入 session_id（无 check_abort）
+        kw_parts_call = kw_parts + ["session_id=_session_id"]
+        forward_code = (
+            f"def forward({', '.join(param_list)}) -> str:\n"
+            f"    import threading as _thr\n"
+            f"    _session_id = (\n"
+            f"        _get_attr(self, '_injected_session_id', None)\n"
+            f"        or current_session_context.get()\n"
+            f"        or _thread_map.get(_thr.current_thread().ident)\n"
+            f"    )\n"
+            f"    return forward_func({', '.join(kw_parts_call)})"
+        )
+        forward_ns = {
+            "forward_func": forward_func,
+            "current_session_context": current_session_context,
+            "_get_attr": getattr,
+            "_thread_map": _thread_session_map,
         }
     else:
         forward_code = (
@@ -426,7 +479,7 @@ def _create_tool_wrapper(base_func, tool_name: str):
         inputs = {
             k: v.copy()
             for k, v in tool_json_schema["parameters"]["properties"].items()
-            if k not in ("check_abort", "use_fallback")
+            if k not in ("check_abort", "use_fallback", "session_id")
         }
         # 仅当原始函数支持 timeout 参数时才添加（保留原描述，仅补充 default）
         if "timeout" in tool_json_schema["parameters"]["properties"]:
@@ -496,6 +549,7 @@ def _get_tools(
     read_skill_tool = _create_tool_wrapper(read_skill, "read_skill")
     web_search_tool = _make_session_aware_wrapper(web_search, "web_search")
     web_fetch_tool = _make_session_aware_wrapper(web_fetch, "web_fetch")
+    load_images_tool = _create_tool_wrapper(load_images, "load_images")
 
     tools = [
         CustomPythonInterpreterTool(authorized_imports=authorized_imports),
@@ -508,6 +562,7 @@ def _get_tools(
         read_skill_tool,
         web_search_tool,
         web_fetch_tool,
+        load_images_tool,
     ]
 
     if enable_wikipedia:
@@ -622,6 +677,31 @@ class SmartToolCallingAgent(ToolCallingAgent):
                 messages.extend(stripped.to_messages(summary_mode=summary_mode))
             else:
                 messages.extend(memory_step.to_messages(summary_mode=summary_mode))
+
+        # ── 注入工具加载的图片（load_images 工具存入的缓冲区） ──
+        session_id = current_session_context.get()
+        if session_id:
+            tool_images = get_and_clear_tool_images(session_id)
+            if tool_images:
+                image_content = []
+                for img in tool_images:
+                    image_content.append({"type": "image", "image": img})
+                image_content.append(
+                    {
+                        "type": "text",
+                        "text": "[工具加载的图片已注入，请直接分析这些图片内容]",
+                    }
+                )
+                messages.append(
+                    ChatMessage(
+                        role=MessageRole.USER,
+                        content=image_content,
+                    )
+                )
+                logger.info(
+                    f"write_memory_to_messages: 注入 {len(tool_images)} 张工具加载图片"
+                )
+
         return messages
 
     def _step_stream(self, memory_step: ActionStep):
@@ -1060,6 +1140,9 @@ class AgentRunner:
         """
         session = self.get_or_create_session(session_id, mode)
         agent = session.agent
+        # 使用 session 对象的 session_id（可能是新生成的 UUID），
+        # 而不是 run_stream 参数中的 session_id（可能为 None）
+        session_id = session.session_id
 
         # 将 base64 图片字符串转换为 PIL.Image 对象，并应用与普通 VLM 链路相同的图片参数：
         # - max_image_size: 字节大小限制
@@ -1275,6 +1358,9 @@ class AgentRunner:
 
             try:
                 current_session_context.set(session_id)
+                # 在所有工具对象上注入 session_id，作为备份机制
+                for _tool_obj in agent.tools.values():
+                    _tool_obj._injected_session_id = session_id
                 abort_manager.get_event(session_id)
 
                 loop.call_soon_threadsafe(
@@ -1502,9 +1588,20 @@ class AgentRunner:
         """非流式运行 Agent，返回完整结果"""
         session = self.get_or_create_session(session_id, mode)
         agent = session.agent
+        # 使用 session 对象的 session_id（可能是新生成的 UUID）
+        session_id = session.session_id
+
+        def _run():
+            current_session_context.set(session_id)
+            for _tool_obj in agent.tools.values():
+                _tool_obj._injected_session_id = session_id
+            try:
+                return agent.run(message)
+            finally:
+                current_session_context.clear()
 
         loop = asyncio.get_event_loop()
-        result = await loop.run_in_executor(None, lambda: agent.run(message))
+        result = await loop.run_in_executor(None, _run)
 
         # 从 memory 中提取步骤
         steps: list[dict] = []
