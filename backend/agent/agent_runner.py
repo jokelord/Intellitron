@@ -198,7 +198,7 @@ from backend.tools.skill_ops import list_skills, read_skill
 from backend.tools.sys_ops import exec_command, check_process
 from backend.tools.web_tools import web_search, web_fetch
 from backend.tools.wikipedia_tools import wikipedia_search, wikipedia_summary
-from backend.tools.image_ops import load_images, get_and_clear_tool_images
+
 
 logger = logging.getLogger(__name__)
 
@@ -610,7 +610,6 @@ def _get_tools(
     read_skill_tool = _create_tool_wrapper(read_skill, "read_skill")
     web_search_tool = _make_session_aware_wrapper(web_search, "web_search")
     web_fetch_tool = _make_session_aware_wrapper(web_fetch, "web_fetch")
-    load_images_tool = _create_tool_wrapper(load_images, "load_images")
 
     tools = [
         CustomPythonInterpreterTool(authorized_imports=authorized_imports),
@@ -623,7 +622,6 @@ def _get_tools(
         read_skill_tool,
         web_search_tool,
         web_fetch_tool,
-        load_images_tool,
     ]
 
     if enable_wikipedia:
