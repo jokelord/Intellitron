@@ -1254,8 +1254,6 @@ export default function Home() {
                   onClick={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
-                    alert('Stop button clicked! isLoading=' + isLoading + ', agentMode=' + settings.agentMode);
-                    console.log('[BUTTON] Stop clicked! isLoading:', isLoading, 'agentMode:', settings.agentMode);
                     if (settings.agentMode) {
                       handleStopAgent();
                     } else {

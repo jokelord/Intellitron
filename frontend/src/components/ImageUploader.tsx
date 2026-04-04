@@ -8,7 +8,7 @@
 'use client';
 
 import React, { useRef, useState, useCallback } from 'react';
-import { Upload, Image as ImageIcon, Camera, X, AlertCircle, Loader2, RefreshCw } from 'lucide-react';
+import { Upload, Image as ImageIcon, Camera, X, AlertCircle, RefreshCw } from 'lucide-react';
 import ImagePreview from './ImagePreview';
 import CameraCapture from './CameraCapture';
 import CycleEditor from './CycleEditor';
@@ -227,7 +227,11 @@ export default function ImageUploader({
         {/* 文件选择按钮 */}
         {canAddMore && (
           <button
-            onClick={() => fileInputRef.current?.click()}
+            onClick={() => {
+              setShowCamera(false);
+              setShowCycle(false);
+              fileInputRef.current?.click();
+            }}
             className="flex-1 flex items-center justify-center gap-2 
               px-4 py-2 border-2 border-dashed border-gray-300 dark:border-gray-600 
               rounded-lg hover:border-nvidia-500 hover:bg-gray-50 dark:hover:bg-gray-800 
@@ -244,7 +248,10 @@ export default function ImageUploader({
         {/* 摄像头按钮 */}
         {canAddMore && (
           <button
-            onClick={() => setShowCamera(!showCamera)}
+            onClick={() => {
+              setShowCycle(false);
+              setShowCamera(!showCamera);
+            }}
             className={`flex-1 flex items-center justify-center gap-2 
               px-4 py-2 border-2 border-dashed rounded-lg transition-colors
               ${showCamera
@@ -262,7 +269,10 @@ export default function ImageUploader({
         {/* 编程循环按钮 */}
         {cycleEnabled && (
           <button
-            onClick={() => setShowCycle(!showCycle)}
+            onClick={() => {
+              setShowCamera(false);
+              setShowCycle(!showCycle);
+            }}
             className={`flex-1 flex items-center justify-center gap-2 
               px-4 py-2 border-2 border-dashed rounded-lg transition-colors
               ${showCycle
@@ -334,51 +344,6 @@ export default function ImageUploader({
       </p>
     </div>
   );
-}
-
-/**
- * 将文件转换为 Base64（带图片缩放）
- * 缩放图片以减少 SGLang 的预处理 token 数量
- */
-function fileToBase64(file: File, maxDimension: number = 768): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const img = new Image();
-      img.onload = () => {
-        let { width, height } = img;
-
-        // 计算缩放后的尺寸
-        if (width > height && width > maxDimension) {
-          height = (height * maxDimension) / width;
-          width = maxDimension;
-        } else if (height > maxDimension) {
-          width = (width * maxDimension) / height;
-          height = maxDimension;
-        }
-
-        // 使用 canvas 绘制缩放后的图片
-        const canvas = document.createElement('canvas');
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) {
-          reject(new Error('无法创建 canvas context'));
-          return;
-        }
-        ctx.drawImage(img, 0, 0, width, height);
-
-        // 转换为 base64
-        const mimeType = file.type || 'image/jpeg';
-        const base64 = canvas.toDataURL(mimeType, 0.85);
-        resolve(base64);
-      };
-      img.onerror = reject;
-      img.src = reader.result as string;
-    };
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
 }
 
 /**

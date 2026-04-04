@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import CycleStepEditor from "./CycleStepEditor";
 import {
   CycleStep,
@@ -33,8 +33,13 @@ export default function CycleEditor({
   const [steps, setSteps] = useState<CycleStep[]>([]);
   const [shareContext, setShareContext] = useState(true);
 
+  // Track whether we've already loaded from localStorage or defaults
+  const hasLoadedRef = useRef(false);
+  const defaultStepsJson = JSON.stringify(defaultSteps);
+
   // Load from localStorage on mount, fallback to defaultSteps
   useEffect(() => {
+    if (hasLoadedRef.current) return;
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
@@ -42,6 +47,7 @@ export default function CycleEditor({
         if (state.steps && state.steps.length > 0) {
           setSteps(state.steps);
           setShareContext(state.shareContext);
+          hasLoadedRef.current = true;
           return;
         }
       }
@@ -51,8 +57,10 @@ export default function CycleEditor({
     // Use defaults only if we have some (API may not have loaded yet)
     if (defaultSteps.length > 0) {
       setSteps(defaultSteps);
+      hasLoadedRef.current = true;
     }
-  }, [defaultSteps]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [defaultStepsJson]);
 
   // Save to localStorage on change
   useEffect(() => {

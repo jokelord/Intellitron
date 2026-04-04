@@ -300,6 +300,28 @@ class AgentPromptsConfig:
 
 
 @dataclass
+class CycleStepConfig:
+    """Cycle 序列中的单个步骤配置"""
+
+    step_type: str  # "wait" | "message" | "cycle"
+    wait_seconds: float = 0.0
+    message: str = ""
+    photo: List[int] = field(default_factory=list)
+    cycle_count: int = 0
+    cycle_steps: List["CycleStepConfig"] = field(default_factory=list)
+
+
+@dataclass
+class CycleConfig:
+    """Cycle（可编程序列）配置"""
+
+    enabled: bool = False
+    max_depth: int = 5
+    max_duration: int = 3600
+    default_sequence: List[CycleStepConfig] = field(default_factory=list)
+
+
+@dataclass
 class SGLangConfig:
     """SGLang 配置"""
 
@@ -352,6 +374,7 @@ class AppConfig:
     web_tools: WebToolsConfig = field(default_factory=WebToolsConfig)
     sglang: SGLangConfig = field(default_factory=SGLangConfig)
     vllm: VLLMConfig = field(default_factory=VLLMConfig)
+    cycle: CycleConfig = field(default_factory=CycleConfig)
 
 
 class ConfigLoader:
@@ -449,6 +472,7 @@ class ConfigLoader:
             web_tools=self._parse_web_tools_config(),
             sglang=self._parse_sglang_config(),
             vllm=self._parse_vllm_config(),
+            cycle=self._parse_cycle_config(),
         )
 
         if self._config.debug.enabled and self._config.debug.debug_config:
@@ -799,6 +823,51 @@ class ConfigLoader:
             max_parallel_loading_workers=self._get_int(
                 "vllm", "max_parallel_loading_workers"
             ),
+        )
+
+    def _parse_cycle_steps(self, raw_steps: list) -> List[CycleStepConfig]:
+        """递归解析 cycle 步骤列表"""
+        steps = []
+        for raw in raw_steps:
+            if not isinstance(raw, dict):
+                continue
+            if "wait" in raw:
+                steps.append(
+                    CycleStepConfig(
+                        step_type="wait",
+                        wait_seconds=float(raw["wait"]),
+                    )
+                )
+            elif "message" in raw:
+                steps.append(
+                    CycleStepConfig(
+                        step_type="message",
+                        message=str(raw["message"]),
+                        photo=raw.get("photo", []),
+                    )
+                )
+            elif "cycle" in raw:
+                cycle_data = raw["cycle"]
+                if isinstance(cycle_data, dict):
+                    steps.append(
+                        CycleStepConfig(
+                            step_type="cycle",
+                            cycle_count=int(cycle_data.get("count", 1)),
+                            cycle_steps=self._parse_cycle_steps(
+                                cycle_data.get("steps", [])
+                            ),
+                        )
+                    )
+        return steps
+
+    def _parse_cycle_config(self) -> CycleConfig:
+        """解析 Cycle 配置"""
+        raw_seq = self._get("cycle", "default_sequence", [])
+        return CycleConfig(
+            enabled=self._get_bool("cycle", "enabled", False),
+            max_depth=self._get_int("cycle", "max_depth", 5),
+            max_duration=self._get_int("cycle", "max_duration", 3600),
+            default_sequence=self._parse_cycle_steps(raw_seq) if raw_seq else [],
         )
 
     def _print_debug_info(self):
