@@ -318,6 +318,7 @@ class CycleConfig:
     enabled: bool = False
     max_depth: int = 5
     max_duration: int = 3600
+    show_thumbnails: bool = True
     default_sequence: List[CycleStepConfig] = field(default_factory=list)
 
 
@@ -867,6 +868,7 @@ class ConfigLoader:
             enabled=self._get_bool("cycle", "enabled", False),
             max_depth=self._get_int("cycle", "max_depth", 5),
             max_duration=self._get_int("cycle", "max_duration", 3600),
+            show_thumbnails=self._get_bool("cycle", "show_thumbnails", True),
             default_sequence=self._parse_cycle_steps(raw_seq) if raw_seq else [],
         )
 

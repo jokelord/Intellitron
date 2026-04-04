@@ -194,6 +194,8 @@ cycle:
   max_depth: 5
   # 最大执行时间（秒）
   max_duration: 3600
+  # 是否在聊天中显示拍照缩略图
+  show_thumbnails: true
   # 默认序列模板（前端可编辑覆盖）
   default_sequence:
     - wait: 1

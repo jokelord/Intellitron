@@ -300,6 +300,7 @@ async def get_current_config():
             "enabled": config.cycle.enabled,
             "max_depth": config.cycle.max_depth,
             "max_duration": config.cycle.max_duration,
+            "show_thumbnails": config.cycle.show_thumbnails,
             "default_sequence": _serialize_cycle_steps(config.cycle.default_sequence),
         },
     }

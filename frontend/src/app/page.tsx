@@ -10,6 +10,7 @@ import rehypeKatex from 'rehype-katex';
 import { llmClient, ChatMessage, AgentStep, AgentChatRequest, stopChat, stopAgent, stopAllAgents, answerNow } from '@/lib/api';
 import AgentStepDisplay from '@/components/AgentStepDisplay';
 import { ToggleSwitch } from '@/components/ToggleSwitch';
+import ImageLightbox from '@/components/ImageLightbox';
 import CycleEditor from '@/components/CycleEditor';
 import CycleProgress from '@/components/CycleProgress';
 import {
@@ -25,6 +26,7 @@ interface Message extends ChatMessage {
   id: string;
   timestamp: Date;
   isStreaming?: boolean;
+  images?: string[];
   agentSteps?: AgentStep[];
 }
 
@@ -195,9 +197,11 @@ export default function Home() {
   const [cycleConfig, setCycleConfig] = useState<{
     enabled: boolean;
     max_depth: number;
+    show_thumbnails: boolean;
     default_sequence: CycleStep[];
-  }>({ enabled: false, max_depth: 5, default_sequence: [] });
+  }>({ enabled: false, max_depth: 5, show_thumbnails: true, default_sequence: [] });
   const [showCycle, setShowCycle] = useState(false);
+  const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
 
   // refs
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -207,6 +211,7 @@ export default function Home() {
   const handleSendRef = useRef<() => Promise<void> | void>(() => {});
   const stopWasClickedRef = useRef(false);
   const isLoadingRef = useRef(false);
+  const cycleUserMsgIdRef = useRef<string | null>(null);
 
   // 客户端挂载后从 localStorage 恢复设置（避免服务端/客户端 hydration 不一致）
   useEffect(() => {
@@ -356,6 +361,7 @@ export default function Home() {
           setCycleConfig({
             enabled: true,
             max_depth: data.cycle.max_depth || 5,
+            show_thumbnails: data.cycle.show_thumbnails !== false,
             default_sequence: data.cycle.default_sequence || [],
           });
         }
@@ -791,6 +797,7 @@ export default function Home() {
   const handleCycleStart = useCallback(async (steps: CycleStep[], shareContext: boolean) => {
     setCycleStatus('running');
     setCycleEvents([]);
+    cycleUserMsgIdRef.current = null;
 
     const controller = await llmClient.startCycle(
       {
@@ -812,23 +819,46 @@ export default function Home() {
               timestamp: new Date(),
             },
           ]);
+          cycleUserMsgIdRef.current = null;
         }
 
-        // Show message steps in chat
+        // Show message steps in chat (with images placeholder)
         if (event.type === 'step_begin' && event.step_type === 'message') {
           const detail = event.detail as { message?: string };
           const msg = detail.message;
           if (msg) {
+            const msgId = generateId();
+            cycleUserMsgIdRef.current = msgId;
             setMessages((prev) => [
               ...prev,
               {
-                id: generateId(),
+                id: msgId,
                 role: 'user' as const,
                 content: msg,
                 timestamp: new Date(),
+                images: [],
               },
             ]);
           }
+        }
+
+        // Accumulate photo thumbnails into the current user message
+        if (
+          event.type === 'photo_captured' &&
+          'image_base64' in event &&
+          event.image_base64 &&
+          cycleUserMsgIdRef.current &&
+          cycleConfig.show_thumbnails
+        ) {
+          const targetId = cycleUserMsgIdRef.current;
+          const imgSrc = event.image_base64;
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === targetId
+                ? { ...m, images: [...(m.images || []), imgSrc] }
+                : m,
+            ),
+          );
         }
 
         // Track session ID
@@ -839,16 +869,18 @@ export default function Home() {
       () => {
         setCycleStatus('completed');
         setCycleAbortController(null);
+        cycleUserMsgIdRef.current = null;
       },
       (error) => {
         setCycleStatus('error');
         setCycleAbortController(null);
+        cycleUserMsgIdRef.current = null;
         console.error('Cycle error:', error);
       },
     );
 
     setCycleAbortController(controller);
-  }, [settings.agentMode]);
+  }, [settings.agentMode, cycleConfig.show_thumbnails]);
 
   /**
    * 停止 Cycle 执行
@@ -1151,7 +1183,7 @@ export default function Home() {
                       )}
                       {settings.showReasoning && message.reasoning_content && (
                         <div className="mb-2 text-sm text-gray-500 dark:text-gray-400 italic">
-                          💭 {message.reasoning_content}
+                          {message.reasoning_content}
                         </div>
                       )}
                         <ReactMarkdown
@@ -1169,7 +1201,23 @@ export default function Home() {
                       )}
                     </div>
                   ) : (
-                    <p className="whitespace-pre-wrap">{typeof message.content === 'string' ? message.content : ''}</p>
+                    <>
+                      {/* Cycle 步骤拍照缩略图 */}
+                      {message.images && message.images.length > 0 && (
+                        <div className="flex gap-2 flex-wrap mb-2">
+                          {message.images.map((img, idx) => (
+                            <img
+                              key={idx}
+                              src={img}
+                              alt={`拍照 ${idx + 1}`}
+                              className="w-16 h-16 object-cover rounded cursor-pointer hover:opacity-80 transition-opacity"
+                              onClick={() => setLightboxSrc(img)}
+                            />
+                          ))}
+                        </div>
+                      )}
+                      <p className="whitespace-pre-wrap">{typeof message.content === 'string' ? message.content : ''}</p>
+                    </>
                   )}
                 </div>
               </div>
@@ -1288,6 +1336,9 @@ export default function Home() {
           </div>
         </div>
       </footer>
+
+      {/* 图片全屏预览 */}
+      <ImageLightbox src={lightboxSrc} onClose={() => setLightboxSrc(null)} />
     </div>
   );
 }

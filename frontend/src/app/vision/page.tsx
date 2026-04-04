@@ -16,6 +16,7 @@ import { llmClient, ChatMessage, ConfigResponse, AgentStep, AgentChatRequest, st
 import ImageUploader from '@/components/ImageUploader';
 import ImagePreview from '@/components/ImagePreview';
 import AgentStepDisplay from '@/components/AgentStepDisplay';
+import ImageLightbox from '@/components/ImageLightbox';
 import { ToggleSwitch } from '@/components/ToggleSwitch';
 
 import {
@@ -165,8 +166,9 @@ export default function VisionChat() {
   const [cycleConfig, setCycleConfig] = useState<{
     enabled: boolean;
     max_depth: number;
+    show_thumbnails: boolean;
     default_sequence: CycleStep[];
-  }>({ enabled: false, max_depth: 5, default_sequence: [] });
+  }>({ enabled: false, max_depth: 5, show_thumbnails: true, default_sequence: [] });
 
   // 监听图片被清空时，强制 remount ImageUploader（重置 file input 等内部状态）
   useEffect(() => {
@@ -198,6 +200,9 @@ export default function VisionChat() {
   const handleSendRef = useRef<() => Promise<void> | void>(() => {});
   const stopWasClickedRef = useRef(false);
   const isLoadingRef = useRef(false);
+  const cycleUserMsgIdRef = useRef<string | null>(null);
+
+  const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
 
   /**
    * 保存设置到 localStorage
@@ -295,6 +300,7 @@ export default function VisionChat() {
           setCycleConfig({
             enabled: true,
             max_depth: data.cycle.max_depth || 5,
+            show_thumbnails: data.cycle.show_thumbnails !== false,
             default_sequence: data.cycle.default_sequence || [],
           });
         }
@@ -756,6 +762,7 @@ export default function VisionChat() {
   const handleCycleStart = useCallback(async (steps: CycleStep[], shareContext: boolean) => {
     setCycleStatus('running');
     setCycleEvents([]);
+    cycleUserMsgIdRef.current = null;
 
     const controller = await llmClient.startCycle(
       {
@@ -777,23 +784,46 @@ export default function VisionChat() {
               timestamp: new Date(),
             },
           ]);
+          cycleUserMsgIdRef.current = null;
         }
 
-        // Show message steps in chat
+        // Show message steps in chat (with images placeholder)
         if (event.type === 'step_begin' && event.step_type === 'message') {
           const detail = event.detail as { message?: string };
           const msg = detail.message;
           if (msg) {
+            const msgId = generateId();
+            cycleUserMsgIdRef.current = msgId;
             setMessages((prev) => [
               ...prev,
               {
-                id: generateId(),
+                id: msgId,
                 role: 'user' as const,
                 content: msg,
                 timestamp: new Date(),
+                images: [],
               },
             ]);
           }
+        }
+
+        // Accumulate photo thumbnails into the current user message
+        if (
+          event.type === 'photo_captured' &&
+          'image_base64' in event &&
+          event.image_base64 &&
+          cycleUserMsgIdRef.current &&
+          cycleConfig.show_thumbnails
+        ) {
+          const targetId = cycleUserMsgIdRef.current;
+          const imgSrc = event.image_base64;
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === targetId
+                ? { ...m, images: [...(m.images || []), imgSrc] }
+                : m,
+            ),
+          );
         }
 
         // Track session ID
@@ -804,16 +834,18 @@ export default function VisionChat() {
       () => {
         setCycleStatus('completed');
         setCycleAbortController(null);
+        cycleUserMsgIdRef.current = null;
       },
       (error) => {
         setCycleStatus('error');
         setCycleAbortController(null);
+        cycleUserMsgIdRef.current = null;
         console.error('Cycle error:', error);
       },
     );
 
     setCycleAbortController(controller);
-  }, [settings.agentMode]);
+  }, [settings.agentMode, cycleConfig.show_thumbnails]);
 
   /**
    * 停止 Cycle 执行
@@ -1097,15 +1129,16 @@ export default function VisionChat() {
                     : 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700'
                     }`}
                 >
-                  {/* 用户消息中的小图标的图片预览 */}
+                  {/* 用户消息中的图片缩略图 */}
                   {message.role === 'user' && message.images && message.images.length > 0 && (
-                    <div className="flex gap-1 mb-2">
+                    <div className="flex gap-2 flex-wrap mb-2">
                       {message.images.map((img, idx) => (
                         <img
                           key={idx}
                           src={img}
                           alt={`图片 ${idx + 1}`}
-                          className="w-8 h-8 object-cover rounded"
+                          className="w-16 h-16 object-cover rounded cursor-pointer hover:opacity-80 transition-opacity"
+                          onClick={() => setLightboxSrc(img)}
                         />
                       ))}
                     </div>
@@ -1263,6 +1296,9 @@ export default function VisionChat() {
           </div>
         </div>
       </footer>
+
+      {/* 图片全屏预览 */}
+      <ImageLightbox src={lightboxSrc} onClose={() => setLightboxSrc(null)} />
     </div>
   );
 }
