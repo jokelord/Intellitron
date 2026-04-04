@@ -247,13 +247,23 @@ class CycleExecutor:
                     )
 
         # 发送 LLM
+        num_photos = len(images) if images else 0
         logger.info(
             "Cycle 步骤 %s: 发送 LLM, agent_mode=%s, 图片数=%d",
             path,
             agent_mode,
-            len(images) if images else 0,
+            num_photos,
         )
         message = step.message or ""
+        # 当有摄像头拍照成功时，在消息前追加提示，让 VLM 直接分析内联图片
+        # 而不是尝试使用 load_images 工具去加载文件（模型容易幻觉出文件路径）
+        if num_photos > 0:
+            photo_hint = (
+                f"[本消息附带 {num_photos} 张通过摄像头实时拍摄的照片，"
+                f"已直接包含在此消息中。请直接分析这些照片内容，"
+                f"不要使用 load_images 工具。]\n\n"
+            )
+            message = photo_hint + message
         llm_session_id = session_id if share_context else None
         full_content = ""
 

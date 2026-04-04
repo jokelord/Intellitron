@@ -108,6 +108,55 @@ class TestMessageStep:
         mock_camera_service.capture.assert_called_once_with([0])
 
     @pytest.mark.asyncio
+    async def test_photo_hint_prepended_to_message(self, mock_camera_service):
+        """When photos are captured, executor prepends an inline-photo hint
+        so the VLM knows images are already in the message."""
+        captured_args: list[tuple] = []
+
+        async def spy_stream(session_id, message, mode, images=None):
+            captured_args.append((session_id, message, mode, images))
+            yield 'data: {"type": "content", "content": "ok"}\n\n'
+            yield 'data: {"type": "done"}\n\n'
+
+        spy_runner = MagicMock()
+        spy_runner.run_stream = spy_stream
+
+        exec_ = CycleExecutor(spy_runner, mock_camera_service)
+        steps = [CycleStepRequest(type="message", message="Describe", photo=[0])]
+        async for _ in exec_.start("s1", steps, agent_mode=True):
+            pass
+
+        assert len(captured_args) == 1
+        _, msg, _, imgs = captured_args[0]
+        assert "直接分析" in msg
+        assert "load_images" in msg
+        assert msg.endswith("Describe")
+        assert imgs == ["data:image/jpeg;base64,AAAA"]
+
+    @pytest.mark.asyncio
+    async def test_no_photo_hint_without_photos(self):
+        """Without photos, message should not be modified."""
+        captured_args: list[tuple] = []
+
+        async def spy_stream(session_id, message, mode, images=None):
+            captured_args.append((session_id, message, mode, images))
+            yield 'data: {"type": "content", "content": "ok"}\n\n'
+            yield 'data: {"type": "done"}\n\n'
+
+        spy_runner = MagicMock()
+        spy_runner.run_stream = spy_stream
+
+        exec_ = CycleExecutor(spy_runner, MagicMock())
+        steps = [CycleStepRequest(type="message", message="Hello")]
+        async for _ in exec_.start("s1", steps, agent_mode=True):
+            pass
+
+        assert len(captured_args) == 1
+        _, msg, _, imgs = captured_args[0]
+        assert msg == "Hello"
+        assert imgs is None
+
+    @pytest.mark.asyncio
     async def test_llm_done_content(self, executor):
         steps = [CycleStepRequest(type="message", message="Hello")]
         events_raw = []
