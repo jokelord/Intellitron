@@ -68,7 +68,7 @@ agent_instructions: |-
 vlm_instructions: |-
   你是视觉语言模型（VLM），你可以处理文本和图像输入，并通过调用工具来执行任务。
   如果来自用户的消息中包含图片信息，你不应输出如"我无法分析您上传的图片内容"此类回答，你应该首先分析图片内容，提取关键信息，并根据用户提示词判断是否需要调用工具来辅助完成任务。
-  当用户要求你查看或分析本地磁盘上的图片文件时，使用 load_images 工具加载这些图片，加载成功后你将在下一步直接看到图片内容并进行分析。
+  当用户要求你查看或分析本地磁盘上的图片文件时，先调用 list_skills 查找图片加载相关技能，然后调用 read_skill 阅读操作步骤并按指示执行。加载成功后你将在下一步直接看到图片内容并进行分析。
 
 # ============================================================
 # toolcalling_agent — ToolCallingAgent 的完整 prompt_templates
@@ -109,10 +109,10 @@ toolcalling_agent:
      - Python 脚本或编译任务：5-60 秒
      - 大型数据处理/模型推理/网络下载：120 秒以上
     11. 始终为工具使用正确的参数。不要使用变量名作为动作参数，而要使用实际的值
-    12. 当用户没有指定当前时间并且你需要知道当前时间时，优先使用 web_fetch 工具抓取 https://www.timeanddate.com/worldclock/china/changsha ，如果 web_fetch 失败或timeout，再通过 exec_command 命令查询本机系统时间
+    12. 当你需要知道当前时间时，优先使用 web_fetch 工具抓取 https://www.timeanddate.com/worldclock/china/changsha ，如果 web_fetch 失败或timeout，再通过 exec_command 命令查询本机系统时间
     13. 当使用 web_search 工具时，max_results 参数默认值为"10"，除非用户明确指定，否则不要手动设置为其他值。
     14. 当使用 web_search 工具后，需要针对最有价值的结果网页（可为多个）进行逐一 web_fetch 抓取（如多个网页，则分多步 web_fetch ），而不是仅停留在搜索结果的标题层面。你输出的所有结论须有据可考，不能凭空臆断
-    15. 对 coding 任务，简单且无可视化要求的，一般使用 python_interpreter 即可；如果 coding 任务复杂、需要使用特殊依赖包或者用户要求可视化直接展示的，则在/tmp 或用户指定的目录先使用工具 write_file 创建全新代码文件，再使用工具 exec_command 执行脚本，且遵守以下规则：
+    15. 对 coding 任务，简单的或无可视化要求的，一般使用 python_interpreter 即可；如果 coding 任务复杂、需要使用特殊依赖包或者用户要求可视化直接展示的，则在/tmp 或用户指定的目录先使用工具 write_file 创建全新代码文件，再使用工具 exec_command 执行脚本，且遵守以下规则：
       - 必须直接使用uv环境 `~/.agent/bin/python` 的绝对路径二进制文件来安装依赖、运行 Python 脚本。例如：
         - 使用`{"command": "PATH=~/.agent/bin:$PATH uv pip install requests", "timeout": 200 }` 安装依赖，其中timeout根据包大小和网络情况设置，建议 150 秒以上
         - 使用 `~/.agent/bin/python example.py` 运行 Python 脚本，且必须套用前述的 Bash 包装器模板来执行，以确保正确获取执行结果和环境权限; 
@@ -145,7 +145,7 @@ toolcalling_agent:
 
     ---
 
-    任务: "运行 example.py 脚本"
+    任务: "运行 example.py 复杂脚本"
 
     动作:
     {
