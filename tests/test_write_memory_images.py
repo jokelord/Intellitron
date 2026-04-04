@@ -13,6 +13,7 @@ from PIL import Image as PILImage
 
 from backend.agent.agent_runner import (
     _read_and_consume_tool_images,
+    _cleanup_session_images,
     current_session_context,
 )
 
@@ -137,3 +138,18 @@ class TestReadAndConsumeToolImages:
             assert reopened.size == (100, 100)
         finally:
             _cleanup_dir(sid)
+
+
+class TestCleanupSessionImages:
+    def test_cleanup_removes_directory(self):
+        sid = f"test-cleanup-{uuid.uuid4().hex[:6]}"
+        images_dir = Path(f"/tmp/agent_images/{sid}")
+        images_dir.mkdir(parents=True, exist_ok=True)
+        (images_dir / "test.json").write_text('{"images":[]}')
+
+        _cleanup_session_images(sid)
+        assert not images_dir.exists()
+
+    def test_cleanup_nonexistent_dir_no_error(self):
+        # Should not raise
+        _cleanup_session_images(f"nonexistent-{uuid.uuid4().hex[:6]}")

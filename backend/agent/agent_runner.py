@@ -171,6 +171,20 @@ def _read_and_consume_tool_images(session_id: str | None) -> list:
     return tool_images
 
 
+def _cleanup_session_images(session_id: str) -> None:
+    """清理会话的图片 IPC 文件目录。"""
+    import shutil
+    from pathlib import Path as _Path
+
+    images_dir = _Path(f"/tmp/agent_images/{session_id}")
+    if images_dir.exists():
+        try:
+            shutil.rmtree(images_dir)
+            logger.info(f"已清理会话图片目录: {images_dir}")
+        except OSError as e:
+            logger.warning(f"清理会话图片目录失败: {images_dir} -> {e}")
+
+
 from smolagents import (
     CodeAgent,
     MCPClient,
@@ -1053,6 +1067,7 @@ class SessionStore:
 
     def delete(self, session_id: str):
         self._sessions.pop(session_id, None)
+        _cleanup_session_images(session_id)
 
     def cleanup_expired(self, ttl_minutes: int):
         """清理过期 session"""
@@ -1064,6 +1079,7 @@ class SessionStore:
         ]
         for sid in expired:
             del self._sessions[sid]
+            _cleanup_session_images(sid)
             logger.info(f"Session {sid} 已过期清理")
 
     @property
