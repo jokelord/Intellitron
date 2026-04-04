@@ -110,6 +110,67 @@ class _CurrentSessionContext:
 
 current_session_context = _CurrentSessionContext()
 
+
+def _read_and_consume_tool_images(session_id: str | None) -> list:
+    """从文件 IPC 读取并消费工具加载的图片。
+
+    读取 /tmp/agent_images/<session_id>/*.json，解码 base64 为 PIL Image
+    （带 _pre_encoded_b64/_pre_encoded_mime 属性），删除已消费的 JSON 文件，
+    清理空目录。
+
+    Args:
+        session_id: 会话 ID，为 None 时返回空列表
+
+    Returns:
+        PIL Image 对象列表
+    """
+    if not session_id:
+        return []
+
+    import base64 as _b64
+    import io as _io
+    from pathlib import Path as _Path
+    from PIL import Image as _PILImage
+
+    images_dir = _Path(f"/tmp/agent_images/{session_id}")
+    if not images_dir.exists():
+        return []
+
+    tool_images = []
+    consumed_files = []
+
+    for json_file in sorted(images_dir.glob("*.json")):
+        try:
+            data = json.loads(json_file.read_text(encoding="utf-8"))
+            for img_data in data.get("images", []):
+                b64_str = img_data["base64"]
+                mime = img_data.get("mime", "image/jpeg")
+                raw_bytes = _b64.b64decode(b64_str)
+                pil_img = _PILImage.open(_io.BytesIO(raw_bytes))
+                pil_img.load()
+                pil_img._pre_encoded_b64 = b64_str  # type: ignore[attr-defined]
+                pil_img._pre_encoded_mime = mime  # type: ignore[attr-defined]
+                tool_images.append(pil_img)
+            consumed_files.append(json_file)
+        except Exception as e:
+            logger.warning(f"读取图片 JSON 失败: {json_file} -> {e}")
+            consumed_files.append(json_file)
+
+    for f in consumed_files:
+        try:
+            f.unlink()
+        except OSError:
+            pass
+
+    try:
+        if images_dir.exists() and not any(images_dir.iterdir()):
+            images_dir.rmdir()
+    except OSError:
+        pass
+
+    return tool_images
+
+
 from smolagents import (
     CodeAgent,
     MCPClient,
@@ -678,29 +739,28 @@ class SmartToolCallingAgent(ToolCallingAgent):
             else:
                 messages.extend(memory_step.to_messages(summary_mode=summary_mode))
 
-        # ── 注入工具加载的图片（load_images 工具存入的缓冲区） ──
+        # ── 注入工具加载的图片（从文件 IPC 读取） ──
         session_id = current_session_context.get()
-        if session_id:
-            tool_images = get_and_clear_tool_images(session_id)
-            if tool_images:
-                image_content = []
-                for img in tool_images:
-                    image_content.append({"type": "image", "image": img})
-                image_content.append(
-                    {
-                        "type": "text",
-                        "text": "[工具加载的图片已注入，请直接分析这些图片内容]",
-                    }
+        tool_images = _read_and_consume_tool_images(session_id)
+        if tool_images:
+            image_content = []
+            for img in tool_images:
+                image_content.append({"type": "image", "image": img})
+            image_content.append(
+                {
+                    "type": "text",
+                    "text": "[工具加载的图片已注入，请直接分析这些图片内容]",
+                }
+            )
+            messages.append(
+                ChatMessage(
+                    role=MessageRole.USER,
+                    content=image_content,
                 )
-                messages.append(
-                    ChatMessage(
-                        role=MessageRole.USER,
-                        content=image_content,
-                    )
-                )
-                logger.info(
-                    f"write_memory_to_messages: 注入 {len(tool_images)} 张工具加载图片"
-                )
+            )
+            logger.info(
+                f"write_memory_to_messages: 注入 {len(tool_images)} 张工具加载图片"
+            )
 
         return messages
 
