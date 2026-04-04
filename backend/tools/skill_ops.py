@@ -93,4 +93,14 @@ def read_skill(skill_name: str) -> str:
 
     # 将 {{SKILL_DIR}} 占位符替换为实际的 skill 目录绝对路径
     content = content.replace("{{SKILL_DIR}}", str(skill_dir))
+
+    # 将 {{SESSION_ID}} 占位符替换为当前会话 ID
+    try:
+        from backend.agent.agent_runner import current_session_context
+
+        _session_id = current_session_context.get() or ""
+        content = content.replace("{{SESSION_ID}}", _session_id)
+    except Exception:
+        content = content.replace("{{SESSION_ID}}", "")
+
     return content
