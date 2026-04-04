@@ -1,0 +1,6 @@
+name: load_local_images
+description: "加载本地磁盘图片文件，使 VLM 能在对话中直接看到并分析图片内容"
+tags:
+  - image
+  - vlm
+  - file-loading
