@@ -110,7 +110,7 @@ async def stop_agent(request: AgentStopRequest, raw_request: Request):
     优雅地中止 Agent，不会立即杀死进程，而是标记中止状态。
     同时调用 SGLang abort 停止 GPU 推理。
     """
-    from ..llm_service import abort_sglang_all
+    from ..llm_service import abort_sglang_all, flush_sglang_cache
     from ..config import get_config
 
     agent_runner = raw_request.app.state.agent_runner
@@ -120,17 +120,15 @@ async def stop_agent(request: AgentStopRequest, raw_request: Request):
     # Mark agent session as aborted
     success = agent_runner.abort_session(request.session_id)
 
-    # Also call SGLang abort_all to stop GPU inference
+    # Also call SGLang abort_all to stop GPU inference, then flush KV cache
     config = get_config()
     sglang_url = f"http://{config.sglang.host}:{config.sglang.port}"
     try:
-        import httpx
-
-        with httpx.Client(timeout=10) as client:
-            resp = client.post(f"{sglang_url}/abort_request", json={"abort_all": True})
-            print(f"[AGENT STOP] SGLang abort_all: {resp.status_code}")
+        abort_sglang_all(sglang_url)
+        flush_sglang_cache(sglang_url, timeout=5.0)
+        logger.info("[AGENT STOP] SGLang abort_all + flush_cache completed")
     except Exception as e:
-        print(f"[AGENT STOP] SGLang abort error: {e}")
+        logger.warning(f"[AGENT STOP] SGLang abort/flush error: {e}")
 
     if success:
         return {"status": "stopped", "session_id": request.session_id}
@@ -145,7 +143,7 @@ async def stop_all_agents(raw_request: Request):
     不需要 session_id，直接中止所有运行中的请求。
     同时标记 SessionStore 中所有 session 为 aborted，避免旧状态泄漏到后续请求。
     """
-    from ..llm_service import abort_sglang_all
+    from ..llm_service import abort_sglang_all, flush_sglang_cache
     from ..config import get_config
 
     agent_runner = raw_request.app.state.agent_runner
@@ -161,21 +159,19 @@ async def stop_all_agents(raw_request: Request):
         abort_manager.abort(session_id)
         stopped_sessions.append(session_id)
     if stopped_sessions:
-        print(
+        logger.info(
             f"[AGENT STOP-ALL] Marked {len(stopped_sessions)} sessions as aborted: {stopped_sessions}"
         )
 
-    # Call SGLang abort_all to stop all GPU inference
+    # Call SGLang abort_all to stop all GPU inference, then flush KV cache
     config = get_config()
     sglang_url = f"http://{config.sglang.host}:{config.sglang.port}"
     try:
-        import httpx
-
-        with httpx.Client(timeout=10) as client:
-            resp = client.post(f"{sglang_url}/abort_request", json={"abort_all": True})
-            print(f"[AGENT STOP-ALL] SGLang abort_all: {resp.status_code}")
+        abort_sglang_all(sglang_url)
+        flush_sglang_cache(sglang_url, timeout=5.0)
+        logger.info("[AGENT STOP-ALL] SGLang abort_all + flush_cache completed")
     except Exception as e:
-        print(f"[AGENT STOP-ALL] SGLang abort error: {e}")
+        logger.warning(f"[AGENT STOP-ALL] SGLang abort/flush error: {e}")
 
     return {"status": "stopped_all", "stopped_sessions": stopped_sessions}
 

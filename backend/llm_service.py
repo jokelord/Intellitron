@@ -84,6 +84,43 @@ def abort_sglang_all(sglang_url: str) -> bool:
         return False
 
 
+def flush_sglang_cache(sglang_url: str, timeout: float = 5.0) -> bool:
+    """
+    Flush SGLang's radix/prefix KV cache via the /flush_cache endpoint.
+
+    This should be called after abort_all to ensure no stale KV cache entries
+    remain that could affect subsequent requests. The flush will only succeed
+    when there are no running or waiting requests.
+
+    Args:
+        sglang_url: Base URL of SGLang server (e.g., http://localhost:30000)
+        timeout: Seconds to wait for SGLang to become idle before flushing.
+                 0 = fail fast if requests are still running.
+
+    Returns:
+        bool: True if cache was flushed, False otherwise
+    """
+    import httpx
+
+    try:
+        with httpx.Client(timeout=max(timeout + 5, 15)) as client:
+            response = client.post(
+                f"{sglang_url}/flush_cache",
+                params={"timeout": timeout},
+            )
+            if response.status_code == 200:
+                logger.info("Successfully flushed SGLang KV cache")
+                return True
+            else:
+                logger.warning(
+                    f"SGLang flush_cache failed: {response.status_code} - {response.text}"
+                )
+                return False
+    except Exception as e:
+        logger.error(f"Failed to call SGLang flush_cache endpoint: {e}")
+        return False
+
+
 @dataclass
 class Message:
     """
@@ -424,10 +461,8 @@ class SGLangProvider(LLMProviderInterface):
                         )
 
             if image_count > 0:
-                ttft_est = total_tokens_estimate / 52  # ~52 tok/s on Jetson Thor
                 self.debug.inference(
-                    f"{TAG} 共 {image_count} 张图片, 估算 visual tokens: {total_tokens_estimate} "
-                    f"(≈ {ttft_est:.1f}s TTFT @ 52 tok/s)"
+                    f"{TAG} 共 {image_count} 张图片, 估算 visual tokens: {total_tokens_estimate}"
                 )
             return image_count
 
@@ -485,6 +520,63 @@ class SGLangProvider(LLMProviderInterface):
 
         _strip_old_images(messages_data)
         image_count = _normalize_and_log_images(messages_data)
+
+        # ── [MSG-DUMP] 完整消息结构诊断（用于对比 normal vs cycle 模式） ──
+        # 打印每条消息的 role、content 类型、文本摘要、图片位置
+        if image_count > 0:
+            dump_lines = [
+                f"[MSG-DUMP] === 发送到 SGLang 的完整消息结构 ({len(messages_data)} 条, {image_count} 张图片) ==="
+            ]
+            for mi, msg in enumerate(messages_data):
+                role = msg.get("role", "?")
+                content = msg.get("content")
+                if isinstance(content, str):
+                    preview = content[:120].replace("\n", "\\n")
+                    dump_lines.append(
+                        f'[MSG-DUMP]   msg[{mi}] role={role} content=str len={len(content)} preview="{preview}"'
+                    )
+                elif isinstance(content, list):
+                    dump_lines.append(
+                        f"[MSG-DUMP]   msg[{mi}] role={role} content=list ({len(content)} items):"
+                    )
+                    for ci, item in enumerate(content):
+                        if isinstance(item, dict):
+                            itype = item.get("type", "?")
+                            if itype == "text":
+                                txt = item.get("text", "")
+                                preview = txt[:120].replace("\n", "\\n")
+                                dump_lines.append(
+                                    f'[MSG-DUMP]     [{ci}] type=text len={len(txt)} "{preview}"'
+                                )
+                            elif itype == "image_url":
+                                url = item.get("image_url", {}).get("url", "")
+                                if url.startswith("data:"):
+                                    header = url.split(",", 1)[0]
+                                    b64len = (
+                                        len(url.split(",", 1)[1]) if "," in url else 0
+                                    )
+                                    dump_lines.append(
+                                        f"[MSG-DUMP]     [{ci}] type=image_url header={header} b64_len={b64len}"
+                                    )
+                                else:
+                                    dump_lines.append(
+                                        f"[MSG-DUMP]     [{ci}] type=image_url url={url[:80]}"
+                                    )
+                            else:
+                                dump_lines.append(
+                                    f"[MSG-DUMP]     [{ci}] type={itype} keys={list(item.keys())}"
+                                )
+                        else:
+                            dump_lines.append(
+                                f"[MSG-DUMP]     [{ci}] raw={type(item).__name__}"
+                            )
+                else:
+                    dump_lines.append(
+                        f"[MSG-DUMP]   msg[{mi}] role={role} content={type(content).__name__}"
+                    )
+            dump_lines.append("[MSG-DUMP] === END ===")
+            for line in dump_lines:
+                logger.info(line)
 
         # 调试：非图片请求打印请求体
         if image_count > 0:

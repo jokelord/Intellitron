@@ -30,14 +30,49 @@ class CycleExecutor:
         self._max_depth = max_depth
         self._max_duration = max_duration
         self._cancel_events: dict[str, asyncio.Event] = {}
+        # 记录每个 cycle session 当前使用的 agent session_id，用于停止时中止 agent
+        self._agent_session_ids: dict[str, str | None] = {}
 
     def stop(self, session_id: str) -> bool:
-        """停止指定 session 的 cycle 执行"""
+        """停止指定 session 的 cycle 执行
+
+        同时中止正在执行的 Agent 推理和 SGLang GPU 推理，
+        避免停止 cycle 后 GPU 仍在空跑未完成的请求。
+        """
         event = self._cancel_events.get(session_id)
-        if event:
-            event.set()
-            return True
-        return False
+        if not event:
+            return False
+
+        event.set()
+
+        # 中止正在执行的 Agent session（如果有的话）
+        agent_sid = self._agent_session_ids.get(session_id)
+        if agent_sid and self._agent_runner:
+            try:
+                self._agent_runner.abort_session(agent_sid)
+                logger.info(
+                    "Cycle stop: 已中止 agent session %s (cycle=%s)",
+                    agent_sid,
+                    session_id,
+                )
+            except Exception as e:
+                logger.warning("Cycle stop: 中止 agent session 失败: %s", e)
+
+        # 中止 SGLang GPU 推理，并刷新 KV cache 防止残留缓存影响后续请求
+        try:
+            from backend.config import get_config
+            from backend.llm_service import abort_sglang_all, flush_sglang_cache
+
+            config = get_config()
+            sglang_url = f"http://{config.sglang.host}:{config.sglang.port}"
+            abort_sglang_all(sglang_url)
+            # abort 后刷新 KV cache：等待最多 5 秒让 abort 的请求完全退出，
+            # 然后清空 radix cache，防止后续请求复用被中断的缓存条目
+            flush_sglang_cache(sglang_url, timeout=5.0)
+        except Exception as e:
+            logger.warning("Cycle stop: SGLang abort/flush 失败: %s", e)
+
+        return True
 
     async def start(
         self,
@@ -60,6 +95,9 @@ class CycleExecutor:
                 },
             )
 
+            # 标记这是 cycle 的第一轮，在第一轮完成后刷新缓存
+            first_round_completed = False
+
             async for event in self._execute_steps(
                 session_id=session_id,
                 steps=steps,
@@ -69,7 +107,28 @@ class CycleExecutor:
                 share_context=share_context,
                 cancel_event=cancel_event,
                 start_time=start_time,
+                first_round_completed=False,
             ):
+                # 检查是否第一轮刚刚完成
+                if (
+                    event.startswith("data: ")
+                    and '"type": "llm_done"' in event
+                    and not first_round_completed
+                ):
+                    first_round_completed = True
+                    # 第一轮完成后刷新缓存，避免后续轮次的污染
+                    try:
+                        from backend.config import get_config
+                        from backend.llm_service import flush_sglang_cache
+
+                        config = get_config()
+                        sglang_url = f"http://{config.sglang.host}:{config.sglang.port}"
+                        logger.info("[CYCLE] 第一轮完成后刷新 SGLang KV cache")
+                        flush_sglang_cache(sglang_url, timeout=5.0)
+                    except Exception as e:
+                        logger.warning(
+                            "Cycle first round: SGLang cache flush 失败: %s", e
+                        )
                 yield event
 
             if not cancel_event.is_set():
@@ -102,6 +161,7 @@ class CycleExecutor:
             )
         finally:
             self._cancel_events.pop(session_id, None)
+            self._agent_session_ids.pop(session_id, None)
             yield "data: [DONE]\n\n"
 
     async def _execute_steps(
@@ -114,6 +174,7 @@ class CycleExecutor:
         share_context: bool,
         cancel_event: asyncio.Event,
         start_time: float,
+        first_round_completed: bool = False,
     ) -> AsyncGenerator[str, None]:
         """递归执行步骤列表"""
         for i, step in enumerate(steps):
@@ -167,6 +228,7 @@ class CycleExecutor:
                         share_context=share_context,
                         cancel_event=cancel_event,
                         start_time=start_time,
+                        first_round_completed=first_round_completed,
                     ):
                         yield event
 
@@ -259,6 +321,9 @@ class CycleExecutor:
         full_content = ""
 
         if agent_mode and self._agent_runner:
+            # 初始猜测：share_context=True 时 llm_session_id 与 cycle session_id 相同，
+            # share_context=False 时为 None，需要从 session_start 事件中获取真实 ID。
+            self._agent_session_ids[session_id] = llm_session_id or session_id
             async for chunk in self._agent_runner.run_stream(
                 llm_session_id, message, None, images=images
             ):
@@ -268,7 +333,18 @@ class CycleExecutor:
                         continue
                     try:
                         data = json.loads(data_str)
-                        if data.get("type") == "content":
+                        if data.get("type") == "session_start":
+                            # 捕获 agent_runner 内部生成的真实 session_id，
+                            # 修正 share_context=False 时的 ID 不匹配问题
+                            real_agent_sid = data.get("session_id")
+                            if real_agent_sid:
+                                self._agent_session_ids[session_id] = real_agent_sid
+                                logger.info(
+                                    "Cycle 步骤 %s: 捕获 agent session_id=%s",
+                                    path,
+                                    real_agent_sid,
+                                )
+                        elif data.get("type") == "content":
                             full_content += data.get("content", "")
                             yield self._sse_event(
                                 "llm_chunk",

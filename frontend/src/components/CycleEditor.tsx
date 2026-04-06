@@ -32,6 +32,18 @@ export default function CycleEditor({
 }: CycleEditorProps) {
   const [steps, setSteps] = useState<CycleStep[]>([]);
   const [shareContext, setShareContext] = useState(true);
+  const [isStarting, setIsStarting] = useState(false);
+
+  const handleStart = async () => {
+    if (isStarting) return; // 防抖：防止双击发起多个请求
+    setIsStarting(true);
+    try {
+      await onStart(steps, shareContext);
+    } finally {
+      // 短暂延迟后重置状态，避免快速连续点击
+      setTimeout(() => setIsStarting(false), 1000);
+    }
+  };
 
   // Track whether we've already loaded from localStorage or defaults
   const hasLoadedRef = useRef(false);
@@ -182,11 +194,11 @@ export default function CycleEditor({
           </button>
         ) : (
           <button
-            onClick={() => onStart(steps, shareContext)}
-            disabled={steps.length === 0}
+            onClick={handleStart}
+            disabled={steps.length === 0 || isStarting}
             className="bg-blue-600 hover:bg-blue-500 disabled:bg-gray-600 disabled:text-gray-400 text-white text-sm font-medium rounded px-4 py-1.5"
           >
-            Start
+            {isStarting ? "Starting..." : "Start"}
           </button>
         )}
       </div>

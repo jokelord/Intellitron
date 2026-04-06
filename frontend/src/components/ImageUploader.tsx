@@ -10,7 +10,7 @@
 import React, { useRef, useState, useCallback } from 'react';
 import { Upload, Image as ImageIcon, Camera, X, AlertCircle, RefreshCw } from 'lucide-react';
 import ImagePreview from './ImagePreview';
-import CameraCapture from './CameraCapture';
+import CameraCapture, { destroyAllCameraStreams } from './CameraCapture';
 import CycleEditor from './CycleEditor';
 import CycleProgress from './CycleProgress';
 import { llmClient } from '@/lib/api';
@@ -270,6 +270,11 @@ export default function ImageUploader({
         {cycleEnabled && (
           <button
             onClick={() => {
+              // Release browser camera streams before entering cycle mode,
+              // so the backend can open the same V4L2 devices via OpenCV.
+              if (showCamera) {
+                destroyAllCameraStreams();
+              }
               setShowCamera(false);
               setShowCycle(!showCycle);
             }}

@@ -17,6 +17,7 @@ import ImageUploader from '@/components/ImageUploader';
 import ImagePreview from '@/components/ImagePreview';
 import AgentStepDisplay from '@/components/AgentStepDisplay';
 import ImageLightbox from '@/components/ImageLightbox';
+import { destroyAllCameraStreams } from '@/components/CameraCapture';
 import { ToggleSwitch } from '@/components/ToggleSwitch';
 
 import {
@@ -760,6 +761,16 @@ export default function VisionChat() {
    * 启动 Cycle 执行
    */
   const handleCycleStart = useCallback(async (steps: CycleStep[], shareContext: boolean) => {
+    // Release browser camera streams so the backend can open the same
+    // devices via OpenCV (exclusive V4L2 lock).
+    destroyAllCameraStreams();
+
+    // Wait for the V4L2 device to be fully released by the browser/kernel.
+    // Without this delay the backend's first OpenCV capture may fail or
+    // return a corrupted/black frame because the device is still locked.
+    // Built-in cameras (usually index 0) may take longer to release than USB cameras.
+    await new Promise(resolve => setTimeout(resolve, 2000));
+
     setCycleStatus('running');
     setCycleEvents([]);
     cycleUserMsgIdRef.current = null;
@@ -857,6 +868,7 @@ export default function VisionChat() {
     cycleAbortController?.abort();
     setCycleStatus('stopped');
     setCycleAbortController(null);
+    setCycleSessionId(null);
   }, [cycleSessionId, cycleAbortController]);
 
   /**

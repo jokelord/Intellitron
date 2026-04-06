@@ -20,6 +20,17 @@ import uuid
 
 from PIL import Image as PILImage
 
+# Import config to get camera_max_dimension
+try:
+    sys.path.append(os.path.join(os.path.dirname(__file__), "../../../backend"))
+    from config import get_config
+
+    config = get_config()
+    DEFAULT_MAX_DIM = config.model.camera_max_dimension or 1280
+except Exception:
+    # Fallback if config loading fails
+    DEFAULT_MAX_DIM = 1280
+
 SUPPORTED_EXTENSIONS = {"png", "jpg", "jpeg", "gif", "webp"}
 MAX_FILE_SIZE = 20 * 1024 * 1024  # 20 MB
 MAX_IMAGE_COUNT = 9
@@ -88,7 +99,12 @@ def main():
     parser = argparse.ArgumentParser(description="加载本地图片文件")
     parser.add_argument("--session-id", required=True, help="会话 ID")
     parser.add_argument("--files", required=True, help="逗号分隔的文件路径")
-    parser.add_argument("--max-dim", type=int, default=1280, help="图片最大边长像素")
+    parser.add_argument(
+        "--max-dim",
+        type=int,
+        default=DEFAULT_MAX_DIM,
+        help=f"图片最大边长像素，默认 {DEFAULT_MAX_DIM}",
+    )
     args = parser.parse_args()
 
     raw_paths = [p.strip() for p in args.files.split(",") if p.strip()]

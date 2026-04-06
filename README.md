@@ -207,7 +207,10 @@ SGLang 推理引擎
 2. **重启服务**: 参数变更需要重启后端服务生效
 3. **验证生效**: 通过 API 测试或日志确认参数已正确传递
 
-**注意**: 模型相关参数 (model_path, reasoning_parser, tensor_parallel_size 等) 在 SGLang 启动时读取，重启 SGLang 服务后生效。推理参数 (temperature, top_p 等) 可在运行时动态调整。
+**注意**: 
+（1）模型相关参数 (model_path, reasoning_parser, tensor_parallel_size 等) 在 SGLang 启动时读取，重启 SGLang 服务后生效。推理参数 (temperature, top_p 等) 可在运行时动态调整。
+
+（2）只有每次上传的图片都是相同尺寸时，才能开启CUDA GRAPH，否则VLM会被"投毒"从而无法识图；即便有缩放至指定max尺寸的图片处理流程，但不同摄像头或不同的上传图片很可能拥有不同的长宽比——从而无法保证相同尺寸。
 
 ---
 

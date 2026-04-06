@@ -2,16 +2,16 @@
 
 ## 适用场景
 
-当用户要求查看或分析本地磁盘上的图片文件时，使用本技能。
+当用户提供了一个或多个图片文件的本地磁盘路径并要求查看或分析图片信息时，才使用本技能，除此之外禁止使用本技能
 
 ## 操作步骤
 
-本技能配备了现成的可执行脚本，**你不需要编写任何代码**，直接调用即可。
+本技能配备了现成的可执行脚本，**你不需要编写任何代码**，直接调用，且不必套用 Bash 包装器模板（豁免）
 
 ### 唯一步骤：调用 exec_command 执行脚本
 
 ```bash
-.sglang/bin/python {{SKILL_DIR}}/load_local_images.py --session-id {{SESSION_ID}} --files "<逗号分隔的文件路径>"
+python3 {{SKILL_DIR}}/load_local_images.py --session-id {{SESSION_ID}} --files "<逗号分隔的文件路径>"
 ```
 
 ### 可选参数
@@ -21,7 +21,7 @@
 ### 示例
 
 ```bash
-.sglang/bin/python {{SKILL_DIR}}/load_local_images.py --session-id {{SESSION_ID}} --files "/tmp/photo1.jpg, ~/images/diagram.png" --max-dim 1024
+python3 {{SKILL_DIR}}/load_local_images.py --session-id {{SESSION_ID}} --files "/tmp/photo1.jpg, ~/images/diagram.png" --max-dim 1024
 ```
 
 ## 限制

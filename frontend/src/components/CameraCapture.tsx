@@ -48,18 +48,30 @@ let _cachedDevices: CameraDevice[] | null = null;
 let _cachedStreams: Map<string, MediaStream> = new Map();
 let _permissionGranted = false;
 
-/** Stop all cached streams and clear the cache entirely. */
-function _destroyAllCachedStreams() {
+/** Stop all cached streams and clear the cache entirely.
+ *
+ * Exported so that other components (e.g. cycle mode) can release the
+ * browser's exclusive camera lock before the backend opens the same devices
+ * via OpenCV.
+ *
+ * Also resets _cachedDevices and _permissionGranted so that the next time
+ * CameraCapture mounts it starts from a clean state (re-enumerate devices,
+ * re-request permission). This prevents stale device handles from lingering
+ * after a full destroy.
+ */
+export function destroyAllCameraStreams() {
   _cachedStreams.forEach(stream => {
     stream.getTracks().forEach(t => t.stop());
   });
   _cachedStreams.clear();
+  _cachedDevices = null;
+  _permissionGranted = false;
 }
 
 // Clean up streams when the page unloads (navigation / tab close)
 if (typeof window !== 'undefined') {
   window.addEventListener('beforeunload', () => {
-    _destroyAllCachedStreams();
+    destroyAllCameraStreams();
   });
 }
 
@@ -491,7 +503,7 @@ export default function CameraCapture({
 
   /** Stop all streams, clear the module-level cache, and reset state. */
   const destroyAll = useCallback(() => {
-    _destroyAllCachedStreams();
+    destroyAllCameraStreams();
     _cachedDevices = null;
     _permissionGranted = false;
     setCameraStates(prev => {

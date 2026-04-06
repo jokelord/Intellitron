@@ -109,7 +109,8 @@ export SGLANG_USE_CUTLASS_NVFP4=
 
 # VLM 启用 CUDA 图优化，激活ViTCudaGraphRunner，加速VLM首帧
 # 要求每次传进来的图片分辨率都一样，否则会不断地进行 Graph Capture（捕获过程本身非常耗时，大约需要几百毫秒）
-export SGLANG_VIT_ENABLE_CUDA_GRAPH=1
+# 临时禁用：疑似导致摄像头拍照后VLM状态损坏（投毒）
+# export SGLANG_VIT_ENABLE_CUDA_GRAPH=1
 
 # ---- UMA / Jetson 内存优化 ----
 # 禁用 DeepGemm JIT 编译（首因：DeepGemm 预编译会一次性编译所有 FP8 GEMM 内核变体，

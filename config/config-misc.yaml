@@ -101,8 +101,8 @@ web_tools:
   # 搜索引擎提供商: duckduckgo （首选！）/ bing (不支持中文搜索) / sogou (not available) / 360(not available)
   search_engine: duckduckgo
   # === Connection Protocol (连接方式) ===
-  # 连接协议: curl / requests
-  # - curl: 使用子进程调用 curl 命令 (更好的反爬能力，DuckDuckGo必选项)
+  # 连接协议: curl / requests 
+  # - curl: 使用子进程调用 curl 命令 (更好的反爬能力，DuckDuckGo与bing 都必选)
   # - requests: 使用 Python requests 库 (更快,无需启动进程，bing不能用requests)
   protocol: curl
   # === HTTP Method (请求方法) ===
@@ -183,7 +183,7 @@ logging:
   colorize: true
 
 # ============================================================
-# Cycle 可编程序列配置
+# Cycle 可编程循环序列配置
 # 定义自动化执行的 LLM 对话序列（支持嵌套循环、定时等待、多摄像头拍照）
 # ============================================================
 
@@ -193,7 +193,7 @@ cycle:
   # 最大嵌套深度
   max_depth: 5
   # 最大执行时间（秒）
-  max_duration: 3600
+  max_duration: 36000
   # 是否在聊天中显示拍照缩略图
   show_thumbnails: true
   # 默认序列模板（前端可编辑覆盖）
@@ -207,3 +207,30 @@ cycle:
           - wait: 8
           - message: "请继续观察并报告变化"
             photo: [0]
+
+# ============================================================
+# 摄像头配置
+# 针对不同摄像头类型的拍照参数设置
+# ============================================================
+
+camera:
+  # USB 摄像头参数
+  usb:
+    # 设备打开后等待初始化时间（秒）
+    device_open_delay: 0.5
+    # 预热帧数（丢弃这些帧让自动曝光稳定）
+    warmup_frames: 5
+  # 内置摄像头参数（通常需要更长的初始化时间）
+  builtin:
+    # 设备打开后等待初始化时间（秒）
+    device_open_delay: 1.0
+    # 预热帧数（丢弃这些帧让自动曝光稳定）
+    warmup_frames: 8
+  # 通用参数
+  common:
+    # 最大重试次数（含首次尝试）
+    max_capture_attempts: 3
+    # 亮度验证阈值（帧平均像素值低于此值视为黑帧）
+    min_brightness: 10.0
+    # 图片最大边长（像素，缩放后用于 VLM 输入）
+    max_dimension: 1024

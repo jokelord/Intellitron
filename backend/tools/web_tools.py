@@ -235,7 +235,7 @@ def parse_sogou_html(html: str) -> List[dict]:
         wrap_html = match.group(1)
 
         title_match = re.search(
-            r'<h3[^>]*class="[^"]*vr-title[^"]*"[^>]*><a[^>]*href="([^"]*)"[^>]*>(.*?)</a></h3>',
+            r'<a[^>]*href="([^"]*)"[^>]*>(.*?)</a>',
             wrap_html,
             re.IGNORECASE | re.DOTALL,
         )
@@ -248,36 +248,26 @@ def parse_sogou_html(html: str) -> List[dict]:
         if not url.startswith("http"):
             if url.startswith("/"):
                 url = "https://www.sogou.com" + url
-            else:
-                continue
 
-        desc_match = re.search(
-            r'<p[^>]*class="[^"]*space-txt[^"]*"[^>]*>(.*?)</p>',
-            wrap_html,
-            re.IGNORECASE | re.DOTALL,
-        )
-        description = ""
-        if desc_match:
-            description = _html_unescape(
-                re.sub(r"<[^>]*>", "", desc_match.group(1)).strip()
+        # Handle Sogou's URL encoding
+        if "/link?url=" in url:
+            try:
+                parsed_url = urllib.parse.urlparse(url)
+                real_url = urllib.parse.parse_qs(parsed_url.query).get("url", [url])[0]
+                url = urllib.parse.unquote(real_url)
+            except Exception:
+                pass
+
+        description = ""  # New structure often lacks descriptions
+
+        if url and title and url.startswith("http"):
+            results.append(
+                {
+                    "title": title,
+                    "url": url,
+                    "description": description,
+                }
             )
-            description = re.sub(r"\s+", " ", description)
-
-        if url and title:
-            if "so.com/link?m=" in url:
-                mdurl_match = re.search(r'data-mdurl="([^"]+)"', res_html)
-                if mdurl_match:
-                    url = mdurl_match.group(1)
-                    url = urllib.parse.unquote(url)
-
-            if url.startswith("http"):
-                results.append(
-                    {
-                        "title": title,
-                        "url": url,
-                        "description": description,
-                    }
-                )
 
     return results
 
@@ -362,6 +352,7 @@ def execute_curl_search(
     engine: str = "",
     check_abort: callable = None,
     timeout: int = 30,
+    param_name: str = "q",
 ) -> str:
     """Execute search using curl."""
     import time
@@ -383,25 +374,24 @@ def execute_curl_search(
         "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
     ]
 
-    chinese_engines = ["360", "sogou"]
-    use_proxy = proxy and engine not in chinese_engines
+    use_proxy = proxy
 
     if use_proxy:
         curl_args.extend(["-x", proxy])
 
-    if method == "POST":
-        curl_args.extend(
-            [
-                "-X",
-                "POST",
-                "-H",
-                "Content-Type: application/x-www-form-urlencoded",
-            ]
-        )
-        curl_args.extend(["-d", f"q={urllib.parse.quote(query)}"])
-        curl_args.append(endpoint)
-    else:
-        curl_args.append(f"{endpoint}?q={urllib.parse.quote(query)}")
+        if method == "POST":
+            curl_args.extend(
+                [
+                    "-X",
+                    "POST",
+                    "-H",
+                    "Content-Type: application/x-www-form-urlencoded",
+                ]
+            )
+            curl_args.extend(["-d", f"{param_name}={urllib.parse.quote(query)}"])
+            curl_args.append(endpoint)
+        else:
+            curl_args.append(f"{endpoint}?{param_name}={urllib.parse.quote(query)}")
 
     try:
         proc = subprocess.Popen(
@@ -487,8 +477,9 @@ def _do_search(
 ) -> List[dict]:
     """Execute search with specified engine."""
     if protocol == "curl":
+        param_name = ENGINE_DEFAULTS.get(engine, {}).get("param_name", "q")
         html = execute_curl_search(
-            endpoint, query, method, proxy, engine, check_abort, timeout
+            endpoint, query, method, proxy, engine, check_abort, timeout, param_name
         )
     else:
         raise ValueError(f"Unsupported protocol: {protocol}")
@@ -599,11 +590,22 @@ def web_fetch(url: str, timeout: int = 30, check_abort: callable = None) -> str:
         "-s",
         "--max-time",
         str(timeout),
+        "--compressed",
         "-L",
         "-H",
         "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
         "-H",
-        "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+        "-H",
+        "Accept-Language: en-US,en;q=0.9",
+        "-H",
+        "Accept-Encoding: gzip, deflate, br",
+        "-H",
+        "DNT: 1",
+        "-H",
+        "Connection: keep-alive",
+        "-H",
+        "Upgrade-Insecure-Requests: 1",
     ]
 
     proxy = _get_config_proxy()

@@ -299,7 +299,7 @@ async def stop_chat(request: ChatStopRequest):
     端点立即停止 GPU 推理。
     """
     from ..llm_service import _active_requests, abort_request, is_request_aborted
-    from ..llm_service import abort_sglang_all
+    from ..llm_service import abort_sglang_all, flush_sglang_cache
     from ..config import get_config
     import httpx
 
@@ -311,16 +311,15 @@ async def stop_chat(request: ChatStopRequest):
     # Mark as aborted in our tracking
     abort_request(request.request_id)
 
-    # Call SGLang abort_all to stop GPU inference - use httpx directly for more control
+    # Call SGLang abort_all to stop GPU inference, then flush KV cache
     try:
         debug.api(f"[STOP] Calling SGLang abort_all at {sglang_url}...")
-        with httpx.Client(timeout=10) as client:
-            resp = client.post(f"{sglang_url}/abort_request", json={"abort_all": True})
-            debug.api(
-                f"[STOP] SGLang abort_all response: {resp.status_code} - {resp.text}"
-            )
+        abort_sglang_all(sglang_url)
+        # 刷新 KV cache，防止被中断的请求残留缓存条目
+        flush_sglang_cache(sglang_url, timeout=5.0)
+        debug.api("[STOP] SGLang abort_all + flush_cache completed")
     except Exception as e:
-        debug.api(f"[STOP] SGLang abort_all error: {e}")
+        debug.api(f"[STOP] SGLang abort/flush error: {e}")
 
     return {"status": "stopped", "request_id": request.request_id}
 

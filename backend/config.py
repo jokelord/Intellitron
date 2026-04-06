@@ -323,6 +323,24 @@ class CycleConfig:
 
 
 @dataclass
+class CameraConfig:
+    """摄像头配置"""
+
+    # USB 摄像头参数
+    usb_device_open_delay: float = 0.5
+    usb_warmup_frames: int = 5
+
+    # 内置摄像头参数
+    builtin_device_open_delay: float = 1.0
+    builtin_warmup_frames: int = 8
+
+    # 通用参数
+    max_capture_attempts: int = 3
+    min_brightness: float = 10.0
+    max_dimension: int = 1024
+
+
+@dataclass
 class SGLangConfig:
     """SGLang 配置"""
 
@@ -376,6 +394,7 @@ class AppConfig:
     sglang: SGLangConfig = field(default_factory=SGLangConfig)
     vllm: VLLMConfig = field(default_factory=VLLMConfig)
     cycle: CycleConfig = field(default_factory=CycleConfig)
+    camera: CameraConfig = field(default_factory=CameraConfig)
 
 
 class ConfigLoader:
@@ -474,6 +493,7 @@ class ConfigLoader:
             sglang=self._parse_sglang_config(),
             vllm=self._parse_vllm_config(),
             cycle=self._parse_cycle_config(),
+            camera=self._parse_camera_config(),
         )
 
         if self._config.debug.enabled and self._config.debug.debug_config:
@@ -870,6 +890,27 @@ class ConfigLoader:
             max_duration=self._get_int("cycle", "max_duration", 3600),
             show_thumbnails=self._get_bool("cycle", "show_thumbnails", True),
             default_sequence=self._parse_cycle_steps(raw_seq) if raw_seq else [],
+        )
+
+    def _parse_camera_config(self) -> CameraConfig:
+        """解析摄像头配置"""
+        usb = self._data.get("camera", {}).get("usb", {})
+        builtin = self._data.get("camera", {}).get("builtin", {})
+        common = self._data.get("camera", {}).get("common", {})
+        return CameraConfig(
+            usb_device_open_delay=self._get_float(
+                "camera.usb", "device_open_delay", 0.5
+            ),
+            usb_warmup_frames=self._get_int("camera.usb", "warmup_frames", 5),
+            builtin_device_open_delay=self._get_float(
+                "camera.builtin", "device_open_delay", 1.0
+            ),
+            builtin_warmup_frames=self._get_int("camera.builtin", "warmup_frames", 8),
+            max_capture_attempts=self._get_int(
+                "camera.common", "max_capture_attempts", 3
+            ),
+            min_brightness=self._get_float("camera.common", "min_brightness", 10.0),
+            max_dimension=self._get_int("camera.common", "max_dimension", 1024),
         )
 
     def _print_debug_info(self):

@@ -733,6 +733,18 @@ class SmartToolCallingAgent(ToolCallingAgent):
             default=-1,
         )
 
+        # ── 诊断日志：记录 memory steps 状态 ──
+        task_steps_info = []
+        for i, s in enumerate(steps):
+            if isinstance(s, TaskStep):
+                has_imgs = s.task_images is not None and len(s.task_images) > 0
+                task_steps_info.append(f"TaskStep[{i}](images={has_imgs})")
+        logger.info(
+            f"[CYCLE-DIAG] write_memory_to_messages: "
+            f"total_steps={len(steps)}, last_task_idx={last_task_idx}, "
+            f"task_steps={task_steps_info}"
+        )
+
         for i, memory_step in enumerate(steps):
             if (
                 isinstance(memory_step, TaskStep)
@@ -1028,6 +1040,7 @@ class AgentSession:
     answer_now: bool = False
     accumulated_content: str = ""
     accumulated_thought: str = ""
+    has_run: bool = False  # 标记 agent.run() 是否已被调用过（用于控制 reset 行为）
 
     def abort(self):
         """标记会话为中止状态"""
@@ -1217,6 +1230,13 @@ class AgentRunner:
         # 使用 session 对象的 session_id（可能是新生成的 UUID），
         # 而不是 run_stream 参数中的 session_id（可能为 None）
         session_id = session.session_id
+
+        logger.info(
+            f"[CYCLE-DIAG] run_stream called: input_session_id={session_id}, "
+            f"has_images={images is not None and len(images) if images else 0}, "
+            f"session.has_run={session.has_run}, "
+            f"agent_memory_steps={len(agent.memory.steps)}"
+        )
 
         # 将 base64 图片字符串转换为 PIL.Image 对象，并应用与普通 VLM 链路相同的图片参数：
         # - max_image_size: 字节大小限制
@@ -1442,7 +1462,17 @@ class AgentRunner:
                     {"type": "session_start", "session_id": session.session_id},
                 )
 
-                _should_reset = pil_images is not None
+                # reset 策略：
+                # - 首次调用（新 session）→ reset=True，建立干净的初始状态
+                # - 后续调用（同一 session，如 cycle share_context）→ reset=False，
+                #   保留之前的对话历史，新的 TaskStep 会附带当前图片，
+                #   write_memory_to_messages() 会自动剥离旧 TaskStep 的图片
+                _should_reset = not session.has_run
+                session.has_run = True
+                logger.info(
+                    f"Agent run: session={session_id}, reset={_should_reset}, "
+                    f"has_images={pil_images is not None}"
+                )
                 for step_output in agent.run(
                     message, stream=True, images=pil_images, reset=_should_reset
                 ):
@@ -1670,7 +1700,9 @@ class AgentRunner:
             for _tool_obj in agent.tools.values():
                 _tool_obj._injected_session_id = session_id
             try:
-                return agent.run(message)
+                _should_reset = not session.has_run
+                session.has_run = True
+                return agent.run(message, reset=_should_reset)
             finally:
                 current_session_context.clear()
 

@@ -13,6 +13,7 @@ import { ToggleSwitch } from '@/components/ToggleSwitch';
 import ImageLightbox from '@/components/ImageLightbox';
 import CycleEditor from '@/components/CycleEditor';
 import CycleProgress from '@/components/CycleProgress';
+import { destroyAllCameraStreams } from '@/components/CameraCapture';
 import {
   CycleStep,
   CycleSSEEvent,
@@ -795,6 +796,10 @@ export default function Home() {
    * 启动 Cycle 执行
    */
   const handleCycleStart = useCallback(async (steps: CycleStep[], shareContext: boolean) => {
+    // Release browser camera streams so the backend can open the same
+    // devices via OpenCV (exclusive V4L2 lock).
+    destroyAllCameraStreams();
+
     setCycleStatus('running');
     setCycleEvents([]);
     cycleUserMsgIdRef.current = null;
@@ -892,6 +897,7 @@ export default function Home() {
     cycleAbortController?.abort();
     setCycleStatus('stopped');
     setCycleAbortController(null);
+    setCycleSessionId(null);
   }, [cycleSessionId, cycleAbortController]);
 
   /**
