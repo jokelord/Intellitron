@@ -273,6 +273,7 @@ async def get_current_config():
             "max_image_tokens": config.model.max_image_tokens,
             "max_image_dimension": config.model.max_image_dimension,
             "camera_max_dimension": config.model.camera_max_dimension,
+            "capture_dimension": config.camera.capture_dimension,
         },
         "inference": {
             "temperature": config.inference.temperature,

@@ -270,9 +270,27 @@ class CameraService:
                         f"已达最大重试次数，使用当前帧"
                     )
 
-                # 图片缩放：按配置的最大边长缩放以匹配前端处理
-                max_dim = self.config.max_dimension
-                if max_dim > 0:
+                # 图片缩放 step1：按 capture_dimension 缩放至最大边长（保持宽高比）
+                cap_dim = self.config.capture_dimension
+                if cap_dim and cap_dim > 0:
+                    h, w = frame.shape[:2]
+                    if max(w, h) > cap_dim:
+                        if w >= h:
+                            new_w = cap_dim
+                            new_h = int(h * cap_dim / w)
+                        else:
+                            new_h = cap_dim
+                            new_w = int(w * cap_dim / h)
+                        frame = cv2.resize(
+                            frame, (new_w, new_h), interpolation=cv2.INTER_LANCZOS4
+                        )
+                        logger.debug(
+                            f"摄像头 {index} 采集缩放: {w}x{h} → {new_w}x{new_h}"
+                        )
+
+                # 图片缩放 step2：按 model 配置的 camera_max_dimension 缩放后再发给 VLM
+                max_dim = get_config().model.camera_max_dimension
+                if max_dim and max_dim > 0:
                     h, w = frame.shape[:2]
                     if w > max_dim or h > max_dim:
                         if w > h:
@@ -285,7 +303,7 @@ class CameraService:
                             frame, (new_w, new_h), interpolation=cv2.INTER_LANCZOS4
                         )
                         logger.debug(
-                            f"摄像头 {index} 图片缩放: {w}x{h} → {new_w}x{new_h}"
+                            f"摄像头 {index} VLM 缩放: {w}x{h} → {new_w}x{new_h}"
                         )
 
                 success, buffer = cv2.imencode(".jpg", frame)

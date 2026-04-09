@@ -55,10 +55,10 @@ class ModelConfig:
     supported_formats: Optional[str] = None  # 支持的图片格式
     max_image_tokens: Optional[int] = None  # 最大图片 token 数
     max_image_dimension: Optional[int] = (
-        None  # 图片预处理最大边长(px), 0=不缩放（文件上传路径，后端处理）
+        None  # 所有图片发给 VLM 前的最终缩放上限(px), 0=不缩放
     )
     camera_max_dimension: Optional[int] = (
-        None  # 摄像头拍照前端 canvas 预缩最大边长(px), 0=不缩放
+        None  # 摄像头图片发给 VLM 前的最终缩放上限(px), 0=不缩放
     )
 
 
@@ -337,7 +337,8 @@ class CameraConfig:
     # 通用参数
     max_capture_attempts: int = 3
     min_brightness: float = 10.0
-    max_dimension: int = 1024
+    # 摄像头期望采集分辨率最大边长（硬件协商，超出实际上限时自动回退）
+    capture_dimension: int = 1280
 
 
 @dataclass
@@ -565,7 +566,7 @@ class ConfigLoader:
             ),
             max_image_tokens=self._get_int("model", "max_image_tokens", 8192),
             max_image_dimension=self._get_int("model", "max_image_dimension", 1280),
-            camera_max_dimension=self._get_int("model", "camera_max_dimension", 768),
+            camera_max_dimension=self._get_int("model", "camera_max_dimension", 1024),
         )
 
     def _parse_inference_config(self) -> InferenceConfig:
@@ -910,7 +911,7 @@ class ConfigLoader:
                 "camera.common", "max_capture_attempts", 3
             ),
             min_brightness=self._get_float("camera.common", "min_brightness", 10.0),
-            max_dimension=self._get_int("camera.common", "max_dimension", 1024),
+            capture_dimension=self._get_int("camera.common", "capture_dimension", 1280),
         )
 
     def _print_debug_info(self):

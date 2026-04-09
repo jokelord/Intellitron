@@ -2,9 +2,9 @@ inference:
   # 采样温度（0.0-2.0，越高越随机）
   temperature: 0.7
   # Top-P 核采样（0.0-1.0）
-  top_p: 0.92
+  top_p: 0.9
   # Top-K 采样（0表示禁用）
-  top_k: 50
+  top_k: 80
   # 最大生成token数
   max_tokens: 262144
   # 重复惩罚因子（1.0表示无惩罚）

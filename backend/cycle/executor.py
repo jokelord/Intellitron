@@ -58,19 +58,16 @@ class CycleExecutor:
             except Exception as e:
                 logger.warning("Cycle stop: 中止 agent session 失败: %s", e)
 
-        # 中止 SGLang GPU 推理，并刷新 KV cache 防止残留缓存影响后续请求
+        # 中止 SGLang GPU 推理
         try:
             from backend.config import get_config
-            from backend.llm_service import abort_sglang_all, flush_sglang_cache
+            from backend.llm_service import abort_sglang_all
 
             config = get_config()
             sglang_url = f"http://{config.sglang.host}:{config.sglang.port}"
             abort_sglang_all(sglang_url)
-            # abort 后刷新 KV cache：等待最多 5 秒让 abort 的请求完全退出，
-            # 然后清空 radix cache，防止后续请求复用被中断的缓存条目
-            flush_sglang_cache(sglang_url, timeout=5.0)
         except Exception as e:
-            logger.warning("Cycle stop: SGLang abort/flush 失败: %s", e)
+            logger.warning("Cycle stop: SGLang abort 失败: %s", e)
 
         return True
 
@@ -95,9 +92,6 @@ class CycleExecutor:
                 },
             )
 
-            # 标记这是 cycle 的第一轮，在第一轮完成后刷新缓存
-            first_round_completed = False
-
             async for event in self._execute_steps(
                 session_id=session_id,
                 steps=steps,
@@ -107,28 +101,7 @@ class CycleExecutor:
                 share_context=share_context,
                 cancel_event=cancel_event,
                 start_time=start_time,
-                first_round_completed=False,
             ):
-                # 检查是否第一轮刚刚完成
-                if (
-                    event.startswith("data: ")
-                    and '"type": "llm_done"' in event
-                    and not first_round_completed
-                ):
-                    first_round_completed = True
-                    # 第一轮完成后刷新缓存，避免后续轮次的污染
-                    try:
-                        from backend.config import get_config
-                        from backend.llm_service import flush_sglang_cache
-
-                        config = get_config()
-                        sglang_url = f"http://{config.sglang.host}:{config.sglang.port}"
-                        logger.info("[CYCLE] 第一轮完成后刷新 SGLang KV cache")
-                        flush_sglang_cache(sglang_url, timeout=5.0)
-                    except Exception as e:
-                        logger.warning(
-                            "Cycle first round: SGLang cache flush 失败: %s", e
-                        )
                 yield event
 
             if not cancel_event.is_set():
@@ -174,7 +147,6 @@ class CycleExecutor:
         share_context: bool,
         cancel_event: asyncio.Event,
         start_time: float,
-        first_round_completed: bool = False,
     ) -> AsyncGenerator[str, None]:
         """递归执行步骤列表"""
         for i, step in enumerate(steps):
@@ -228,7 +200,6 @@ class CycleExecutor:
                         share_context=share_context,
                         cancel_event=cancel_event,
                         start_time=start_time,
-                        first_round_completed=first_round_completed,
                     ):
                         yield event
 

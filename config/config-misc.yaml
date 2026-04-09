@@ -232,5 +232,7 @@ camera:
     max_capture_attempts: 3
     # 亮度验证阈值（帧平均像素值低于此值视为黑帧）
     min_brightness: 10.0
-    # 图片最大边长（像素，缩放后用于 VLM 输入）
-    max_dimension: 1024
+    # 摄像头期望采集分辨率（最大边长，像素）
+    # 摄像头硬件会协商到最接近的支持档位（如配置值大于实际最大分辨率则自动回退）
+    # 采集后的图片由 model 配置中的 camera_max_dimension 缩放后再发给 VLM
+    capture_dimension: 1280

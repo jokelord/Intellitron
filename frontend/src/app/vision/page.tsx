@@ -194,11 +194,12 @@ export default function VisionChat() {
     supportedFormats: string[];
     maxImageTokens: number;
     cameraDimension: number;
+    captureDimension: number;
   } | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const handleSendRef = useRef<() => Promise<void> | void>(() => {});
+  const handleSendRef = useRef<() => Promise<void> | void>(() => { });
   const stopWasClickedRef = useRef(false);
   const isLoadingRef = useRef(false);
   const cycleUserMsgIdRef = useRef<string | null>(null);
@@ -240,7 +241,8 @@ export default function VisionChat() {
           maxImageSize: configResponse.vision.max_image_size,
           supportedFormats: configResponse.vision.supported_formats.split(','),
           maxImageTokens: configResponse.vision.max_image_tokens,
-          cameraDimension: configResponse.vision.camera_max_dimension ?? 768,
+          cameraDimension: configResponse.vision.camera_max_dimension ?? 1024,
+          captureDimension: configResponse.vision.capture_dimension ?? 1280,
         });
       }
 
@@ -306,7 +308,7 @@ export default function VisionChat() {
           });
         }
       })
-      .catch(() => {});
+      .catch(() => { });
   }, []);
 
   /**
@@ -397,7 +399,7 @@ export default function VisionChat() {
     // 使用函数式更新确保使用最新状态
     // 同时将之前的助手消息标记为已完成
     setMessages((prev: Message[]) => {
-      const updated = prev.map(msg => 
+      const updated = prev.map(msg =>
         msg.role === 'assistant' ? { ...msg, isStreaming: false } : msg
       );
       return [...updated, userMessage, assistantMessage];
@@ -725,7 +727,7 @@ export default function VisionChat() {
         console.error('停止所有 Agent 失败:', error);
       }
     }
-    
+
     // Safety timeout: if stream doesn't end in 3s after stop, force reset
     setTimeout(() => {
       if (isLoadingRef.current) {
@@ -938,16 +940,16 @@ export default function VisionChat() {
       {/* 设置对话框 */}
       {showSettings && pendingSettings && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div 
-            className="absolute inset-0 bg-black/50" 
+          <div
+            className="absolute inset-0 bg-black/50"
             onClick={() => setShowSettings(false)}
           />
-          
+
           <div className="relative bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-lg max-h-[80vh] overflow-hidden mx-4">
             <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
               <h3 className="font-medium text-gray-900 dark:text-white text-lg">设置</h3>
             </div>
-            
+
             <div className="px-6 py-4 overflow-y-auto max-h-[60vh] space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
@@ -1072,7 +1074,7 @@ export default function VisionChat() {
                 重置为服务器默认值
               </button>
             </div>
-            
+
             <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex justify-end space-x-3">
               <button
                 onClick={() => {
@@ -1172,9 +1174,9 @@ export default function VisionChat() {
                         rehypePlugins={[[rehypeKatex, { throwOnError: false }]]}
                       >
                         {typeof message.content === 'string'
-                          ? (message.content 
-                              ? (isStopped ? message.content + ' [已停止]' : message.content)
-                              : (message.isStreaming && (message.agentSteps?.length ?? 0) > 0 ? '' : (isStopped ? '已停止' : '思考中...')))
+                          ? (message.content
+                            ? (isStopped ? message.content + ' [已停止]' : message.content)
+                            : (message.isStreaming && (message.agentSteps?.length ?? 0) > 0 ? '' : (isStopped ? '已停止' : '思考中...')))
                           : (isStopped ? '已停止' : '思考中...')}
                       </ReactMarkdown>
                       {message.isStreaming && (
@@ -1216,7 +1218,8 @@ export default function VisionChat() {
             maxImages={9}
             maxFileSize={visionConfig?.maxImageSize || 10 * 1024 * 1024}
             acceptedFormats={visionConfig?.supportedFormats || ['png', 'jpg', 'jpeg', 'gif', 'webp']}
-            cameraDimension={visionConfig?.cameraDimension || 768}
+            cameraDimension={visionConfig?.cameraDimension || 1024}
+            captureDimension={visionConfig?.captureDimension || 1280}
             cycleEnabled={cycleConfig.enabled}
             cycleMaxDepth={cycleConfig.max_depth}
             cycleDefaultSteps={cycleConfig.default_sequence}

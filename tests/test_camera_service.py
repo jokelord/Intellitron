@@ -166,13 +166,15 @@ class TestCapture:
     def test_capture_single(self, mock_resolve, mock_cv2):
         mock_cap = MagicMock()
         mock_cap.isOpened.return_value = True
-        fake_frame = np.zeros((100, 100, 3), dtype=np.uint8)
+        # 使用亮度足够的帧（> MIN_BRIGHTNESS=10.0），避免触发重试
+        fake_frame = np.ones((100, 100, 3), dtype=np.uint8) * 128
         mock_cap.read.return_value = (True, fake_frame)
         mock_cv2.VideoCapture.return_value = mock_cap
         mock_cv2.imencode.return_value = (True, np.array([0xFF, 0xD8], dtype=np.uint8))
 
         service = CameraService()
-        results = service.capture([0])
+        with patch.object(service, "_is_builtin_camera", return_value=False):
+            results = service.capture([0])
 
         assert len(results) == 1
         assert "image_base64" in results[0]
@@ -256,60 +258,65 @@ class TestCaptureWarmup:
     @patch("backend.cycle.camera.cv2")
     @patch.object(CameraService, "_resolve_device", return_value="/dev/video0")
     def test_warmup_frames_discarded(self, mock_resolve, mock_cv2):
-        """read() should be called WARMUP_FRAMES+1 times: N warmup + 1 real"""
+        """grab() should be called WARMUP_FRAMES times for warmup, read() once for real capture"""
         mock_cap = MagicMock()
         mock_cap.isOpened.return_value = True
-        fake_frame = np.zeros((100, 100, 3), dtype=np.uint8)
+        # 使用亮度足够的帧，避免触发重试
+        fake_frame = np.ones((100, 100, 3), dtype=np.uint8) * 128
         mock_cap.read.return_value = (True, fake_frame)
         mock_cv2.VideoCapture.return_value = mock_cap
         mock_cv2.imencode.return_value = (True, np.array([0xFF, 0xD8], dtype=np.uint8))
 
         service = CameraService()
-        results = service.capture([0])
+        warmup_count = service.WARMUP_FRAMES  # property 访问
+        with patch.object(service, "_is_builtin_camera", return_value=False):
+            results = service.capture([0])
 
-        expected_reads = CameraService.WARMUP_FRAMES + 1
-        assert mock_cap.read.call_count == expected_reads
+        # warmup 使用 grab()（不解码，更快），拍照使用 read()
+        assert mock_cap.grab.call_count == warmup_count
+        assert mock_cap.read.call_count == 1
         assert "image_base64" in results[0]
 
     @patch("backend.cycle.camera.cv2")
     @patch.object(CameraService, "_resolve_device", return_value="/dev/video0")
     def test_warmup_black_frames_then_good(self, mock_resolve, mock_cv2):
-        """Warmup frames are black, final frame is valid → capture succeeds"""
+        """Warmup frames are handled by grab(), final read() frame is valid → capture succeeds"""
         mock_cap = MagicMock()
         mock_cap.isOpened.return_value = True
 
-        black_frame = np.zeros((100, 100, 3), dtype=np.uint8)
         good_frame = np.ones((100, 100, 3), dtype=np.uint8) * 128
 
-        # First WARMUP_FRAMES reads return black, then the real read returns good
-        warmup_reads = [(True, black_frame)] * CameraService.WARMUP_FRAMES
-        warmup_reads.append((True, good_frame))
-        mock_cap.read.side_effect = warmup_reads
-
+        # warmup 阶段使用 grab()（不返回帧），拍照使用 read()
+        mock_cap.read.return_value = (True, good_frame)
         mock_cv2.VideoCapture.return_value = mock_cap
         mock_cv2.imencode.return_value = (True, np.array([0xFF, 0xD8], dtype=np.uint8))
 
         service = CameraService()
-        results = service.capture([0])
+        with patch.object(service, "_is_builtin_camera", return_value=False):
+            results = service.capture([0])
 
         assert "image_base64" in results[0]
-        # imencode should be called with the good frame, not a black one
+        # imencode should be called with the good frame
         actual_frame = mock_cv2.imencode.call_args[0][1]
         assert np.array_equal(actual_frame, good_frame)
 
     @patch("backend.cycle.camera.cv2")
     @patch.object(CameraService, "_resolve_device", return_value="/dev/video0")
     def test_warmup_frames_configurable(self, mock_resolve, mock_cv2):
-        """WARMUP_FRAMES class attribute can be overridden"""
+        """WARMUP_FRAMES is now a config-backed property, can be changed via config"""
         mock_cap = MagicMock()
         mock_cap.isOpened.return_value = True
-        fake_frame = np.zeros((100, 100, 3), dtype=np.uint8)
+        fake_frame = np.ones((100, 100, 3), dtype=np.uint8) * 128
         mock_cap.read.return_value = (True, fake_frame)
         mock_cv2.VideoCapture.return_value = mock_cap
         mock_cv2.imencode.return_value = (True, np.array([0xFF, 0xD8], dtype=np.uint8))
 
         service = CameraService()
-        service.WARMUP_FRAMES = 10
-        service.capture([0])
+        # 通过修改 config 对象来改变 warmup 帧数
+        service.config.usb_warmup_frames = 10
+        with patch.object(service, "_is_builtin_camera", return_value=False):
+            service.capture([0])
 
-        assert mock_cap.read.call_count == 11  # 10 warmup + 1 real
+        # warmup 使用 grab()，10 帧预热 + 1 次 read
+        assert mock_cap.grab.call_count == 10
+        assert mock_cap.read.call_count == 1

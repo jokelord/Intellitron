@@ -28,10 +28,9 @@ model:
   #   作用链路: config.ini → backend ModelConfig → /config 端点 vision.max_image_dimension
   #             → 后端 process_image_binary 实际缩放（ImageUploader 上传路径）
   max_image_dimension: 1280
-  # 摄像头拍照图片的前端 canvas 预缩最大边长（像素）
-  #   摄像头路径在前端 canvas 阶段即完成缩放，后端不会二次触发缩放（因低于 max_image_dimension）
-  #   适当降低此值可进一步减少拍照场景的 TTFT，但会损失细节
-  #   设为 0 / null = 不缩放（保持摄像头原始分辨率）
-  #   作用链路: config.ini → backend ModelConfig → /config 端点 vision.camera_max_dimension
-  #             → 前端 CameraCapture.tsx canvas 预缩（CameraCapture 拍照路径）
+  # 摄像头拍照图片发给 VLM 前的最大边长（像素）
+  #   前端 CameraCapture.tsx canvas 缩放 + 后端 cycle/camera.py 缩放均以此为准
+  #   设为 0 / null = 不缩放（保持采集原始分辨率）
+  #   作用链路: model.yaml → backend ModelConfig → /config 端点 vision.camera_max_dimension
+  #             → 前端 CameraCapture canvas 缩放 / 后端 OpenCV 缩放
   camera_max_dimension: 1024

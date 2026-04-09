@@ -84,43 +84,6 @@ def abort_sglang_all(sglang_url: str) -> bool:
         return False
 
 
-def flush_sglang_cache(sglang_url: str, timeout: float = 5.0) -> bool:
-    """
-    Flush SGLang's radix/prefix KV cache via the /flush_cache endpoint.
-
-    This should be called after abort_all to ensure no stale KV cache entries
-    remain that could affect subsequent requests. The flush will only succeed
-    when there are no running or waiting requests.
-
-    Args:
-        sglang_url: Base URL of SGLang server (e.g., http://localhost:30000)
-        timeout: Seconds to wait for SGLang to become idle before flushing.
-                 0 = fail fast if requests are still running.
-
-    Returns:
-        bool: True if cache was flushed, False otherwise
-    """
-    import httpx
-
-    try:
-        with httpx.Client(timeout=max(timeout + 5, 15)) as client:
-            response = client.post(
-                f"{sglang_url}/flush_cache",
-                params={"timeout": timeout},
-            )
-            if response.status_code == 200:
-                logger.info("Successfully flushed SGLang KV cache")
-                return True
-            else:
-                logger.warning(
-                    f"SGLang flush_cache failed: {response.status_code} - {response.text}"
-                )
-                return False
-    except Exception as e:
-        logger.error(f"Failed to call SGLang flush_cache endpoint: {e}")
-        return False
-
-
 @dataclass
 class Message:
     """

@@ -8,6 +8,7 @@ Agent 调度与会话管理 (Agent Runner)
 import asyncio
 import json
 import logging
+import re
 import threading
 import time
 import uuid
@@ -702,6 +703,84 @@ class SmartToolCallingAgent(ToolCallingAgent):
     2. 拦截 final_answer 工具调用，静默处理（不显示 "Calling tool: 'final_answer'"）
     """
 
+    # ── 工具调用文本清洗的正则模式（编译一次复用） ──
+
+    # 格式 1: <tool_call>...</tool_call>（含可能的空白）
+    _RE_XML_TOOL_CALL = re.compile(r"\s*<tool_call>\s*.*?\s*</tool_call>\s*", re.DOTALL)
+
+    # 格式 2: 动作:/Action: + JSON 对象（从关键词到文本末尾的 JSON 块）
+    _RE_ACTION_PREFIX = re.compile(
+        r"\s*(?:动作|Action)\s*[：:]\s*\{.*", re.DOTALL | re.IGNORECASE
+    )
+
+    # 格式 5: Calling tools:\n[...]（从关键词到文本末尾）
+    _RE_CALLING_TOOLS = re.compile(r"\s*Calling tools:\s*\[.*", re.DOTALL)
+
+    @staticmethod
+    def _strip_tool_call_text(content: str | None) -> str:
+        """从模型输出文本中移除工具调用语法，保留思考部分。
+
+        当模型成功调用工具后，model_output 中会包含原始的工具调用文本
+        （如 "动作:\\n{...}"、"<tool_call>..."）。如果不清洗，下一步模型
+        会在历史消息中看到自己写的工具调用原文，倾向于直接复读观察结果
+        而非组合完整回复或继续调用工具。
+
+        支持清理的格式（与 _parse_tool_calls_from_text 对应）：
+          1. <tool_call>JSON</tool_call>
+          2. 动作:/Action: + JSON
+          3. 纯 JSON（整条内容就是 {"name":..., "arguments":...}）
+          4. 行内 JSON（正文后直接跟工具调用 JSON）
+          5. Calling tools: + [...]
+
+        Returns:
+            清洗后的文本（仅保留思考/推理部分），去除尾部空白。
+        """
+        if not content:
+            return ""
+
+        result = content
+
+        # 格式 1: 移除 <tool_call>...</tool_call>
+        result = SmartToolCallingAgent._RE_XML_TOOL_CALL.sub("", result)
+
+        # 格式 5: 移除 Calling tools:\n[...]（在格式2之前检查，避免正则冲突）
+        result = SmartToolCallingAgent._RE_CALLING_TOOLS.sub("", result)
+
+        # 格式 2: 移除 动作:/Action: + JSON
+        result = SmartToolCallingAgent._RE_ACTION_PREFIX.sub("", result)
+
+        # 格式 3 & 4: 纯 JSON 或行内 JSON
+        # 检测 {"name": ..., "arguments": ...} 或 [{"name": ...}]
+        # 找到最早的看起来像工具调用 JSON 的 { 或 [ 位置并截断
+        stripped = result.strip()
+        if stripped:
+            # 纯 JSON: 整条内容以 { 或 [ 开头且包含工具调用关键字
+            if (
+                (stripped.startswith("{") or stripped.startswith("["))
+                and '"name"' in stripped
+                and '"arguments"' in stripped
+            ):
+                result = ""
+            elif '"name"' in stripped and '"arguments"' in stripped:
+                # 行内 JSON: 找到包含 "name" 和 "arguments" 的 JSON 块起始位置
+                # 向前搜索最早的 { 后跟 "name"
+                json_start = None
+                search_pos = 0
+                while True:
+                    brace_pos = stripped.find("{", search_pos)
+                    if brace_pos == -1:
+                        break
+                    remaining = stripped[brace_pos:]
+                    if '"name"' in remaining and '"arguments"' in remaining:
+                        json_start = brace_pos
+                        break
+                    search_pos = brace_pos + 1
+
+                if json_start is not None:
+                    result = stripped[:json_start]
+
+        return result.strip()
+
     def write_memory_to_messages(self, summary_mode: bool = False) -> list[ChatMessage]:
         """覆盖父类方法：精确控制图片在多步骤、多轮对话中的传递。
 
@@ -757,7 +836,11 @@ class SmartToolCallingAgent(ToolCallingAgent):
                 messages.extend(stripped.to_messages(summary_mode=summary_mode))
             elif isinstance(memory_step, ActionStep):
                 stripped = copy(memory_step)
-                stripped.tool_calls = None
+                # 注意：不能 strip tool_calls！
+                # 如果 tool_calls 被设为 None，ActionStep.to_messages() 不会生成
+                # TOOL_CALL 消息，导致 observations 变成孤立的 TOOL_RESPONSE，
+                # 破坏 action→observation 配对，使模型在多轮对话中"发疯"。
+                # 只 strip observations_images（它们是任务图片的副本，会导致重复）。
                 stripped.observations_images = None
                 messages.extend(stripped.to_messages(summary_mode=summary_mode))
             else:
@@ -972,7 +1055,9 @@ class SmartToolCallingAgent(ToolCallingAgent):
             # ── 工具执行前发出思考预览（仅非流式路径） ──
             # 流式路径已在 generate_stream 期间逐 token 推送了思考内容，无需重复发送。
             if not _used_streaming:
-                _thought_preview = chat_message.content or ""
+                _thought_preview = self._strip_tool_call_text(
+                    chat_message.content or ""
+                )
                 if _thought_preview:
                     yield ChatMessageStreamDelta(content=_thought_preview)
 
@@ -980,6 +1065,18 @@ class SmartToolCallingAgent(ToolCallingAgent):
             chat_message.tool_calls = real_tool_calls
             for output in self.process_tool_calls(chat_message, memory_step):
                 yield output
+
+            # ── 清洗 model_output：移除工具调用语法文本 ──
+            # 防止下一步模型在历史消息中看到自己写的原始工具调用文本
+            # （如 "动作:\n{...}"），导致复读观察结果而非继续推理。
+            _cleaned = self._strip_tool_call_text(memory_step.model_output)
+            if _cleaned != (memory_step.model_output or ""):
+                logger.info(
+                    f"🧹 清洗 model_output: {len(memory_step.model_output or '')} → {len(_cleaned)} 字符"
+                )
+                memory_step.model_output = _cleaned or None
+                if memory_step.model_output_message:
+                    memory_step.model_output_message.content = _cleaned or None
 
             if intercepted_final is not None:
                 # 模型同时返回了工具调用和 final_answer → 使用 final_answer 结束

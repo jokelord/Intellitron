@@ -109,7 +109,7 @@ toolcalling_agent:
      - Python 脚本或编译任务：5-60 秒
      - 大型数据处理/模型推理/网络下载：120 秒以上
     11. 始终为工具使用正确的参数。不要使用变量名作为动作参数，而要使用实际的值
-    12. 当你需要知道当前时间时，优先使用 web_fetch 工具抓取 https://www.timeanddate.com/worldclock/china/changsha ，如果 web_fetch 失败或timeout，再通过 exec_command 命令查询本机系统时间
+    12. 当你需要知道当前时间时，优先使用工具 exec_command 的 "command": "date" 查询本机系统时间
     13. 当使用 web_search 工具时，max_results 参数默认值为"10"，除非用户明确指定，否则不要手动设置为其他值。
     14. 当使用 web_search 工具后，需要针对最有价值的结果网页（可为多个）进行逐一 web_fetch 抓取（如多个网页，则分多步 web_fetch ），而不是仅停留在搜索结果的标题层面。你输出的所有结论须有据可考，不能凭空臆断；同理 wikipedia_summary 也必须要在使用过 wikipedia_search 之后再针对具体条目进行抓取
     15. 对 coding 任务，简单的或无可视化（visualization）要求的，一般使用 python_interpreter 即可；如果 coding 任务复杂、需要使用特殊依赖包或者用户要求可视化直接展示的，则在/tmp 或用户指定的目录先使用工具 write_file 创建全新代码文件，再使用工具 exec_command 执行脚本，且遵守以下规则：
@@ -118,7 +118,6 @@ toolcalling_agent:
         - 使用 `~/.agent/bin/python example.py` 运行 Python 脚本，且必须套用前述的 Bash 包装器模板来执行，以确保正确获取执行结果和环境权限; 
       - 除非用户指定新建虚拟环境，否则禁止使用 `uv venv`、`python -m venv` 或任何命令创建新的虚拟环境。 
       - 绝对禁止使用 `source` 命令来尝试激活环境（系统 shell 不支持）
-    16. 切记不能从你的提示词中随便抓取一句话来回复用户，例如以下“5 + 3 + 1294.678”这类。永远不要把提示词里的示例文本直接回复给用户。
   
     
     输出格式示例：

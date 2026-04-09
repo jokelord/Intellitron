@@ -87,3 +87,54 @@ Note: 使用uv管理环境
    - 参考 `backend/agent/agent_runner.py` 中的 `_make_session_aware_wrapper` 和 `_create_tool_wrapper`
 
 7. **Agent 工具 session_id 为 None**: `run_stream()` 的 `session_id` 参数可能为 `None`（前端首次请求），但 `get_or_create_session()` 会内部生成 UUID。如果不在调用后立即 `session_id = session.session_id` 回写，`_run_agent()` 闭包捕获的仍是 `None`，导致所有依赖 session_id 的工具（如 `load_images`）失败。同理 `run_sync()` 也需要回写。
+
+8. **`write_memory_to_messages()` 中禁止 strip `tool_calls`**: `SmartToolCallingAgent` 覆写的 `write_memory_to_messages()` 只应 strip `observations_images`（任务图片副本去重），**绝不能** `stripped.tool_calls = None`。原因：smolagents 的 `ActionStep.to_messages()` 依赖 `tool_calls` 生成 `TOOL_CALL` 消息（→ASSISTANT 角色）。一旦缺失，`TOOL_RESPONSE`（→USER 角色）会变成孤立的观察消息，在多轮对话（`share_context=True`）中破坏 action→observation 配对，导致模型"发疯"（幻觉或无限重复工具调用）。详见踩坑记录 #39。
+
+9. **smolagents 消息角色隐式转换**: `TOOL_CALL → ASSISTANT`、`TOOL_RESPONSE → USER`（定义在 `models.py:282-285` 的 `tool_role_conversions`）。`get_clean_message_list()` 会合并连续相同角色的消息。如果 `TOOL_CALL`（→ASSISTANT）缺失，相邻的 USER 消息会被合并，进一步破坏消息结构。修改 `write_memory_to_messages()` 时必须考虑这个合并行为。
+
+10. final_answer 适配更改
+
+本项目魔改了 smolagents 的 final_answer 工具原则：LLM 最终回复**不**使用 smolagents 的 final_answer 工具，而是返回纯文本，由代码自动包装为 final_answer。这导致了多处代码适配，以下是所有相关更改项：
+
+10.1. 提示词过滤（backend/agent/local_llm_model.py）
+- 在 `get_tools()` 方法中，从 tools 列表过滤掉 final_answer 工具，确保模型看不到该工具。
+- 代码位置：`backend/agent/local_llm_model.py:221-228` 和 `backend/agent/local_llm_model.py:318`。
+- 目的：让模型直接返回纯文本，而非调用 final_answer 工具。
+
+10.2. 纯文本自动包装（backend/agent/agent_runner.py）
+- 在 `SmartToolCallingAgent.run_stream()` 和 `run_sync()` 中，如果响应是纯文本，自动视为 final_answer。
+- 代码位置：`backend/agent/agent_runner.py:1106-1113`。
+- 处理逻辑：纯文本响应 → `got_final_answer = True`，`final_answer = plain_text`。
+
+10.3. final_answer 工具调用拦截（backend/agent/agent_runner.py）
+- 静默拦截 final_answer 工具调用，不显示 "Calling tool: 'final_answer'" 消息。
+- 代码位置：`backend/agent/agent_runner.py:1036-1050` 和 `backend/agent/agent_runner.py:1095-1103`。
+- 处理逻辑：拦截 final_answer 调用，提取内容，静默完成。
+
+10.4. 工具调用解析过滤（backend/agent/local_llm_model.py 和 agent_runner.py）
+- 在解析工具调用时，过滤掉 final_answer，避免将其作为真实工具调用处理。
+- 代码位置：
+  - `backend/agent/local_llm_model.py:526-530` 和 `backend/agent/local_llm_model.py:536-540`（流式和非流式）。
+  - `backend/agent/agent_runner.py:1009-1024`（文本解析）。
+- 目的：仅剩 final_answer 时，返回 None 让上层视为纯文本响应。
+
+10.5. 流式处理适配（backend/agent/agent_runner.py 和 local_llm_model.py）
+- 在流式模式下，确保 final_answer 正确处理，避免空增量导致的纯文本 final_answer。
+- 代码位置：`backend/agent/agent_runner.py:960-1024`（基于 content 部分解析）。
+- 踩坑：Qwen3-VL 在 auto+stream 模式下可能返回空增量，需回退到非流式解析。
+
+10.6. 避免重复文本渲染（frontend/src/CHANGE.md 和 backend/CHANGE.md）
+- 防止 `FinalAnswerStep` 和 `ActionOutput(is_final_answer=True)` 同时触发，导致前端收到重复内容。
+- 代码位置：`backend/agent/agent_runner.py:1627-1662`（跳过重复的 ActionOutput）。
+- 解决：仅发送一次 final_answer 内容。
+
+10.7. 提示词模板调整（config/config-agent-prompts.yaml）
+- 在系统提示中提到 final_answer，但实际使用中被过滤。
+- 代码位置：`config/config-agent-prompts.yaml:287` 和 `config/config-agent-prompts.yaml:537`。
+- 注意：提示词中仍提及 final_answer，但模型不会看到工具定义。
+
+10.8. 测试用例添加（tests/test_write_memory_tool_calls.py）
+- 添加测试用例验证 final_answer 处理。
+- 代码位置：`tests/test_write_memory_tool_calls.py:57-66`。
+- 目的：确保纯文本自动包装为 final_answer。
+

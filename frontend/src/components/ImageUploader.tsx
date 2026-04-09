@@ -27,6 +27,7 @@ interface ImageUploaderProps {
   maxFileSize?: number;
   acceptedFormats?: string[];
   cameraDimension?: number;
+  captureDimension?: number;
   // Cycle props
   cycleEnabled?: boolean;
   cycleMaxDepth?: number;
@@ -56,7 +57,8 @@ export default function ImageUploader({
   maxImages = 9,
   maxFileSize = 10 * 1024 * 1024,
   acceptedFormats = ['png', 'jpg', 'jpeg', 'gif', 'webp'],
-  cameraDimension = 768,
+  cameraDimension = 1024,
+  captureDimension = 1280,
   cycleEnabled = false,
   cycleMaxDepth = 5,
   cycleDefaultSteps = [],
@@ -78,7 +80,9 @@ export default function ImageUploader({
   const [error, setError] = useState<UploadError | null>(null);
   const [showCamera, setShowCamera] = useState(false);
   const [showCycle, setShowCycle] = useState(false);
+  const [showUploadHint, setShowUploadHint] = useState(false);
 
+  const remainingSlots = maxImages - images.length;
   const canAddMore = images.length < maxImages;
 
   /**
@@ -230,6 +234,7 @@ export default function ImageUploader({
             onClick={() => {
               setShowCamera(false);
               setShowCycle(false);
+              setShowUploadHint(true);
               fileInputRef.current?.click();
             }}
             className="flex-1 flex items-center justify-center gap-2 
@@ -250,6 +255,7 @@ export default function ImageUploader({
           <button
             onClick={() => {
               setShowCycle(false);
+              setShowUploadHint(false);
               setShowCamera(!showCamera);
             }}
             className={`flex-1 flex items-center justify-center gap-2 
@@ -276,6 +282,7 @@ export default function ImageUploader({
                 destroyAllCameraStreams();
               }
               setShowCamera(false);
+              setShowUploadHint(false);
               setShowCycle(!showCycle);
             }}
             className={`flex-1 flex items-center justify-center gap-2 
@@ -287,21 +294,27 @@ export default function ImageUploader({
                   : 'border-gray-300 dark:border-gray-600 hover:border-nvidia-500 hover:bg-gray-50 dark:hover:bg-gray-800'
               }`}
           >
-            <RefreshCw className={`w-5 h-5 ${
-              showCycle ? 'text-nvidia-500' 
-              : cycleExecutionStatus === 'running' ? 'text-blue-400 animate-spin' 
-              : 'text-gray-500'
-            }`} />
-            <span className={`text-sm ${
-              showCycle ? 'text-nvidia-500' 
+            <RefreshCw className={`w-5 h-5 ${showCycle ? 'text-nvidia-500'
+              : cycleExecutionStatus === 'running' ? 'text-blue-400 animate-spin'
+                : 'text-gray-500'
+              }`} />
+            <span className={`text-sm ${showCycle ? 'text-nvidia-500'
               : cycleExecutionStatus === 'running' ? 'text-blue-400'
-              : 'text-gray-600 dark:text-gray-400'
-            }`}>
+                : 'text-gray-600 dark:text-gray-400'
+              }`}>
               {cycleExecutionStatus === 'running' ? '循环运行中' : '编程循环'}
             </span>
           </button>
         )}
       </div>
+
+      {/* 上传图片提示区域 */}
+      {showUploadHint && canAddMore && !showCamera && !showCycle && (
+        <div className="text-xs text-gray-500 space-y-0.5">
+          <p>最多 {maxImages} 张图片，单个文件最大 {formatFileSize(maxFileSize)}，支持格式: {acceptedFormats.join(', ')}</p>
+          <p>还可以上传 {remainingSlots} 张图片</p>
+        </div>
+      )}
 
       {/* 隐藏的文件输入 */}
       <input
@@ -316,11 +329,16 @@ export default function ImageUploader({
       {/* 摄像头捕获区域 */}
       {showCamera && canAddMore && (
         <div className="mt-2">
+          <div className="mb-2 text-xs text-gray-500 space-y-0.5">
+            <p>最多 {maxImages} 张图片，单个文件最大 {formatFileSize(maxFileSize)}，支持格式: {acceptedFormats.join(', ')}</p>
+            <p>还可以上传 {remainingSlots} 张图片</p>
+          </div>
           <CameraCapture
             onCapture={handleCameraCapture}
             maxImages={maxImages}
             currentImageCount={images.length}
             maxDimension={cameraDimension}
+            captureDimension={captureDimension}
           />
         </div>
       )}
@@ -333,20 +351,14 @@ export default function ImageUploader({
             maxDepth={cycleMaxDepth}
             defaultSteps={cycleDefaultSteps}
             executionStatus={cycleExecutionStatus}
-            onStart={onCycleStart || (() => {})}
-            onStop={onCycleStop || (() => {})}
+            onStart={onCycleStart || (() => { })}
+            onStop={onCycleStop || (() => { })}
           />
           {cycleExecutionStatus !== 'idle' && (
             <CycleProgress status={cycleExecutionStatus} events={cycleEvents} />
           )}
         </div>
       )}
-
-      {/* 提示信息 */}
-      <p className="text-xs text-gray-500">
-        最多 {maxImages} 张图片，单个文件最大 {formatFileSize(maxFileSize)}，
-        支持格式: {acceptedFormats.join(', ')}
-      </p>
     </div>
   );
 }

@@ -20,13 +20,13 @@ import uuid
 
 from PIL import Image as PILImage
 
-# Import config to get camera_max_dimension
+# Import config to get max_image_dimension
 try:
     sys.path.append(os.path.join(os.path.dirname(__file__), "../../../backend"))
     from config import get_config
 
     config = get_config()
-    DEFAULT_MAX_DIM = config.model.camera_max_dimension or 1280
+    DEFAULT_MAX_DIM = config.model.max_image_dimension or 1280
 except Exception:
     # Fallback if config loading fails
     DEFAULT_MAX_DIM = 1280

@@ -320,7 +320,8 @@ class LocalLLMModel(Model):
             if not tools_json:
                 tools_json = None
 
-        # 3. 流式调用 —— 不传 tools，绕过 tool_call_parser
+        # 3. 流式调用 —— 不传 tools，绕过 SGLang 的 tool_call_parser
+        #    （Qwen3-VL 在 auto + stream 模式下传 tools 会导致 parser 吞掉内容，见 AGENTS.md 陷阱 #3）
         stream = self.llm_service.chat(messages=llm_messages, stream=True, tools=None)
 
         has_content = False

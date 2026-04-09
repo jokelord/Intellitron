@@ -26,6 +26,7 @@ interface CameraCaptureProps {
   maxImages?: number;
   currentImageCount?: number;
   maxDimension?: number;
+  captureDimension?: number;
 }
 
 interface CameraDevice {
@@ -107,7 +108,7 @@ function CameraCard({
 
     if (state.stream) {
       video.srcObject = state.stream;
-      video.play().catch(() => {});
+      video.play().catch(() => { });
     } else {
       video.srcObject = null;
     }
@@ -124,9 +125,8 @@ function CameraCard({
 
       {/* Preview area */}
       <div
-        className={`relative w-full aspect-video bg-gray-900 rounded-lg overflow-hidden ${
-          compact ? 'max-w-full' : 'max-w-md'
-        }`}
+        className={`relative w-full aspect-video bg-gray-900 rounded-lg overflow-hidden ${compact ? 'max-w-full' : 'max-w-md'
+          }`}
       >
         {/* video element is always mounted; hidden when not streaming */}
         <video
@@ -147,10 +147,9 @@ function CameraCard({
                 flex items-center justify-center
                 ${compact ? 'w-10 h-10 border-[3px]' : 'w-14 h-14 border-4'}
                 rounded-full border-white transition-all duration-200
-                ${
-                  canCapture && !state.isCapturing
-                    ? 'bg-red-500 hover:bg-red-600 cursor-pointer'
-                    : 'bg-gray-500 cursor-not-allowed'
+                ${canCapture && !state.isCapturing
+                  ? 'bg-red-500 hover:bg-red-600 cursor-pointer'
+                  : 'bg-gray-500 cursor-not-allowed'
                 }`}
               title={
                 state.isCapturing
@@ -200,10 +199,9 @@ function CameraCard({
               onClick={onStart}
               disabled={!canCapture}
               className={`px-3 py-1.5 rounded-lg text-xs transition-colors
-                ${
-                  canCapture
-                    ? 'bg-nvidia-500 hover:bg-nvidia-600 text-white'
-                    : 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                ${canCapture
+                  ? 'bg-nvidia-500 hover:bg-nvidia-600 text-white'
+                  : 'bg-gray-600 text-gray-400 cursor-not-allowed'
                 }`}
             >
               开启摄像头
@@ -230,7 +228,8 @@ export default function CameraCapture({
   onCapture,
   maxImages = 9,
   currentImageCount = 0,
-  maxDimension = 768,
+  maxDimension = 1024,
+  captureDimension = 1280,
 }: CameraCaptureProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [devices, setDevices] = useState<CameraDevice[]>(_cachedDevices ?? []);
@@ -384,8 +383,8 @@ export default function CameraCapture({
         const mediaStream = await navigator.mediaDevices.getUserMedia({
           video: {
             deviceId: { exact: deviceId },
-            width: { ideal: 1280 },
-            height: { ideal: 720 },
+            width: { max: captureDimension },
+            height: { max: captureDimension },
           },
           audio: false,
         });
@@ -585,10 +584,9 @@ export default function CameraCapture({
                 onClick={startAll}
                 disabled={!canCapture}
                 className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs transition-colors
-                  ${
-                    canCapture
-                      ? 'bg-nvidia-500 hover:bg-nvidia-600 text-white'
-                      : 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                  ${canCapture
+                    ? 'bg-nvidia-500 hover:bg-nvidia-600 text-white'
+                    : 'bg-gray-600 text-gray-400 cursor-not-allowed'
                   }`}
               >
                 <Camera className="w-3.5 h-3.5" />
