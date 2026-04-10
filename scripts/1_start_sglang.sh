@@ -94,9 +94,10 @@ LOG_FILE="$PROJECT_ROOT/logs/sglang_$(date +%Y%m%d_%H%M%S).log"
 # 激活虚拟环境
 source /home/zk/Project/LLM-deployment/.sglang/bin/activate
 
-# 设置 Triton PTXAS 路径
-# export TRITON_PTXAS_PATH="$PROJECT_ROOT/patch/ptxas_wrapper.sh"
-export TRITON_PTXAS_PATH=/usr/local/cuda-13.1/bin/ptxas
+# 设置 Triton PTXAS 路径（普通 ptxas + Blackwell 专用 ptxas-blackwell）
+export TRITON_PTXAS_PATH="$PROJECT_ROOT/patch/ptxas_wrapper.sh"
+export TRITON_PTXAS_BLACKWELL_PATH="$PROJECT_ROOT/patch/ptxas_wrapper.sh"
+#export TRITON_PTXAS_PATH=/usr/local/cuda-13.0/bin/ptxas
 # 设置正确的 CUDA 架构列表
 export TORCH_CUDA_ARCH_LIST=11.0a
 # 设置库路径

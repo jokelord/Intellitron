@@ -805,16 +805,34 @@ class LocalLLMModel(Model):
                         ]
                 last_brace = content.rfind("{", 0, last_brace)
 
-        # 格式5：smolagents 历史记录格式 "Calling tools:\n[{...}]"（Python dict with single quotes）
-        # 当模型在对话历史中见过此格式后，会直接将其作为文本输出，需要用 ast.literal_eval 解析
+        # 格式5：smolagents 历史记录格式 "Calling tools:\n[{...}]"（JSON 或 Python dict 格式）
+        # 当模型在对话历史中见过此格式后，会直接将其作为文本输出
+        # 注意：模型可能混合单/双引号（如 'function": ），需先尝试 JSON 再回退 ast
         if "Calling tools:" in content:
             try:
                 import ast
+                import re as _re
 
                 # 找到 [ 开头的列表部分
                 bracket_pos = content.find("[", content.find("Calling tools:"))
                 if bracket_pos != -1:
-                    calls_list = ast.literal_eval(content[bracket_pos:].strip())
+                    raw_text = content[bracket_pos:].strip()
+                    calls_list = None
+                    # 先尝试 JSON 解析（历史现在用 json.dumps 生成）
+                    try:
+                        calls_list = json.loads(raw_text)
+                    except (json.JSONDecodeError, ValueError):
+                        pass
+                    # 回退：修复混合引号后尝试 ast.literal_eval
+                    if calls_list is None:
+                        # 修复 'key": 或 "key': 这类混合引号（只针对 dict key 位置）
+                        fixed = _re.sub(r"'(\w+)\"\s*:", r"'\1':", raw_text)
+                        fixed = _re.sub(r'"(\w+)\'\s*:', r"'\1':", fixed)
+                        try:
+                            calls_list = ast.literal_eval(fixed)
+                        except (ValueError, SyntaxError):
+                            # 最后回退：原始文本直接 ast
+                            calls_list = ast.literal_eval(raw_text)
                     if isinstance(calls_list, list):
                         calls = []
                         for item in calls_list:

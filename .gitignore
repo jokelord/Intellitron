@@ -9,19 +9,12 @@ __pycache__/
 *.py[cod]
 *$py.class
 *.so
-.Python
-build/
 develop-eggs/
-dist/
-downloads/
 eggs/
 .eggs/
-lib/
-lib64/
-parts/
-sdist/
 var/
 wheels/
+whl/
 *.egg-info/
 .installed.cfg
 *.egg
@@ -41,7 +34,6 @@ venv.bak/
 
 # PyInstaller
 *.manifest
-*.spec
 
 # Installer logs
 pip-log.txt
@@ -68,9 +60,7 @@ htmlcov/
 # ============================================================
 node_modules/
 .next/
-out/
 .nuxt/
-dist/
 .cache/
 *.local
 
@@ -91,7 +81,6 @@ pnpm-debug.log*
 
 # TypeScript
 *.tsbuildinfo
-next-env.d.ts
 
 # ============================================================
 # IDE / 编辑器
@@ -128,8 +117,6 @@ next-env.d.ts
 \#*\#
 /.emacs.desktop
 /.emacs.desktop.lock
-auto-save-list
-tramp
 
 # ============================================================
 # 操作系统
@@ -179,10 +166,6 @@ temp/
 # config/config.local.ini
 # config/secrets.ini
 
-# 测试输出
-test-results/
-coverage/
-
 # Docker
 .docker/
 
@@ -190,12 +173,12 @@ coverage/
 # 大文件 / 数据
 # ============================================================
 # 数据集
-data/
-datasets/
+# data/
+# datasets/
 
 # 权重文件（建议使用 Git LFS 或外部存储）
 weights/
-checkpoints/
+# checkpoints/
 
 # 参考源码库
 vllm-main/
@@ -206,8 +189,6 @@ harness-engineering-reference/
 
 # 备忘录
 #踩坑记录.md
-vllm_Compilation_Turitorial.md
-MIGRATION_SUMMARY.md
 
 # 文档
-docs/
+#docs/
