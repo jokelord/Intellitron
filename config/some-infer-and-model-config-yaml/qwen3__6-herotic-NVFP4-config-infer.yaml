@@ -1,0 +1,317 @@
+# ============================================================
+# 模型基本信息（原 *-config-model.yaml 中的 model 段已合并至此）
+# tensor_parallel_size / max_context_length 已去重，仅保留引擎侧：
+#   SGLang: sglang.tensor_parallel_size / sglang.max_context_length
+#   vLLM:   vllm.tensor_parallel_size / vllm.max_model_len
+# backend ModelConfig.tensor_parallel_size / max_context_length 会 fallback 读取引擎侧。
+# 图片相关 5 项已迁移至 config/config-vision.yaml 的 vision_upload 段。
+# ============================================================
+model:
+  # 模型权重路径（本地路径或 HuggingFace 模型ID）
+  model_path: ~/Project/LLM-weight/qwen36-heretic-nvfp4-vision-fixed-v2/
+  # 模型名称（用于日志和前端显示）
+  model_name: Qwen3.6-35B-A3B-heretic-NVFP4
+  # 模型类型: text | vision
+  # 当设置为 vision 时，前端将启用视觉聊天模式（图片上传/摄像头拍照）
+  model_type: vision
+
+inference:
+  # 采样温度（0.0-2.0，越高越随机）
+  temperature: 0.1
+  # Top-P 核采样（0.0-1.0）
+  top_p: 0.9
+  # Top-K 采样（0表示禁用）
+  top_k: 50
+  # 单次请求允许生成的最大输出 token 数（不是模型总上下文长度）
+  max_tokens: 16384
+  # 重复惩罚因子（1.0表示无惩罚）
+  repetition_penalty: 1.2
+  # 是否启用流式输出
+  stream: true
+  # 请求超时时间（秒，默认90分钟）
+  timeout: 5400
+
+kv_cache:
+  # 注意：以下参数在当前 SGLang 版本中不支持，无法传递给 launch_server。
+  # enable_block_reuse 和 max_cache_size_mb 已废弃。
+  # 如果未来版本支持，可取消注释并调整脚本。
+  # 是否启用KV Cache块复用（NVFP4模型建议关闭）- 废弃
+  enable_block_reuse: null
+  # KV Cache最大容量（MB，0表示自动）- 废弃
+  # max_cache_size_mb = 20480  # 限制为 20GB（根据您的总内存 96GB 调整，留出足够空间给模型和推理）
+  max_cache_size_mb: null
+
+# ============================================================
+# SGLang 后端配置
+# ============================================================
+sglang:
+  # SGLang 服务主机地址
+  host: 127.0.0.1
+  # 本机推理服务统一端口（非容器部署的 sglang / vllm 共用）
+  port: 30000
+  # 推理解析器：qwen3-thinking / gpt-oss
+  reasoning_parser: qwen3
+  # 聊天模板（针对非推理模型）：
+  chat_template: null
+  # 工具调用解析器：qwen / gpt-oss/ qwen3_coder
+  tool_call_parser: qwen3_coder
+  # 是否禁用 CUDA 图优化
+  disable_cuda_graph: false
+  # 为小 batch decode 预先捕获并复用 CUDA Graph，降低 Jetson ARM CPU 发射开销; set 4
+  cuda_graph_max_bs: null
+  # 张量并行大小(Thor必须设为1)
+  tensor_parallel_size: 1
+  # 上下文长度（传递给SGLang服务器的--context-length参数，可覆盖模型默认值）
+  # Qwen3-Coder-30B-A3B-Instruct模型支持最大262,144, 但SGLang可扩展至1048576
+  max_context_length: 262144
+  # 内存使用比例（限制SGLang使用的GPU内存比例，0.0-1.0，默认0.893）
+  mem_fraction_static: 0.5
+  # KV Cache 存储精度：压缩 KV 带宽与占用，适合长上下文/多轮对话; set fp8_e4m3
+  kv_cache_dtype: bf16
+  # EAGLE speculative decoding 配置（如果需要开启）
+  speculative_algorithm: null
+  speculative_draft_model_path: null
+  # 是否信任远程代码
+  trust_remote_code: true
+  # 注意力后端：triton /trtllm_mha / torch_native / flashinfer（最快，v0.5.9已支持Thor）/FA4（仅在prefill阶段支持，不推荐在Thor上使用） 等
+  # ⚠️ Qwen3.5 是 hybrid GDN 模型（混合 Attention + Mamba/SSM），Blackwell GPU 上
+  #    hybrid 模型只支持 triton 或 trtllm_mha，而flashinfer 会报 AssertionError。
+  #    纯 Attention 模型（如 Qwen3）才可以使用 flashinfer。
+  attention_backend: flashinfer
+  # 多模态视觉编码器（ViT）注意力后端：triton_attn / fa3
+  # ⚠️ 当 SGLANG_VIT_ENABLE_CUDA_GRAPH=1 时，InternViTCudaGraphRunner 强制要求
+  #    mm_attention_backend 必须显式设为 triton_attn 或 fa3，否则抛出
+  #    RuntimeError: Not supported ViT attention backend for InternVL CG
+  # Jetson Thor (SM110 Blackwell) 上 FA3 不支持 (FA3=FlashAttention3，需 SM90+)
+  # 因此必须使用 triton_attn
+  mm_attention_backend: null
+  # MoE 运行器后端：auto / triton / cutlass / flashinfer_trtllm / flashinfer_cutlass 等
+  #（1）对于本 compressed-tensors NVFP4 MoE 模型：Thor(SM110) 上必须使用 flashinfer_trtllm。
+  #     flashinfer_cutlass / cutlass 会进入 SGLang cutlass_moe_fp4，当前版本报 Unsupported SM version: 110。
+  #（2）对于FP8：cutlass FP8 MoE 内部断言 is_sm90_supported() or is_sm100_supported()，
+  #     而SM 110 不满足该断言（SGLang 的检测函数未覆盖 SM110），会直接 AssertionError 崩溃。
+  #     FP8模型请使用 triton（无 SM 版本限制），性能不如 cutlass 但兼容所有架构。
+  #（4）gptq_marlin 量化要求 moe_runner_backend 必须为 auto（内部断言），不能设为 triton
+  moe_runner_backend: flashinfer_trtllm
+  # 量化格式：fp8 / modelopt_fp4 / gptq_marlin / null(按模型 config 自动检测)
+  #（1）本模型保持 null，让 SGLang 从 compressed-tensors 配置自动识别 NVFP4。
+  #（2）gptq MoE 模型必须使用 gptq_marlin ，普通 gptq 不支持 MoE（会报 TypeError）
+  quantization: compressed-tensors
+  # 调度策略：最长前缀匹配，提高多轮对话和 Agent 场景前缀缓存命中率; set lpm
+  schedule_policy: null
+  # FP8 GEMM 后端：triton / cutlass
+  # cutlass 的 fp8_blockwise_scaled_mm 内核不支持 SM110（NotImplementedError），
+  # 必须改用 triton（兼容所有架构，性能略低）。
+  fp8_gemm_backend: null
+  # 超长输入分块 prefill，避免长文本 prefill 峰值过高导致卡顿或 OOM; set 4096/8192
+  chunked_prefill_size: null
+  # ========== Visual Encoder FP16 量化（降低 TTFT）==========
+  # 模型计算数据类型：float16 | bfloat16 | float32 | auto
+  # 对于 VLM：将 dtype 设为 float16 可使 visual encoder prefill 阶段更快
+  #   - float16: 速度最快（Jetson Thor Blackwell FP16 吞吐最高），TTFT 可降低 20-40%
+  #   - bfloat16: 数值稳定性更好，但速度略慢于 float16
+  #   - auto: 由模型配置决定（Qwen3-VL FP8 通常默认 bfloat16）
+  # 注意：仅影响 activations/计算精度，FP8 权重会自动 dequant 到此精度
+  # 千问3.5 FP8的Mamba hybrid架构只支持bfloat16，无法使用float16
+  dtype: bfloat16
+  # ========== Visual Token 预算控制（降低 TTFT 的最关键参数）==========
+  # 视觉编码器处理的最大像素数
+  #   Qwen3-VL 默认 1003520 (≈1280×784)，降低此值可直接减少 visual token 数
+  #   计算公式: visual_tokens ≈ pixels / (patch_size^2) = pixels / 784
+  #   示例: 1003520 → ~1280 token, 501760 → ~640 token, 250880 → ~320 token
+  #   建议: Jetson Thor 上设为 589824（平衡质量和速度）
+  image_max_pixels: null
+  # 视觉编码器处理的最小像素数（太小会丢失关键细节）,可设100352
+  image_min_pixels: null
+
+# ============================================================
+# vLLM 后端配置
+# ============================================================
+
+vllm:
+  # vLLM 服务主机地址
+  host: 127.0.0.1
+  # 本机推理服务统一端口（非容器部署的 sglang / vllm 共用）
+  port: 8000
+  # 张量并行大小（多GPU时使用, Thor必须用1）
+  tensor_parallel_size: 1
+  # 流水线并行大小（多GPU时使用）
+  pipeline_parallel_size: 1
+  # 分布式执行后端：ray / mp (multiprocessing)
+  distributed_executor_backend: null
+  # 模型最大上下文长度
+  max_model_len: 262144
+  # GPU内存利用率（0.0-1.0）
+  gpu_memory_utilization: 0.6
+  # 数据类型：auto / half / float16 / bfloat16 / float32
+  dtype: auto
+  # 量化方法：awq / gptq / fp8 / bitsandbytes / modelopt / 设“null”表示不量化
+  quantization: compressed-tensors
+  # 自定义tokenizer路径（设“null”使用模型自带）
+  tokenizer: null
+  # 模型版本/分支（设“null”使用默认）
+  revision: null
+  # tokenizer版本（设“null”使用默认）
+  tokenizer_revision: null
+  # 模型加载格式：auto / safetensors / pt / npcache / dummy
+  load_format: auto
+  # 模型下载目录（设“null”使用默认缓存）
+  download_dir: null
+  # 是否信任远程代码
+  trust_remote_code: true
+  # 是否强制使用eager模式（禁用CUDA图）
+  # vLLM 0.17.1 默认 False（启用 CUDA Graph，混合 eager+graph 最高性能）
+  # 同样，vLLM 26.06 (container) 的 CUDA Graph 默认是启用的：enforce_eager 默认 false，即使用混合 eager + CUDA Graph 执行
+  # 对 VLM+摄像头场景：保持 False，vLLM 会通过多档 CUDA Graph capture 处理可变图像 token 长度
+  # 仅在遇到 CUDA Graph 崩溃/OOM 时才设为 true（纯 eager 模式解码速度显著更慢）
+  enforce_eager: null
+  # 最大并发序列数
+  max_num_seqs: 4
+  # 最大批处理token数（0表示自动）:如果说 max_model_len 是杯子的容量，那么 max_num_batched_tokens 就是水龙头的流量
+  # ⚠️ Mamba hybrid 模型（如 Qwen3.5-35B-A3B）在 Mamba cache align 模式下，
+  #    block_size 会被自动对齐为 2096（与 Mamba d_state 有关），
+  #    必须满足 block_size <= max_num_batched_tokens，否则 VllmConfig 校验失败。
+  #    因此此值必须 >= 2096，设为 4096（下一个 2 的幂次）or 8192 以兼容并留有余量。
+  max_num_batched_tokens: 8192
+  # KV Cache块大小：16 / 32 / 64 / 128
+  block_size: null
+  # 是否启用前缀缓存
+  # vLLM 0.17.1 默认 True（APC 自动前缀缓存已内置开启）
+  # 对 VLM：摄像头每张照片图像 token 唯一，图像缓存命中率低；
+  # 但固定系统提示词可被缓存，多轮对话 TTFT 明显下降；FP8 下工作正常
+  enable_prefix_caching: true
+  # KV Cache数据类型：auto / fp8 / fp8_e5m2 / fp8_e4m3
+  kv_cache_dtype: null
+  # CPU swap空间大小（GB）
+  swap_space: null
+  # CPU卸载内存大小（GB，0表示禁用）
+  cpu_offload_gb: null
+  # 注意力后端：首选FLASHINFER，其次 FLASH_ATTN / TRITON_ATTN / XFORMERS / ROCM_FLASH / TORCH_SDPA（vllm仅视觉模型）
+  attention_backend: flashinfer
+  # Flash Attention 版本（仅在 attention_backend=FLASH_ATTN 时生效）
+  # vLLM 0.17.1 新增参数，通过 --attention-config '{"flash_attn_version": N}' 传递
+  # 可选值：2 / 3 / 4（设“null” = 自动选最优版本）
+  # 前提：flash-attn 包须 >= 4.x，GPU 须为 Ampere(SM80+)/Hopper(SM90)/Blackwell(SM110)
+  flash_attn_version: null
+  # 是否禁用FlashAttention
+  disable_flash_attn: null
+  # 是否启用分块预填充
+  enable_chunked_prefill: true
+  # 最大序列长度用于捕获CUDA图（0表示自动）
+  max_seq_len_to_capture: null
+  # 是否禁用滑动窗口
+  disable_sliding_window: false
+  # 是否禁用统计日志
+  disable_log_stats: false
+  # 是否禁用请求日志
+  disable_log_requests: false
+  # 最大logprobs数量
+  max_logprobs: null
+  # 是否启用prompt logprobs
+  enable_prompt_logprobs: null
+  # 是否禁用自定义all-reduce
+  disable_custom_all_reduce: false
+  # Guided decoding 后端: outlines / lm-format-enforcer / xgrammar
+  guided_decoding_backend: null
+
+  # ============================================================
+  # vLLM 推理模式配置
+  # ============================================================
+
+  # 是否启用推理模式（用于推理模型如Qwen3-Thinking）
+  enable_reasoning: null
+  # 推理解析器：qwen3-thinking / deepseek-r1 / 设“null”自动检测
+  reasoning_parser: qwen3
+  # 聊天模板（设“null”使用模型默认）
+  chat_template: null
+  # 工具调用解析器：qwen2 / qwen3_coder / mistral / llama3_json / 设“null”禁用
+  tool_call_parser: qwen3_coder
+  # 是否启用自动工具选择：开启后支持 OpenAI API 的 tool_choice="auto"。
+  # 需同时配置 tool_call_parser（当前为 qwen3_coder），否则工具调用无法被正确解析。
+  enable_auto_tool_choice: true
+  # 服务模型名称（API返回的模型名，设“null”使用model_name）
+  served_model_name: null
+
+  # ============================================================
+  # vLLM LoRA 配置
+  # ============================================================
+
+  # 是否启用LoRA
+  enable_lora: false
+  # 最大LoRA数量
+  max_loras: null
+  # 最大LoRA秩
+  max_lora_rank: null
+  # LoRA额外词汇大小
+  lora_extra_vocab_size: null
+  # 最大CPU LoRA数量
+  max_cpu_loras: null
+  # 是否完全分片LoRA
+  fully_sharded_loras: null
+
+  # ============================================================
+  # vLLM 推测解码配置
+  # ============================================================
+
+  # 推测解码模型路径（设“null”禁用）
+  speculative_model: null
+  # 推测token数量
+  num_speculative_tokens: null
+  # 推测模型最大长度
+  speculative_max_model_len: null
+  # 按批大小禁用推测解码的阈值
+  speculative_disable_by_batch_size: null
+  # ngram提示查找最大值
+  ngram_prompt_lookup_max: null
+  # ngram提示查找最小值
+  ngram_prompt_lookup_min: null
+
+  # ============================================================
+  # vLLM 多模态配置
+  # ============================================================
+
+  # 是否启用多模态; vLLM 26.06 没有同名 CLI；vLLM 根据模型配置自动识别多模态模型。因此它应设为 null
+  enable_multi_modal: null
+  # 是否禁用多模态预处理器缓存
+  disable_mm_preprocessor_cache: null
+  hf_overrides: {"max_pixels": 1003520}
+  limit_mm_per_prompt: {"image": 9}
+  # skip mm profiling = true 只缩短启动，不是稳健的推理加速手段；VLM 部署建议设为 false，让 vLLM 正确估算视觉 encoder 的显存。
+  skip_mm_profiling: false
+
+  # ============================================================
+  # vLLM 调度器配置
+  # ============================================================
+
+  # 抢占模式：swap / reorder
+  preemption_mode: null
+  # 调度器延迟因子
+  scheduler_delay_factor: null
+
+  # ============================================================
+  # vLLM 其他配置
+  # ============================================================
+
+  # 模型加载器额外配置（JSON格式）
+  model_loader_extra_config: null
+  # 忽略的文件模式（逗号分隔）
+  ignore_patterns: null
+  # 最大并行加载工作进程数
+  max_parallel_loading_workers: null
+
+# ============================================================
+# 容器模式配置（古早通过HTTP调用容器API而非本地加载模型，目前已舍弃）
+# ============================================================
+
+container:
+  # 是否启用容器模式（启用后将通过HTTP调用容器API而非本地加载模型）
+  enabled: false
+  # 容器推理服务统一端口（容器里的 sglang / vllm 共用，必须以 /v1 结尾）
+  # 例如 vLLM: http://localhost:8000/v1
+  api_url: http://localhost:8000/v1
+  # 模型名称（设“null”则使用 [model] 中的 model_name）
+  model_name: null
+  # 请求超时时间（秒，大模型推理可能需要较长时间）
+  timeout: 300
+  # 连接失败最大重试次数
+  max_retries: 3

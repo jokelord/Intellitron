@@ -1,0 +1,471 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import 'katex/dist/katex.min.css';
+
+:root {
+  --foreground: #171717;
+  --background: #ffffff;
+  --nvidia-green: #76b900;
+}
+
+html,
+body {
+  height: 100%;
+  overflow: hidden;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --foreground: #ededed;
+    --background: #0a0a0a;
+  }
+}
+
+body {
+  color: var(--foreground);
+  background: var(--background);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+  overscroll-behavior-y: none;
+}
+
+.app-shell {
+  height: 100vh;
+  min-height: 100vh;
+}
+
+@supports (height: 100dvh) {
+  .app-shell {
+    height: 100dvh;
+    min-height: 100dvh;
+  }
+}
+
+.chat-input-footer {
+  padding-bottom: max(0.5rem, calc(0.5rem + env(safe-area-inset-bottom)));
+}
+
+.webui-zone-header-bg {
+  background-color: rgb(255 255 255 / var(--webui-header-bg-alpha, 1));
+}
+
+.webui-header-tint {
+  background-color: rgb(255 255 255 / calc(var(--webui-header-bg-alpha, 1) * 0.4));
+}
+
+.webui-zone-footer-bg {
+  background-color: rgb(255 255 255 / var(--webui-footer-bg-alpha, 1));
+}
+
+/* Cycle owns a readable canvas; it intentionally does not inherit the footer's
+ * user-configurable alpha because long-running controls must stay legible. */
+.cycle-canvas {
+  isolation: isolate;
+  color-scheme: light;
+  --cycle-surface: rgb(255 255 255 / 0.94);
+  --cycle-foreground: #172033;
+  --cycle-muted: #4b5563;
+  --cycle-border: rgb(71 85 105 / 0.34);
+  background: var(--cycle-surface);
+  color: var(--cycle-foreground);
+  border-color: var(--cycle-border);
+  backdrop-filter: blur(8px);
+}
+
+.cycle-canvas .cycle-muted { color: var(--cycle-muted); }
+.cycle-canvas .cycle-border { border-color: var(--cycle-border); }
+.cycle-canvas .cycle-input {
+  border: 1px solid var(--cycle-border);
+  border-radius: 0.375rem;
+  background: rgb(255 255 255 / 0.96);
+  color: var(--cycle-foreground);
+  padding: 0.25rem 0.5rem;
+  font-size: 0.875rem;
+}
+.cycle-canvas .cycle-button {
+  border-radius: 0.375rem;
+  background: rgb(51 65 85 / 0.12);
+  color: var(--cycle-foreground);
+  padding: 0.25rem 0.5rem;
+  font-size: 0.75rem;
+}
+.cycle-canvas .cycle-button:hover { background: rgb(51 65 85 / 0.2); }
+.cycle-canvas :is(button, input, select, textarea):focus-visible {
+  outline: 2px solid #76b900;
+  outline-offset: 2px;
+  box-shadow: 0 0 0 3px rgb(118 185 0 / 0.22);
+}
+
+@media (prefers-color-scheme: dark) {
+  .cycle-canvas {
+    color-scheme: dark;
+    --cycle-surface: rgb(31 41 55 / 0.94);
+    --cycle-foreground: #f1f5f9;
+    --cycle-muted: #cbd5e1;
+    --cycle-border: rgb(203 213 225 / 0.28);
+  }
+  .cycle-canvas .cycle-input { background: rgb(15 23 42 / 0.94); }
+}
+
+@media (prefers-color-scheme: dark) {
+  .webui-zone-header-bg {
+    background-color: rgb(31 41 55 / var(--webui-header-bg-alpha, 1));
+  }
+
+  .webui-header-tint {
+    background-color: rgb(31 41 55 / calc(var(--webui-header-bg-alpha, 1) * 0.4));
+  }
+
+  .webui-zone-footer-bg {
+    background-color: rgb(31 41 55 / var(--webui-footer-bg-alpha, 1));
+  }
+}
+
+.chat-input-textarea {
+  min-height: var(--webui-input-min-height, 48px);
+  max-height: var(--webui-input-max-height, 168px);
+  border-radius: var(--webui-input-border-radius, 16px);
+  scrollbar-width: auto;
+}
+
+.chat-input-textarea::-webkit-scrollbar {
+  width: 14px;
+}
+
+.chat-input-textarea::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+
+.webui-action-button {
+  box-sizing: border-box;
+  width: var(--webui-action-button-width, 48px);
+  height: var(--webui-action-button-height, 48px);
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
+}
+
+.webui-send-button {
+  --webui-action-button-width: var(--webui-send-button-width, 48px);
+  --webui-action-button-height: var(--webui-send-button-height, 48px);
+}
+
+.webui-stop-button {
+  --webui-action-button-width: var(--webui-stop-button-width, 48px);
+  --webui-action-button-height: var(--webui-stop-button-height, 48px);
+}
+
+.webui-answer-now-button {
+  --webui-action-button-width: var(--webui-answer-now-button-width, 48px);
+  --webui-action-button-height: var(--webui-answer-now-button-height, 48px);
+}
+
+/* 自定义滚动条 */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #666;
+}
+
+/* 聊天消息样式 */
+.chat-message {
+  @apply p-4 rounded-lg mb-4;
+}
+
+.chat-message.user {
+  @apply bg-blue-500 text-white ml-auto max-w-[80%];
+}
+
+.chat-message.assistant {
+  @apply bg-gray-100 dark:bg-gray-800 mr-auto max-w-[80%];
+}
+
+/* Markdown 内容样式 */
+.markdown-content {
+  @apply leading-relaxed;
+}
+
+.markdown-content h1,
+.markdown-content h2,
+.markdown-content h3 {
+  @apply font-bold mt-4 mb-2;
+}
+
+.markdown-content h1 {
+  @apply text-2xl;
+}
+
+.markdown-content h2 {
+  @apply text-xl;
+}
+
+.markdown-content h3 {
+  @apply text-lg;
+}
+
+.markdown-content p {
+  @apply mb-3;
+}
+
+.markdown-content ul,
+.markdown-content ol {
+  @apply list-inside mb-3 pl-4;
+}
+
+.markdown-content ul {
+  @apply list-disc;
+}
+
+.markdown-content ol {
+  @apply list-decimal;
+}
+
+.markdown-content code {
+  @apply bg-gray-200 dark:bg-gray-700 px-1 py-0.5 rounded text-sm font-mono;
+}
+
+.markdown-content pre {
+  @apply bg-gray-900 text-gray-100 p-4 rounded-lg overflow-x-auto mb-3;
+}
+
+.markdown-content pre code {
+  @apply bg-transparent p-0;
+}
+
+.markdown-content blockquote {
+  @apply border-l-4 border-gray-300 dark:border-gray-600 pl-4 italic my-3;
+}
+
+.markdown-content a {
+  @apply text-blue-500 hover:underline;
+}
+
+.markdown-content table {
+  @apply w-full border-collapse mb-3;
+}
+
+.markdown-content th,
+.markdown-content td {
+  @apply border border-gray-300 dark:border-gray-600 px-3 py-2;
+}
+
+.markdown-content th {
+  @apply bg-gray-100 dark:bg-gray-700 font-bold;
+}
+
+/* 打字指示器 */
+.typing-indicator {
+  @apply flex items-center space-x-1;
+}
+
+.typing-indicator span {
+  @apply w-2 h-2 bg-gray-400 rounded-full animate-bounce;
+}
+
+.typing-indicator span:nth-child(1) {
+  animation-delay: 0s;
+}
+
+.typing-indicator span:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.typing-indicator span:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes dispatch-marquee {
+  0% {
+    transform: translateX(0%);
+  }
+
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+@keyframes dispatch-scan {
+  from {
+    left: -3.5rem;
+  }
+
+  to {
+    left: calc(100% - 0.6rem);
+  }
+}
+
+@keyframes tool-wait-hourglass-spin {
+  0%,
+  49% {
+    transform: rotate(0deg);
+  }
+
+  50%,
+  100% {
+    transform: rotate(180deg);
+  }
+}
+
+.dispatch-marquee-window {
+  position: relative;
+  overflow: hidden;
+  border-radius: 9999px;
+  padding: 0 0.125rem;
+}
+
+.dispatch-marquee-track {
+  display: inline-flex;
+  min-width: max-content;
+  white-space: nowrap;
+}
+
+.dispatch-marquee-track.is-running {
+  animation: dispatch-marquee 8s linear infinite;
+}
+
+.dispatch-marquee-segment {
+  display: inline-block;
+  padding-right: 2rem;
+}
+
+.dispatch-scan-overlay {
+  position: absolute;
+  top: 50%;
+  height: 1.1em;
+  width: 3.5rem;
+  transform: translateY(-50%);
+  border-radius: 9999px;
+  background: linear-gradient(to right, transparent, rgb(255 255 255 / 0.15), transparent);
+  animation: dispatch-scan 2.2s linear infinite;
+}
+
+.tool-wait-hourglass {
+  display: inline-block;
+  transform-origin: center;
+  animation: tool-wait-hourglass-spin 1s steps(1, end) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dispatch-marquee-track.is-running,
+  .dispatch-scan-overlay,
+  .tool-wait-hourglass {
+    animation: none;
+  }
+}
+
+.webui-glass-zone {
+  isolation: isolate;
+  overflow: hidden;
+  background-color: color-mix(
+    in srgb,
+    var(--webui-glass-tint-a, #ffffff) calc(var(--webui-glass-opacity, 0.72) * 2%),
+    transparent
+  );
+  background-image:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.7), rgba(255, 255, 255, 0.08) 42%, rgba(255, 255, 255, 0.28)),
+    radial-gradient(
+      circle at 12% 0%,
+      color-mix(in srgb, var(--webui-glass-tint-a, #ffffff) 88%, transparent),
+      transparent 36%
+    ),
+    radial-gradient(
+      circle at 92% 100%,
+      color-mix(in srgb, var(--webui-glass-tint-b, #76b900) 42%, transparent),
+      transparent 42%
+    );
+  -webkit-backdrop-filter: saturate(190%) blur(var(--webui-glass-blur, 18px));
+  backdrop-filter: saturate(190%) blur(var(--webui-glass-blur, 18px));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.34),
+    inset 10px 0 28px rgba(255, 255, 255, 0.18),
+    inset -16px 0 36px color-mix(in srgb, var(--webui-glass-tint-b, #76b900) 18%, transparent),
+    0 18px 52px rgba(15, 23, 42, 0.16);
+}
+
+.webui-glass-zone::before,
+.webui-glass-zone::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.webui-glass-zone::before {
+  opacity: calc(0.01 + var(--webui-glass-intensity, 0.72) * 0.015);
+  background:
+    radial-gradient(45% 180% at 18% 12%, rgba(255, 255, 255, 0.92), transparent 52%),
+    radial-gradient(34% 150% at 74% 78%, color-mix(in srgb, var(--webui-glass-tint-b, #76b900) 55%, transparent), transparent 58%),
+    radial-gradient(24% 120% at 46% 42%, rgba(255, 255, 255, 0.5), transparent 62%);
+  filter: blur(14px) saturate(155%);
+  transform: translate3d(0, 0, 0) scale(1.08);
+}
+
+.webui-glass-zone::after {
+  opacity: calc(0.008 + var(--webui-glass-intensity, 0.72) * 0.012);
+  background:
+    linear-gradient(112deg, transparent 6%, rgba(255, 255, 255, 0.62) 11%, transparent 18%, transparent 66%, rgba(255, 255, 255, 0.24) 72%, transparent 82%),
+    repeating-linear-gradient(102deg, rgba(255, 255, 255, 0.2) 0 1px, transparent 1px 18px),
+    radial-gradient(80% 190% at 50% 118%, rgba(255, 255, 255, 0.44), transparent 44%);
+  mix-blend-mode: screen;
+  transform: skewX(-8deg) scaleX(1.06);
+}
+
+.dark .webui-glass-zone {
+  background-color: rgba(17, 24, 39, 0.12);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.12),
+    inset -16px 0 34px color-mix(in srgb, var(--webui-glass-tint-b, #76b900) 16%, transparent),
+    0 18px 52px rgba(0, 0, 0, 0.32);
+}
+
+.webui-skin-aurora-glow-r3f-v1 .webui-glass-zone {
+  background-color: rgba(255, 255, 255, 0.012);
+  background-image: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+.dark .webui-skin-aurora-glow-r3f-v1 .webui-glass-zone {
+  background-color: rgba(17, 24, 39, 0.035);
+}
+
+.webui-skin-aurora-glow-r3f-v1 .webui-glass-zone::before,
+.webui-skin-aurora-glow-r3f-v1 .webui-glass-zone::after {
+  display: none;
+}
+
+.webui-glass-r3f-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  opacity: 1;
+  mix-blend-mode: normal;
+}
+
+.webui-glass-r3f-layer canvas {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.webui-glass-zone-content {
+  position: relative;
+  z-index: 3;
+}

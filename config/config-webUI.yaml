@@ -1,0 +1,113 @@
+# ============================================================
+# Web UI 皮肤配置
+# 默认皮肤：default-v1；炫光皮肤：aurora-glow-r3f-v1
+# ============================================================
+
+webUI:
+  content:
+    bubble_character_limit: 6000
+
+  skin:
+    # 皮肤唯一标识；切换皮肤只需要改这个值。可选：default-v1 / aurora-glow-r3f-v1。
+    id: default-v1
+
+  effects:
+    aurora_glow:
+      # 仅当 skin.id 为 aurora-glow-r3f-v1 且 enabled=true 时，前端才会加载 WebGL/R3F shader 层。
+      enabled: true
+      intensity: 0.72
+      blur_px: 18
+      chromatic_aberration: 0.018
+      refraction_strength: 0.045
+      # 调色盘：https://www.rapidtables.org/zh-CN/convert/color/index.html
+      tint_a: "#F5D2F5"
+      tint_b: "#76b900"
+      opacity: 0.72
+      animated: true
+      max_dpr: 1.5
+
+  layout:
+    # 主内容区域最大宽度，单位 px；对应当前聊天内容的最大横向宽度。
+    max_content_width_px: 920
+    # 输入区左右内边距，单位 px。
+    footer_horizontal_padding_px: 16
+    # 输入区顶部内边距，单位 px。
+    footer_top_padding_px: 16
+    # 输入区底部基础内边距，单位 px；移动端还会叠加系统安全区。
+    footer_bottom_padding_px: 16
+    # 消息列表上下内边距，单位 px。
+    message_list_vertical_padding_px: 24
+    # 默认皮肤页眉背景不透明度（0~1，1=不透明）。
+    header_background_alpha: 0.6
+    # 默认皮肤页脚背景不透明度（0~1，1=不透明）。
+    footer_background_alpha: 0.98
+
+  components:
+    input_bar:
+      # 输入框最小高度，单位 px；单行文本时使用此高度。
+      min_height_px: 48
+      # 输入框最多显示行数；超过后输入框内部滚动。
+      max_rows: 8
+      # 输入框文本行高，单位 px。
+      line_height_px: 24
+      # 输入框上下 padding 总和，单位 px。
+      vertical_padding_px: 16
+      # 输入框圆角半径，单位 px。
+      border_radius_px: 16
+
+    mermaid:
+      # Mermaid 图表显示区域最小高度，单位 px。
+      min_height_px: 160
+
+    page_header:
+      # 是否显示页眉内容（标题/副标题/右侧控制按钮）；false 时仅保留语音输入模式切换（左对齐）。默认 false。
+      display: false
+      # Text 模式页面顶部标题。
+      text_title: "LLM 伴侣"
+      # Vision 模式页面顶部标题。
+      vision_title: "VLM 伴侣"
+      # 页面顶部副标题中模型名后展示的设备/平台文字。
+      subtitle: "Jetson Thor"
+
+    message_avatar:
+      # 用户消息头像图片路径；为空时使用默认图标。图片会以几何中心为中心裁切成圆角正方形。
+      user_image_path: "~/Project/LLM-deployment/frontend/public/me.jpg"
+      # 助手消息头像图片路径；为空时使用默认图标。图片会以几何中心为中心裁切成圆角正方形。
+      assistant_image_path: "~/Project/LLM-deployment/frontend/public/blue-knight-1.jpg"
+      # 消息头像尺寸，单位 px；有效范围 24-96，超出范围会自动夹紧。
+      size_px: 32
+
+    vision_welcome:
+      # Vision 模式空会话欢迎标题。
+      title: "Let's chat!"
+      # Vision 模式空会话欢迎说明。
+      description: "Tips: 点击“➕” 展开多模态复合输入功能"
+      # Vision 模式欢迎图标图片路径；为空时使用默认图标。支持透明图片，图片大于画布时按比例压缩。
+      icon_image_path: "~/Project/LLM-deployment/frontend/public/qwen.png"
+
+    message_templates:
+      # 首次加载或用户选择“恢复默认”时使用；浏览器编辑不会回写此文件。
+      items:
+        - "Hello, what is your name?"
+        - "Tell me the weather forecast for Changsha."
+
+    action_buttons:
+      send:
+        # “发送”按钮宽度，单位 px。
+        width_px: 48
+        # “发送”按钮高度，单位 px。
+        height_px: 48
+      stop:
+        # “停止”按钮宽度，单位 px。
+        width_px: 48
+        # “停止”按钮高度，单位 px。
+        height_px: 48
+      answer_now:
+        # “立即回答”按钮宽度，单位 px。
+        width_px: 48
+        # “立即回答”按钮高度，单位 px。
+        height_px: 48
+
+    agent_steps:
+      # 最终答案生成后，自动折叠本轮思维链与推理内容。默认 true。
+      fold_after_final_answer: true

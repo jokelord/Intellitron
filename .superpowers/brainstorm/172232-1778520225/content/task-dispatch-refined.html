@@ -1,0 +1,99 @@
+<style>
+  .hero-card { max-width: 780px; margin: 0 auto; border:1px solid rgba(148,163,184,.22); border-radius:20px; overflow:hidden; background:linear-gradient(180deg, rgba(15,23,42,.96), rgba(17,24,39,.88)); box-shadow:0 24px 80px rgba(2,6,23,.34); }
+  .hero-head { padding:18px 22px; border-bottom:1px solid rgba(148,163,184,.14); display:flex; align-items:center; justify-content:space-between; gap:16px; }
+  .eyebrow { font-size:12px; letter-spacing:.08em; text-transform:uppercase; color:#fbbf24; }
+  .hero-title { font-size:24px; font-weight:700; color:#f8fafc; }
+  .hero-subtitle { color:#94a3b8; margin-top:4px; }
+  .hero-body { padding:22px; }
+  .status-block { display:flex; gap:12px; align-items:flex-start; margin-bottom:18px; }
+  .pulse { position:relative; width:11px; height:11px; margin-top:6px; border-radius:999px; background:#f59e0b; flex:0 0 auto; }
+  .pulse::after { content:""; position:absolute; inset:-8px; border-radius:999px; background:rgba(245,158,11,.16); animation:breathe 1.9s ease-in-out infinite; }
+  .status-line { font-size:17px; color:#f8fafc; margin-bottom:4px; }
+  .status-meta { font-size:13px; color:#94a3b8; }
+  .tracker { display:flex; flex-direction:column; gap:10px; margin:18px 0 14px; }
+  .tracker-row { display:flex; align-items:center; padding:10px 12px; border-radius:12px; background:rgba(15,23,42,.74); border:1px solid rgba(71,85,105,.28); color:#dbe4ee; font-size:13px; line-height:1.35; }
+  .tracker-row .text-wrap { position:relative; display:inline-flex; align-items:center; overflow:hidden; border-radius:999px; }
+  .tracker-row .text { position:relative; z-index:2; padding:0 2px; }
+  .tracker-row .text-wrap::after { content:""; position:absolute; left:-56px; top:50%; transform:translateY(-50%); height:1.15em; width:56px; border-radius:999px; background:linear-gradient(90deg, rgba(255,255,255,0), rgba(255,255,255,.14), rgba(255,255,255,0)); animation: scan 2.2s linear infinite; z-index:1; }
+  .tracker-row:nth-child(2) .text-wrap::after { animation-delay:.42s; }
+  .tracker-row:nth-child(3) .text-wrap::after { animation-delay:.84s; }
+  .progress-shell { margin-top:16px; padding:14px 14px 12px; border-radius:14px; background:rgba(30,41,59,.45); border:1px solid rgba(71,85,105,.22); }
+  .progress-title { font-size:12px; letter-spacing:.06em; text-transform:uppercase; color:#94a3b8; margin-bottom:8px; }
+  .progress-bar { height:8px; border-radius:999px; background:rgba(51,65,85,.78); overflow:hidden; }
+  .progress-bar::before { content:""; display:block; width:32%; height:100%; border-radius:999px; background:linear-gradient(90deg, rgba(251,191,36,0), rgba(245,158,11,.95), rgba(251,191,36,0)); animation: slide 1.8s linear infinite; }
+  .progress-note { margin-top:8px; color:#94a3b8; font-size:12px; }
+  .review { margin-top:24px; }
+  .review h3 { margin-bottom:10px; }
+  .review ul { margin:0; padding-left:18px; color:#cbd5e1; line-height:1.7; }
+  @keyframes slide { from { transform:translateX(-42%); } to { transform:translateX(300%); } }
+  @keyframes scan {
+    from { left:-56px; transform:translateY(-50%); }
+    to { left:calc(100% - 10px); transform:translateY(-50%); }
+  }
+  @keyframes breathe {
+    0%, 100% { transform:scale(.88); opacity:.28; }
+    50% { transform:scale(1.18); opacity:.7; }
+  }
+</style>
+
+<h2>任务调度卡 · 修正版</h2>
+<p class="subtitle">按你的选择保留 Option B 的系统调度风格，并把文字行上的 moving bar 高度压低到贴合文本本身。</p>
+
+<div class="hero-card">
+  <div class="hero-head">
+    <div>
+      <div class="eyebrow">Coordinator Transition</div>
+      <div class="hero-title">任务调度</div>
+      <div class="hero-subtitle">系统正在为当前请求分配最合适的执行代理</div>
+    </div>
+    <div style="font-size:12px;color:#94a3b8;">前端仅显示状态摘要</div>
+  </div>
+  <div class="hero-body">
+    <div class="status-block">
+      <div class="pulse"></div>
+      <div>
+        <div class="status-line">正在分配执行代理</div>
+        <div class="status-meta">系统正在分析任务是否需要浏览器、文件读写或命令执行能力</div>
+      </div>
+    </div>
+
+    <div class="tracker">
+      <div class="tracker-row"><span class="text-wrap"><span class="text">检查当前任务是否需要扩展执行能力</span></span></div>
+      <div class="tracker-row"><span class="text-wrap"><span class="text">评估是否应切换到具体执行代理</span></span></div>
+      <div class="tracker-row"><span class="text-wrap"><span class="text">正在建立后续执行上下文</span></span></div>
+    </div>
+
+    <div class="progress-shell">
+      <div class="progress-title">Dispatch Progress</div>
+      <div class="progress-bar"></div>
+      <div class="progress-note">完成调度后，将进入后续执行阶段</div>
+    </div>
+  </div>
+</div>
+
+<div class="review">
+  <h3>这版我想确认两件事</h3>
+  <div class="options">
+    <div class="option" data-choice="keep-current-motion" onclick="toggleSelect(this)">
+      <div class="letter">A</div>
+      <div class="content">
+        <h3>保持当前动态</h3>
+        <p>现在的细条扫光已经足够贴字，不需要再压缩。</p>
+      </div>
+    </div>
+    <div class="option" data-choice="make-motion-weaker" onclick="toggleSelect(this)">
+      <div class="letter">B</div>
+      <div class="content">
+        <h3>再弱一点</h3>
+        <p>继续降低亮度/宽度，让它更克制、更专业。</p>
+      </div>
+    </div>
+    <div class="option" data-choice="make-motion-stronger" onclick="toggleSelect(this)">
+      <div class="letter">C</div>
+      <div class="content">
+        <h3>再明显一点</h3>
+        <p>保持细条高度，但提高存在感，增强“系统正在工作”的感知。</p>
+      </div>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,97 @@
+# 【LLM-Test 后端依赖（vLLM 引擎）】
+# ============================================================
+# ⚠️ 重要：Python 版本必须是 3.12（PyTorch/vLLM 建议 3.10~3.12）
+# ============================================================
+
+# ============================================================
+# ⚠️ 重要：安装 uv 包管理器（如果尚未安装）
+# 使用 curl 下载脚本并通过 sh 执行：
+# curl -LsSf https://astral.sh/uv/install.sh | sh
+# 如果系统没有 curl，可以使用 wget：
+# wget -qO- https://astral.sh/uv/install.sh | sh
+# ============================================================
+
+# ============================================================
+# 核心依赖（直接 uv pip install -r requirements_for_vllm.txt）
+# ============================================================
+
+# 配置文件解析
+PyYAML>=6.0
+
+# Web 框架
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+pydantic>=2.5.0
+
+# 异步支持
+python-multipart>=0.0.6
+httpx>=0.25.0
+
+# 模型和推理
+transformers>=4.50.0
+sentencepiece>=0.2.0          # Qwen3/Qwen3-VL tokenizer
+tokenizers>=0.21.0            # HuggingFace 快速 tokenizer（vLLM 直接依赖）
+huggingface-hub>=0.27.0       # 模型下载与管理
+safetensors>=0.4.3            # .safetensors 权重格式解析（vLLM 默认 load_format）
+# accelerate>=1.0.0             # 大模型分布式加载 / device_map（vLLM 内部使用）
+compressed-tensors>=0.9.0     # vLLM 量化支持（FP8 / INT4 / AWQ / GPTQ 统一接口）
+einops>=0.8.0                 # Qwen-VL 视觉 attention（ViT einsum 操作）
+timm>=1.0.0                   # 视觉编码器骨干网络（Qwen3-VL SigLIP/ViT backbone）
+
+# vLLM 分布式推理后端（Tensor Parallel / Pipeline Parallel）
+ray>=2.10.0
+
+# vLLM 推理引擎 (需要从本地 wheel 安装，详见注释)
+# vllm  ← 见下方特殊安装注释
+nvidia-cudnn-cu13==9.19.1.2
+torch==2.10.0 --index-url https://download.pytorch.org/whl/cu130
+
+# ============================================================
+# LLM 推理依赖（需要单独安装，不要写在这里）
+# ============================================================
+
+# PyTorch - 必须使用 NVIDIA PyPI 源安装
+# ✅ 正确:
+#   uv pip install torch==2.10.0+cu130 torchvision torchaudio --index-url https://download.pytorch.org/whl/cu130
+# ❌ 错误:
+#   pip install torch  # 标准源没有 aarch64 版本或无 GPU 加速
+
+# vLLM - 需从本地编译 wheel 安装（Jetson aarch64 + SM110 + CUDA 13.0 定制版）
+# ✅ 正确:
+#   uv pip install ./wheels/vllm-0.17.1+cu130-cp38-abi3-manylinux_2_35_aarch64.whl
+# ❌ 错误:
+#   pip install vllm  # 标准 PyPI 无 aarch64 / SM110 / CUDA 13.0 支持
+#   pip install vllm --index-url ...  # 预编译 wheel 不含 sm_110 SASS，运行时内核报错
+
+
+
+# ============================================================
+# 工具库
+# ============================================================
+
+# 图片处理
+Pillow>=10.0.0
+
+# 日志彩色输出
+colorama>=0.4.6
+
+# 系统监控
+psutil>=5.9.0
+
+# 类型检查存根
+types-psutil>=5.9.0
+
+# ============================================================
+# 开发依赖 (可选)
+# ============================================================
+
+# 代码格式化
+# black>=23.0.0
+# isort>=5.12.0
+
+# 类型检查
+# mypy>=1.7.0
+
+# 测试框架
+# pytest>=7.4.0
+# pytest-asyncio>=0.21.0

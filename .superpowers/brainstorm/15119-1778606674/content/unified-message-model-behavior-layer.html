@@ -1,0 +1,191 @@
+<h2>Section 4: 行为层上下文精细化管理</h2>
+<p class="subtitle">目标：用户可以看到全量流式内容，但后续 agent / LLM 不直接吞原始 UI 文本，而是吃经过编译、分层、结构化的 context pack。</p>
+
+<div class="section">
+  <div class="label">Core Principle</div>
+  <div class="mockup">
+    <div class="mockup-header">Raw Timeline ≠ Next-Turn Context</div>
+    <div class="mockup-body">
+      <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;align-items:center;">
+        <div style="padding:14px;border-radius:14px;background:#0f172a;color:#e2e8f0;text-align:center;">Raw Timeline<br><span style="font-size:12px;opacity:.8;">全量事件归档</span></div>
+        <div style="padding:14px;border-radius:14px;background:#1d4ed8;color:#eff6ff;text-align:center;">Behavior Compiler<br><span style="font-size:12px;opacity:.85;">上下文编译器</span></div>
+        <div style="padding:14px;border-radius:14px;background:#7c3aed;color:#f5f3ff;text-align:center;">Context Pack<br><span style="font-size:12px;opacity:.85;">给目标 agent 的清洁上下文</span></div>
+        <div style="padding:14px;border-radius:14px;background:#854d0e;color:#fffbeb;text-align:center;">Target Agent<br><span style="font-size:12px;opacity:.85;">coordinator_2 / basic_agent / future agents</span></div>
+      </div>
+      <div style="margin-top:12px;font-size:13px;color:#94a3b8;">
+        下一轮模型输入不应直接等于“用户刚看到的全部文本”。必须经过 behavior compiler，按 agent 角色重组。
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="label">Three Storage Tiers</div>
+  <div class="cards">
+    <div class="card">
+      <div class="card-body">
+        <h3>Tier 1: Raw Timeline</h3>
+        <p>保存全量事件：routing delta、message delta、tool call、observation、switch 等。</p>
+        <p>职责：审计、回放、调试、前端流式来源。</p>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-body">
+        <h3>Tier 2: Behavior Records</h3>
+        <p>把 timeline 归纳成结构化行为记录：路由收据、agent handoff、工具账本、未完成事项。</p>
+        <p>职责：给 context compiler 提供稳定、可压缩、可组合的中间层。</p>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-body">
+        <h3>Tier 3: Context Pack</h3>
+        <p>为当前目标 agent 临时编译的上下文包。</p>
+        <p>职责：真正送入模型，强调当前任务、相关历史、清晰边界。</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="label">Recommended Context Pack Shape</div>
+  <div class="mockup">
+    <div class="mockup-header">Per-Agent Context Pack</div>
+    <div class="mockup-body">
+<pre><code>{
+  "session_frame": {
+    "session_id": "...",
+    "turn_id": "...",
+    "active_agent": "coordinator_2"
+  },
+  "user_goal": "用户当前要完成什么",
+  "routing_receipt": {
+    "decider": "coordinator_1",
+    "decision": "coordinator_2",
+    "reason_summary": "需要复杂无工具推理",
+    "timeout_fallback": false,
+    "raw_transcript_ref": "timeline:evt_100-evt_142"
+  },
+  "agent_contract": {
+    "allowed_actions": ["reason", "switch_agent"],
+    "disallowed_actions": ["tool_call_directly"]
+  },
+  "recent_visible_history": [
+    "最近用户输入与关键 assistant 可见内容（清洁版）"
+  ],
+  "working_memory": [
+    "当前推导到哪里了",
+    "已经确认了哪些中间结论"
+  ],
+  "handoff_ledger": [
+    "之前发生过哪些 agent 切换，原因是什么"
+  ],
+  "tool_ledger": [
+    "如果之前有工具调用，这里保存结构化结果而非混乱原文"
+  ],
+  "unresolved_items": [
+    "还没解决的问题"
+  ]
+}</code></pre>
+      <div style="margin-top:10px;font-size:13px;color:#94a3b8;">关键不是 JSON 长这样，而是上下文被拆成稳定语义区块，而不是一坨 message transcript。</div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="label">Behavior Record Types</div>
+  <div class="split">
+    <div class="mockup">
+      <div class="mockup-header">Route Receipt</div>
+      <div class="mockup-body">
+        <div style="display:flex;flex-direction:column;gap:10px;">
+          <div style="padding:10px 12px;border-radius:12px;background:#172554;color:#dbeafe;">decider = coordinator_1</div>
+          <div style="padding:10px 12px;border-radius:12px;background:#172554;color:#dbeafe;">decision = coordinator_2 / basic_agent / future_agent</div>
+          <div style="padding:10px 12px;border-radius:12px;background:#172554;color:#dbeafe;">reason_summary = 结构化路由摘要</div>
+          <div style="padding:10px 12px;border-radius:12px;background:#172554;color:#dbeafe;">raw_transcript_ref = 原始 routing delta 引用</div>
+        </div>
+      </div>
+    </div>
+    <div class="mockup">
+      <div class="mockup-header">Handoff Record</div>
+      <div class="mockup-body">
+        <div style="display:flex;flex-direction:column;gap:10px;">
+          <div style="padding:10px 12px;border-radius:12px;background:#78350f;color:#fef3c7;">from = coordinator_2</div>
+          <div style="padding:10px 12px;border-radius:12px;background:#78350f;color:#fef3c7;">to = basic_agent</div>
+          <div style="padding:10px 12px;border-radius:12px;background:#78350f;color:#fef3c7;">why = “推导后发现需要文件/搜索/浏览器工具”</div>
+          <div style="padding:10px 12px;border-radius:12px;background:#78350f;color:#fef3c7;">carry_forward = 要带给下一个 agent 的关键结论</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="label">Compilation Rules</div>
+  <div class="pros-cons">
+    <div class="pros">
+      <h4>必须保留的高价值信息</h4>
+      <ul>
+        <li>当前用户目标</li>
+        <li>最近一次 routing 决策及其摘要</li>
+        <li>未完成事项</li>
+        <li>最近一个 agent 的关键结论</li>
+        <li>工具执行的结构化观察结果</li>
+      </ul>
+    </div>
+    <div class="cons">
+      <h4>不要直接原样塞回模型的内容</h4>
+      <ul>
+        <li>前端装饰文本、滚动文本、扫光 UI 文案</li>
+        <li>长篇 routing delta 原文全部拼回 transcript 主体</li>
+        <li>工具原始脏日志整段回灌</li>
+        <li>多轮里已经解决掉的低价值中间噪音</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="label">coordinator_2 Special Rule</div>
+  <div class="mockup">
+    <div class="mockup-header">Visible Full Stream, Structured Future Recall</div>
+    <div class="mockup-body">
+      <div style="display:flex;flex-direction:column;gap:10px;">
+        <div style="padding:10px 12px;border-radius:12px;background:#0f766e;color:#ecfeff;">对用户：coordinator_2 的全量 reasoning / content 继续完整流式显示。</div>
+        <div style="padding:10px 12px;border-radius:12px;background:#1e293b;color:#e2e8f0;">对未来 agent：不强制吞掉全部原文，而是保留结构化摘要 + 可选 transcript 引用。</div>
+        <div style="padding:10px 12px;border-radius:12px;background:#1e293b;color:#e2e8f0;">这样既不牺牲用户可见性，也不污染后续上下文窗口。</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="label">Context Window Strategy</div>
+  <div class="mockup">
+    <div class="mockup-header">精细化管理，而不是一刀切裁剪</div>
+    <div class="mockup-body">
+      <div style="display:flex;flex-direction:column;gap:10px;">
+        <div style="padding:10px 12px;border-radius:12px;background:#334155;color:#f8fafc;">当前 turn：高保真保留</div>
+        <div style="padding:10px 12px;border-radius:12px;background:#334155;color:#f8fafc;">最近未完成 turn：中高保真保留</div>
+        <div style="padding:10px 12px;border-radius:12px;background:#334155;color:#f8fafc;">已解决旧 turn：摘要化保留</div>
+        <div style="padding:10px 12px;border-radius:12px;background:#334155;color:#f8fafc;">工具与切换历史：以 ledger 方式长期保留</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="options">
+  <div class="option" data-choice="behavior-right" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>这版行为层设计正确</h3>
+      <p>继续进入下一节。</p>
+    </div>
+  </div>
+  <div class="option" data-choice="behavior-adjust" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>需要调整</h3>
+      <p>先修行为层设计，再继续。</p>
+    </div>
+  </div>
+</div>

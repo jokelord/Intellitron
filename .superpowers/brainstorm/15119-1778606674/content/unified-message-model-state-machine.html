@@ -1,0 +1,53 @@
+<h2>Section 2: 统一事件时间线与状态机</h2>
+<p class="subtitle">目标：让 <code>coordinator_1</code>、<code>coordinator_2</code>、<code>basic_agent</code>、future agents 都落到同一套事件协议里，再由不同投影器决定给谁看什么。</p>
+
+<div class="section">
+  <div class="label">Canonical Timeline Event Types</div>
+  <div class="cards">
+    <div class="card"><div class="card-body"><h3>Turn Events</h3><p><code>turn_started</code>, <code>user_message</code>, <code>turn_completed</code>, <code>turn_aborted</code></p></div></div>
+    <div class="card"><div class="card-body"><h3>Routing Events</h3><p><code>routing_started</code>, <code>routing_delta</code>, <code>routing_decision</code>, <code>routing_timeout_fallback</code></p></div></div>
+    <div class="card"><div class="card-body"><h3>Visible Message Events</h3><p><code>message_started</code>, <code>message_delta</code>, <code>message_completed</code></p></div></div>
+    <div class="card"><div class="card-body"><h3>Agent Action Events</h3><p><code>agent_switched</code>, <code>tool_call_started</code>, <code>tool_call_completed</code>, <code>observation_added</code></p></div></div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="label">Main State Machine</div>
+  <div class="mockup">
+    <div class="mockup-header">Turn Lifecycle</div>
+    <div class="mockup-body">
+      <div style="display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:10px;align-items:center;">
+        <div style="padding:12px;border-radius:12px;background:#0f172a;color:#e2e8f0;text-align:center;">User Turn</div>
+        <div style="padding:12px;border-radius:12px;background:#1d4ed8;color:#eff6ff;text-align:center;">Routing Active<br><span style="font-size:12px;opacity:.8;">coordinator_1</span></div>
+        <div style="padding:12px;border-radius:12px;background:#7c3aed;color:#f5f3ff;text-align:center;">Decision Ready</div>
+        <div style="padding:12px;border-radius:12px;background:#0f766e;color:#ecfeff;text-align:center;">Coordinator_2 Visible Stream</div>
+        <div style="padding:12px;border-radius:12px;background:#14532d;color:#dcfce7;text-align:center;">Basic Agent Execution</div>
+        <div style="padding:12px;border-radius:12px;background:#9a3412;color:#ffedd5;text-align:center;">Future Agent Execution</div>
+        <div style="padding:12px;border-radius:12px;background:#334155;color:#f8fafc;text-align:center;">Done</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="label">Projection Rules</div>
+  <div class="pros-cons">
+    <div class="pros">
+      <h4>可见消息层</h4>
+      <ul>
+        <li><code>routing_delta</code> → 任务调度卡片滚动文本</li>
+        <li><code>routing_timeout_fallback</code> → 卡片显示“超时，已转 basic_agent”</li>
+        <li><code>message_delta(source=coordinator_2)</code> → 普通聊天气泡流式显示</li>
+        <li><code>tool_call_*</code> / <code>observation_added</code> → agent steps UI</li>
+      </ul>
+    </div>
+    <div class="cons">
+      <h4>行为层</h4>
+      <ul>
+        <li>routing 原文可显示，但写回上下文时要结构化</li>
+        <li>coordinator_2 的可见推理可保留，但上下文沉淀时要有边界</li>
+        <li>工具历史按 action/observation 成对保存</li>
+      </ul>
+    </div>
+  </div>
+</div>

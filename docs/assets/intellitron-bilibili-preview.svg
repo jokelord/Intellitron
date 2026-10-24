@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="360" viewBox="0 0 640 360" role="img" aria-labelledby="title desc">
+  <title id="title">Intellitron 哔哩哔哩介绍视频</title>
+  <desc id="desc">点击播放 Intellitron 介绍视频</desc>
+  <defs>
+    <linearGradient id="background" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#111b36"/>
+      <stop offset="1" stop-color="#153e69"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#55d5ff"/>
+      <stop offset="1" stop-color="#ff78b8"/>
+    </linearGradient>
+  </defs>
+  <rect width="640" height="360" rx="20" fill="url(#background)"/>
+  <circle cx="520" cy="84" r="130" fill="#4dc9ff" opacity=".08"/>
+  <circle cx="95" cy="330" r="170" fill="#ff78b8" opacity=".08"/>
+  <path d="M0 278C132 214 223 325 354 269s190-36 286-91v182H0Z" fill="#071124" opacity=".42"/>
+  <text x="52" y="76" fill="#a8dfff" font-family="Arial, sans-serif" font-size="17" font-weight="700" letter-spacing="3">INTRODUCTION VIDEO</text>
+  <text x="52" y="151" fill="#fff" font-family="Arial, sans-serif" font-size="48" font-weight="700">Intellitron</text>
+  <text x="54" y="188" fill="#c5d8f0" font-family="Arial, sans-serif" font-size="20">本地 LLM 部署与 Agent 交互系统</text>
+  <circle cx="320" cy="260" r="43" fill="url(#accent)"/>
+  <path d="M310 238v44l36-22z" fill="#fff"/>
+  <text x="390" y="268" fill="#fff" font-family="Arial, sans-serif" font-size="19" font-weight="700">点击播放 · 哔哩哔哩</text>
+</svg>

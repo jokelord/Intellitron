@@ -1,0 +1,951 @@
+#!/usr/bin/env bash
+# Launch a command inside a local Linux graphical user session.
+# Supports Wayland, X11, and XWayland without fixed user/display assumptions.
+set -uo pipefail
+shopt -s nullglob
+
+readonly EX_USAGE=64
+readonly EX_UNAVAILABLE=69
+readonly EX_NOPERM=77
+readonly EX_CONFIG=78
+readonly VERSION='1.2.0'
+readonly MAX_PROBE_SECONDS='60'
+
+MODE='async'
+PROBE_SECONDS='1'
+USER_SPEC=''
+SESSION_SPEC=''
+LOG_SPEC=''
+DEBUG=0
+
+LOGINCTL="${AGENT_GUI_LOGINCTL:-$(command -v loginctl 2>/dev/null || true)}"
+SYSTEMCTL="${AGENT_GUI_SYSTEMCTL:-$(command -v systemctl 2>/dev/null || true)}"
+RUNUSER="${AGENT_GUI_RUNUSER:-$(command -v runuser 2>/dev/null || true)}"
+SETPRIV="${AGENT_GUI_SETPRIV:-$(command -v setpriv 2>/dev/null || true)}"
+SETSID="${AGENT_GUI_SETSID:-$(command -v setsid 2>/dev/null || true)}"
+NOHUP="${AGENT_GUI_NOHUP:-$(command -v nohup 2>/dev/null || true)}"
+RUNTIME_ROOT="${AGENT_GUI_RUNTIME_ROOT:-/run/user}"
+X11_SOCKET_DIR="${AGENT_GUI_X11_SOCKET_DIR:-/tmp/.X11-unix}"
+HELPER_PATH='/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'
+
+CURRENT_UID=$(id -u)
+CURRENT_USER=$(id -un 2>/dev/null || printf '%s' "$CURRENT_UID")
+CURRENT_SESSION_ID="${XDG_SESSION_ID:-}"
+
+TARGET_USER=''
+TARGET_UID=''
+TARGET_GID=''
+TARGET_HOME=''
+TARGET_SHELL=''
+SESSION_ID=''
+SESSION_TYPE=''
+SESSION_CLASS=''
+SESSION_ACTIVE=''
+SESSION_REMOTE=''
+SESSION_STATE=''
+SESSION_SEAT=''
+SESSION_DISPLAY=''
+SESSION_LEADER=''
+RUNTIME_DIR=''
+DBUS_ADDRESS=''
+WAYLAND_VALUE=''
+WAYLAND_SOURCE='none'
+WAYLAND_SOCKET=''
+DISPLAY_VALUE=''
+DISPLAY_SOURCE='none'
+XAUTH_VALUE=''
+XAUTH_SOURCE='none'
+BACKEND='none'
+X11_MODE='none'
+MANAGER_ENV_STATUS='unavailable'
+PRIVILEGE_MODE='same-user'
+LOG_FILE=''
+
+declare -A MENV=()
+
+usage() {
+  cat <<'USAGE'
+Usage:
+  agent-gui-run [options] -- command [arg ...]
+  agent-gui-run [options] --diagnose
+
+Options:
+  --user USER|UID       Target desktop user. Root auto-discovers when omitted.
+  --session ID          Target logind session; its user becomes authoritative.
+  --wait                Wait for the command and return its real exit status.
+  --probe-seconds N     Async liveness probe delay (default: 1; decimals allowed; max: 60).
+  --log PATH            Capture output below the real cwd or /tmp (non-root only).
+  --diagnose            Resolve the graphical session but run no command.
+  --debug               Print resolver diagnostics to stderr.
+  --version             Print version.
+  -h, --help            Show this help.
+
+Security model:
+  A non-root caller may target only itself. Root drops to the graphical user's
+  UID/GID before the GUI command starts. The launcher never weakens display
+  access controls and never interprets command arguments as shell source.
+USAGE
+}
+
+err() { printf 'agent-gui-run: %s\n' "$*" >&2; }
+debug() { [[ $DEBUG -eq 1 ]] && printf 'agent-gui-run[debug]: %s\n' "$*" >&2 || true; }
+die() { local code=$1; shift; err "$*"; exit "$code"; }
+
+is_yes() {
+  case "${1,,}" in yes|true|1) return 0 ;; *) return 1 ;; esac
+}
+
+valid_env_name() { [[ "$1" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]]; }
+
+reject_inner_command() {
+  die "$EX_NOPERM" "command rejected by built-in safety policy: $1"
+}
+
+protected_runtime_env_name() {
+  case "$1" in
+    HOME|PATH|NVM_DIR|PYTHONHOME|PYTHONPATH|UV_PROJECT_ENVIRONMENT|VIRTUAL_ENV|\
+    BASH_ENV|ENV|LD_PRELOAD|LD_LIBRARY_PATH|LD_AUDIT|DYLD_INSERT_LIBRARIES|\
+    DYLD_LIBRARY_PATH|NODE_OPTIONS|PYTHONSTARTUP|PYTHONINSPECT|PERL5OPT|\
+    RUBYOPT|GIT_CONFIG_GLOBAL|GIT_CONFIG_SYSTEM|GIT_SSH_COMMAND|GIT_ASKPASS|\
+    SSH_ASKPASS|CDPATH|IFS|SHELLOPTS|BASHOPTS|PROMPT_COMMAND|\
+    DISPLAY|WAYLAND_DISPLAY|XAUTHORITY|XDG_RUNTIME_DIR|DBUS_SESSION_BUS_ADDRESS)
+      return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+unwrap_env_command() {
+  local -n wrapped=$1
+  local index=1 arg name
+  while (( index < ${#wrapped[@]} )); do
+    arg=${wrapped[index]}
+    case "$arg" in
+      --)
+        index=$((index+1))
+        break ;;
+      -S|--split-string|--split-string=*|-C|--chdir|--chdir=*|-P|--path|--path=*)
+        reject_inner_command "env command-string, cwd, and PATH overrides are unavailable" ;;
+      -u|--unset)
+        (( index + 1 < ${#wrapped[@]} )) || return 1
+        name=${wrapped[index+1]}
+        protected_runtime_env_name "$name" && \
+          reject_inner_command "env cannot unset a protected runtime variable"
+        index=$((index+2)) ;;
+      --unset=*)
+        name=${arg#*=}
+        protected_runtime_env_name "$name" && \
+          reject_inner_command "env cannot unset a protected runtime variable"
+        index=$((index+1)) ;;
+      -|-i|--ignore-environment|-0|--null)
+        index=$((index+1)) ;;
+      *=*)
+        if [[ "$arg" =~ ^[A-Za-z_][A-Za-z0-9_]*= ]]; then
+          name=${arg%%=*}
+          protected_runtime_env_name "$name" && \
+            reject_inner_command "env cannot replace a protected runtime variable"
+          index=$((index+1))
+        else
+          break
+        fi ;;
+      -*)
+        reject_inner_command "unsupported env option" ;;
+      *)
+        break ;;
+    esac
+  done
+  (( index < ${#wrapped[@]} )) || return 1
+  wrapped=("${wrapped[@]:index}")
+}
+
+root_target() {
+  local value=$1 normalized=$1
+  if command -v readlink >/dev/null 2>&1; then
+    normalized=$(readlink -m -- "$value" 2>/dev/null || printf '%s' "$value")
+  fi
+  case "$normalized" in
+    /|/\*|/\{*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+validate_inner_command() {
+  local -a inner=("${CMD[@]}")
+  local name arg recursive=0 options=1 mode_value=''
+  local index
+
+  while (( ${#inner[@]} > 0 )); do
+    name=${inner[0]##*/}
+    name=${name,,}
+    [[ "$name" == env ]] || break
+    unwrap_env_command inner || return 0
+  done
+  (( ${#inner[@]} > 0 )) || return 0
+
+  name=${inner[0]##*/}
+  name=${name,,}
+  case "$name" in
+    sudo|doas|pkexec|su)
+      reject_inner_command "privilege escalation is unavailable" ;;
+    mkfs|mkfs.*)
+      reject_inner_command "filesystem formatting is unavailable" ;;
+    shutdown|reboot|poweroff|halt)
+      reject_inner_command "system power control is unavailable" ;;
+    systemctl|service|init|telinit|kill|pkill|killall)
+      reject_inner_command "system service and process control is unavailable" ;;
+    bash|dash|fish|ksh|sh|zsh)
+      reject_inner_command "nested shell execution is unavailable" ;;
+  esac
+
+  for arg in "${inner[@]}"; do
+    if [[ "$arg" =~ (^|=)/dev/(sd[a-z]|nvme[0-9]+|mmcblk[0-9]+|vd[a-z]|xvd[a-z]|loop[0-9]+) ]]; then
+      reject_inner_command "direct device access is unavailable"
+    fi
+  done
+
+  if [[ "$name" == rm ]]; then
+    options=1
+    for (( index=1; index<${#inner[@]}; index++ )); do
+      arg=${inner[index]}
+      if (( options == 1 )) && [[ "$arg" == -- ]]; then
+        options=0
+      elif (( options == 1 )) && [[ "$arg" == --recursive ]]; then
+        recursive=1
+      elif (( options == 1 )) && [[ "$arg" == -?* && "$arg" != --* && "${arg#-}" == *[rR]* ]]; then
+        recursive=1
+      fi
+    done
+    if (( recursive == 1 )); then
+      options=1
+      for (( index=1; index<${#inner[@]}; index++ )); do
+        arg=${inner[index]}
+        if (( options == 1 )) && [[ "$arg" == -- ]]; then
+          options=0
+          continue
+        fi
+        if (( options == 1 )) && [[ "$arg" == -* ]]; then
+          continue
+        fi
+        root_target "$arg" && \
+          reject_inner_command "recursive deletion of root is unavailable"
+      done
+    fi
+  fi
+
+  if [[ "$name" == chmod ]]; then
+    for arg in "${inner[@]:1}"; do
+      if [[ "$arg" =~ ^[0-7]{3,4}$ ]]; then
+        mode_value=$arg
+        break
+      fi
+    done
+    if [[ "$mode_value" =~ ^[0-7]?7[0-7]{2}$ ]]; then
+      for arg in "${inner[@]:1}"; do
+        [[ "$arg" == -* || "$arg" == "$mode_value" ]] && continue
+        root_target "$arg" && \
+          reject_inner_command "root permission expansion is unavailable"
+      done
+    fi
+  fi
+}
+
+lookup_user() {
+  local spec=$1 entry
+  entry=$(getent passwd "$spec" 2>/dev/null) || return 1
+  IFS=: read -r TARGET_USER _ TARGET_UID TARGET_GID _ TARGET_HOME TARGET_SHELL <<<"$entry"
+  [[ -n "$TARGET_SHELL" ]] || TARGET_SHELL='/bin/sh'
+  return 0
+}
+
+load_session() {
+  local sid=$1 line key val
+  S_UID=''; S_NAME=''; S_TYPE=''; S_CLASS=''; S_ACTIVE=''; S_REMOTE=''
+  S_STATE=''; S_SEAT=''; S_DISPLAY=''; S_LEADER=''
+  [[ -n "$LOGINCTL" && -x "$LOGINCTL" ]] || return 1
+  while IFS= read -r line; do
+    [[ "$line" == *=* ]] || continue
+    key=${line%%=*}; val=${line#*=}
+    case "$key" in
+      User) S_UID=$val ;;
+      Name) S_NAME=$val ;;
+      Type) S_TYPE=$val ;;
+      Class) S_CLASS=$val ;;
+      Active) S_ACTIVE=$val ;;
+      Remote) S_REMOTE=$val ;;
+      State) S_STATE=$val ;;
+      Seat) S_SEAT=$val ;;
+      Display) S_DISPLAY=$val ;;
+      Leader) S_LEADER=$val ;;
+    esac
+  done < <("$LOGINCTL" show-session "$sid" --no-pager \
+      -p User -p Name -p Type -p Class -p Active -p Remote -p State \
+      -p Seat -p Display -p Leader 2>/dev/null)
+  [[ -n "$S_UID" ]] || return 1
+}
+
+session_eligible() {
+  case "$S_CLASS" in user|user-early|'') ;; *) return 1 ;; esac
+  is_yes "$S_REMOTE" && return 1
+  case "$S_TYPE" in
+    wayland|x11) return 0 ;;
+    *) [[ -n "$S_DISPLAY" ]] ;;
+  esac
+}
+
+session_score() {
+  local score=0 sid=$1
+  session_eligible || { printf '%s' '-1'; return; }
+  case "$S_TYPE" in wayland|x11) score=$((score+200)) ;; esac
+  is_yes "$S_ACTIVE" && score=$((score+100))
+  [[ "$S_STATE" == active ]] && score=$((score+50))
+  [[ -n "$S_SEAT" ]] && score=$((score+20))
+  [[ -n "$CURRENT_SESSION_ID" && "$sid" == "$CURRENT_SESSION_ID" && "$S_UID" == "$CURRENT_UID" ]] && score=$((score+500))
+  printf '%s' "$score"
+}
+
+list_session_ids() {
+  [[ -n "$LOGINCTL" && -x "$LOGINCTL" ]] || return 0
+  "$LOGINCTL" list-sessions --no-legend --no-pager 2>/dev/null | awk 'NF {print $1}'
+}
+
+select_session_for_uid() {
+  local uid=$1 best=-1 sid score
+  local -a best_ids=()
+  while IFS= read -r sid; do
+    [[ -n "$sid" ]] || continue
+    load_session "$sid" || continue
+    [[ "$S_UID" == "$uid" ]] || continue
+    score=$(session_score "$sid")
+    (( score >= 0 )) || continue
+    if (( score > best )); then
+      best=$score; best_ids=("$sid")
+    elif (( score == best )); then
+      best_ids+=("$sid")
+    fi
+  done < <(list_session_ids)
+
+  if (( ${#best_ids[@]} > 1 )); then
+    die "$EX_CONFIG" "ambiguous graphical sessions for user $TARGET_USER: ${best_ids[*]}; specify --session"
+  fi
+  if (( ${#best_ids[@]} == 1 )); then
+    SESSION_ID=${best_ids[0]}
+    load_session "$SESSION_ID" || die "$EX_CONFIG" "selected session $SESSION_ID disappeared"
+    SESSION_TYPE=$S_TYPE; SESSION_CLASS=$S_CLASS; SESSION_ACTIVE=$S_ACTIVE
+    SESSION_REMOTE=$S_REMOTE; SESSION_STATE=$S_STATE; SESSION_SEAT=$S_SEAT
+    SESSION_DISPLAY=$S_DISPLAY; SESSION_LEADER=$S_LEADER
+  fi
+}
+
+runtime_dir_valid_for_uid() {
+  local p=$1 uid=$2 owner
+  [[ -n "$p" && -d "$p" ]] || return 1
+  owner=$(stat -Lc '%u' "$p" 2>/dev/null) || return 1
+  [[ "$owner" == "$uid" ]]
+}
+
+wayland_socket_owned_by_uid() {
+  local p=$1 uid=$2 owner
+  [[ -S "$p" ]] || return 1
+  owner=$(stat -Lc '%u' "$p" 2>/dev/null) || return 1
+  [[ "$owner" == "$uid" ]]
+}
+
+runtime_fallback_users() {
+  local d p uid owner
+  declare -A seen=()
+  for d in "$RUNTIME_ROOT"/[0-9]*; do
+    [[ -d "$d" ]] || continue
+    uid=${d##*/}
+    [[ "$uid" =~ ^[0-9]+$ ]] || continue
+    owner=$(stat -Lc '%u' "$d" 2>/dev/null || true)
+    [[ "$owner" == "$uid" ]] || continue
+    for p in "$d"/wayland-*; do
+      wayland_socket_owned_by_uid "$p" "$uid" || continue
+      seen["$uid"]=1
+    done
+  done
+  printf '%s\n' "${!seen[@]}"
+}
+
+auto_select_root_target() {
+  local best=-1 sid score
+  local -a best_ids=()
+  while IFS= read -r sid; do
+    [[ -n "$sid" ]] || continue
+    load_session "$sid" || continue
+    session_eligible || continue
+    is_yes "$S_ACTIVE" || continue
+    score=$(session_score "$sid")
+    if (( score > best )); then
+      best=$score; best_ids=("$sid")
+    elif (( score == best )); then
+      best_ids+=("$sid")
+    fi
+  done < <(list_session_ids)
+
+  if (( ${#best_ids[@]} > 1 )); then
+    local desc='' s
+    for s in "${best_ids[@]}"; do
+      load_session "$s" || continue
+      desc+="${desc:+, }$s:${S_NAME:-uid-$S_UID}"
+    done
+    die "$EX_CONFIG" "ambiguous active graphical users/sessions ($desc); specify --user or --session"
+  fi
+
+  if (( ${#best_ids[@]} == 1 )); then
+    SESSION_ID=${best_ids[0]}
+    load_session "$SESSION_ID" || die "$EX_CONFIG" "selected session $SESSION_ID disappeared"
+    lookup_user "$S_UID" || die "$EX_CONFIG" "cannot resolve uid $S_UID from session $SESSION_ID"
+    SESSION_TYPE=$S_TYPE; SESSION_CLASS=$S_CLASS; SESSION_ACTIVE=$S_ACTIVE
+    SESSION_REMOTE=$S_REMOTE; SESSION_STATE=$S_STATE; SESSION_SEAT=$S_SEAT
+    SESSION_DISPLAY=$S_DISPLAY; SESSION_LEADER=$S_LEADER
+    return 0
+  fi
+
+  local -a uids=()
+  while IFS= read -r sid; do [[ -n "$sid" ]] && uids+=("$sid"); done < <(runtime_fallback_users)
+  if (( ${#uids[@]} > 1 )); then
+    die "$EX_CONFIG" "ambiguous Wayland runtime owners (${uids[*]}); specify --user"
+  elif (( ${#uids[@]} == 1 )); then
+    lookup_user "${uids[0]}" || die "$EX_CONFIG" "cannot resolve runtime uid ${uids[0]}"
+    SESSION_ID=''
+    return 0
+  fi
+  die "$EX_UNAVAILABLE" "no active local graphical user session found; specify --user only if a desktop session really exists"
+}
+
+resolve_target() {
+  if [[ -n "$SESSION_SPEC" ]]; then
+    load_session "$SESSION_SPEC" || die "$EX_USAGE" "unknown or unreadable session: $SESSION_SPEC"
+    session_eligible || die "$EX_CONFIG" "session $SESSION_SPEC is not an eligible local graphical session"
+    is_yes "$S_ACTIVE" || die "$EX_CONFIG" "session $SESSION_SPEC is not an active local graphical session"
+    local session_uid=$S_UID
+    if [[ -n "$USER_SPEC" ]]; then
+      lookup_user "$USER_SPEC" || die "$EX_USAGE" "unknown user: $USER_SPEC"
+      [[ "$TARGET_UID" == "$session_uid" ]] || die "$EX_USAGE" "--user $USER_SPEC conflicts with --session $SESSION_SPEC (uid $session_uid)"
+    else
+      lookup_user "$session_uid" || die "$EX_CONFIG" "cannot resolve uid $session_uid from session $SESSION_SPEC"
+    fi
+    SESSION_ID=$SESSION_SPEC
+    SESSION_TYPE=$S_TYPE; SESSION_CLASS=$S_CLASS; SESSION_ACTIVE=$S_ACTIVE
+    SESSION_REMOTE=$S_REMOTE; SESSION_STATE=$S_STATE; SESSION_SEAT=$S_SEAT
+    SESSION_DISPLAY=$S_DISPLAY; SESSION_LEADER=$S_LEADER
+  elif [[ -n "$USER_SPEC" ]]; then
+    lookup_user "$USER_SPEC" || die "$EX_USAGE" "unknown user: $USER_SPEC"
+    select_session_for_uid "$TARGET_UID"
+  elif (( CURRENT_UID != 0 )); then
+    lookup_user "$CURRENT_UID" || die "$EX_CONFIG" "cannot resolve current uid $CURRENT_UID"
+    select_session_for_uid "$TARGET_UID"
+  else
+    auto_select_root_target
+  fi
+
+  if (( CURRENT_UID != TARGET_UID && CURRENT_UID != 0 )); then
+    die "$EX_NOPERM" "non-root caller $CURRENT_USER may not launch into user $TARGET_USER; run as root or target the current user"
+  fi
+  if (( CURRENT_UID == TARGET_UID )); then PRIVILEGE_MODE='same-user'; else PRIVILEGE_MODE='root-drop'; fi
+  debug "target=$TARGET_USER uid=$TARGET_UID session=${SESSION_ID:-none} type=${SESSION_TYPE:-unknown}"
+}
+
+resolve_runtime_dir() {
+  local p=''
+  if (( CURRENT_UID == TARGET_UID )) && [[ -n "${XDG_RUNTIME_DIR:-}" ]] && runtime_dir_valid_for_uid "$XDG_RUNTIME_DIR" "$TARGET_UID"; then
+    p=$XDG_RUNTIME_DIR
+  fi
+  if [[ -z "$p" && -n "$LOGINCTL" && -x "$LOGINCTL" ]]; then
+    p=$("$LOGINCTL" show-user "$TARGET_UID" -p RuntimePath --value 2>/dev/null | head -n1 || true)
+    runtime_dir_valid_for_uid "$p" "$TARGET_UID" || p=''
+  fi
+  if [[ -z "$p" ]] && runtime_dir_valid_for_uid "$RUNTIME_ROOT/$TARGET_UID" "$TARGET_UID"; then
+    p="$RUNTIME_ROOT/$TARGET_UID"
+  fi
+  RUNTIME_DIR=$p
+  debug "runtime=${RUNTIME_DIR:-unavailable}"
+}
+
+raw_as_target() {
+  if (( CURRENT_UID == TARGET_UID )); then
+    "$@"
+  elif (( CURRENT_UID == 0 )); then
+    if [[ -n "$RUNUSER" && -x "$RUNUSER" ]]; then
+      "$RUNUSER" -u "$TARGET_USER" -- "$@"
+    elif [[ -n "$SETPRIV" && -x "$SETPRIV" ]]; then
+      "$SETPRIV" --reuid="$TARGET_UID" --regid="$TARGET_GID" --init-groups -- "$@"
+    else
+      return 126
+    fi
+  else
+    return 126
+  fi
+}
+
+load_manager_env() {
+  MENV=()
+  [[ -n "$SYSTEMCTL" && -x "$SYSTEMCTL" ]] || return 0
+  [[ -n "$RUNTIME_DIR" ]] || return 0
+  local bus="unix:path=$RUNTIME_DIR/bus" line key val output
+  output=$(raw_as_target env -i \
+      HOME="$TARGET_HOME" USER="$TARGET_USER" LOGNAME="$TARGET_USER" SHELL="$TARGET_SHELL" \
+      PATH="$HELPER_PATH" XDG_RUNTIME_DIR="$RUNTIME_DIR" DBUS_SESSION_BUS_ADDRESS="$bus" \
+      "$SYSTEMCTL" --user show-environment 2>/dev/null) || return 0
+  while IFS= read -r line; do
+    [[ "$line" == *=* ]] || continue
+    key=${line%%=*}; val=${line#*=}
+    valid_env_name "$key" || continue
+    # systemctl shell-quotes values containing whitespace/special characters as $'...'.
+    # Do not reinterpret shell syntax here; simple graphical/session values are unquoted.
+    [[ "$val" == "\$'"* ]] && { debug "skipping shell-escaped manager variable: $key"; continue; }
+    MENV["$key"]=$val
+  done <<<"$output"
+  MANAGER_ENV_STATUS='available'
+  debug "systemd user manager environment loaded (${#MENV[@]} variables)"
+}
+
+wayland_value_path() {
+  local v=$1
+  [[ -n "$v" ]] || return 1
+  if [[ "$v" = /* ]]; then printf '%s' "$v"; else [[ -n "$RUNTIME_DIR" ]] || return 1; printf '%s/%s' "$RUNTIME_DIR" "$v"; fi
+}
+
+wayland_value_valid() {
+  local v=$1 p
+  p=$(wayland_value_path "$v") || return 1
+  wayland_socket_owned_by_uid "$p" "$TARGET_UID"
+}
+
+x11_socket_owned_by_target() {
+  local p=$1 owner
+  [[ -S "$p" ]] || return 1
+  owner=$(stat -Lc '%u' "$p" 2>/dev/null) || return 1
+  [[ "$owner" == "$TARGET_UID" || "$owner" == 0 ]]
+}
+
+current_context_matches_selected() {
+  (( CURRENT_UID == TARGET_UID )) || return 1
+  if [[ -n "$SESSION_ID" && -n "$CURRENT_SESSION_ID" ]]; then
+    [[ "$SESSION_ID" == "$CURRENT_SESSION_ID" ]]
+  else
+    case "${XDG_SESSION_TYPE:-}" in wayland|x11) return 0 ;; *) return 1 ;; esac
+  fi
+}
+
+resolve_wayland() {
+  local candidate='' source='' p
+  if current_context_matches_selected && [[ -n "${WAYLAND_DISPLAY:-}" ]] && wayland_value_valid "$WAYLAND_DISPLAY"; then
+    candidate=$WAYLAND_DISPLAY; source='caller-session'
+  elif [[ -z "$SESSION_SPEC" && -n "${MENV[WAYLAND_DISPLAY]:-}" ]] && wayland_value_valid "${MENV[WAYLAND_DISPLAY]}"; then
+    candidate=${MENV[WAYLAND_DISPLAY]}; source='systemd-user'
+  elif [[ -z "$SESSION_SPEC" ]] && (( CURRENT_UID == TARGET_UID )) && [[ -n "${WAYLAND_DISPLAY:-}" ]] && wayland_value_valid "$WAYLAND_DISPLAY"; then
+    candidate=$WAYLAND_DISPLAY; source='caller-env'
+  fi
+
+  if [[ -z "$candidate" && -n "$RUNTIME_DIR" ]]; then
+    local -a candidates=()
+    for p in "$RUNTIME_DIR"/wayland-*; do
+      wayland_socket_owned_by_uid "$p" "$TARGET_UID" || continue
+      candidates+=("$p")
+    done
+    if (( ${#candidates[@]} == 1 )); then
+      candidate=${candidates[0]##*/}; source='socket-scan'
+    elif (( ${#candidates[@]} > 1 )); then
+      debug "multiple Wayland sockets found; refusing to guess: ${candidates[*]}"
+    fi
+  fi
+
+  WAYLAND_VALUE=$candidate; WAYLAND_SOURCE=${source:-none}
+  if [[ -n "$candidate" ]]; then WAYLAND_SOCKET=$(wayland_value_path "$candidate" || true); fi
+}
+
+x_display_number() {
+  local d=$1
+  if [[ "$d" =~ ^:([0-9]+)(\.[0-9]+)?$ ]]; then printf '%s' "${BASH_REMATCH[1]}"; return 0; fi
+  if [[ "$d" =~ ^unix/:([0-9]+)(\.[0-9]+)?$ ]]; then printf '%s' "${BASH_REMATCH[1]}"; return 0; fi
+  if [[ "$d" =~ ^unix:([0-9]+)(\.[0-9]+)?$ ]]; then printf '%s' "${BASH_REMATCH[1]}"; return 0; fi
+  return 1
+}
+
+x_display_valid() {
+  local d=$1 n
+  [[ -n "$d" ]] || return 1
+  if n=$(x_display_number "$d"); then
+    x11_socket_owned_by_target "$X11_SOCKET_DIR/X$n"
+    return
+  fi
+  return 1
+}
+
+resolve_x11_display() {
+  local candidate='' source='' n p
+  if current_context_matches_selected && [[ -n "${DISPLAY:-}" ]] && x_display_valid "$DISPLAY"; then
+    candidate=$DISPLAY; source='caller-session'
+  elif [[ -n "$SESSION_SPEC" && -n "$SESSION_DISPLAY" ]] && x_display_valid "$SESSION_DISPLAY"; then
+    candidate=$SESSION_DISPLAY; source='logind-session'
+  elif [[ -z "$SESSION_SPEC" && -n "${MENV[DISPLAY]:-}" ]] && x_display_valid "${MENV[DISPLAY]}"; then
+    candidate=${MENV[DISPLAY]}; source='systemd-user'
+  elif [[ -z "$SESSION_SPEC" && -n "$SESSION_DISPLAY" ]] && x_display_valid "$SESSION_DISPLAY"; then
+    candidate=$SESSION_DISPLAY; source='logind-session'
+  elif [[ -z "$SESSION_SPEC" ]] && (( CURRENT_UID == TARGET_UID )) && [[ -n "${DISPLAY:-}" ]] && x_display_valid "$DISPLAY"; then
+    candidate=$DISPLAY; source='caller-env'
+  fi
+
+  if [[ -z "$candidate" ]]; then
+    local -a candidates=()
+    for p in "$X11_SOCKET_DIR"/X*; do
+      x11_socket_owned_by_target "$p" || continue
+      n=${p##*/X}
+      [[ "$n" =~ ^[0-9]+$ ]] || continue
+      candidates+=(":$n")
+    done
+    if (( ${#candidates[@]} == 1 )); then
+      candidate=${candidates[0]}; source='socket-scan'
+    elif (( ${#candidates[@]} > 1 )); then
+      debug "multiple X11 sockets found; refusing to guess: ${candidates[*]}"
+    fi
+  fi
+
+  DISPLAY_VALUE=$candidate; DISPLAY_SOURCE=${source:-none}
+}
+
+target_can_read() {
+  local p=$1
+  [[ -n "$p" && -f "$p" ]] || return 1
+  raw_as_target test -r "$p" >/dev/null 2>&1
+}
+
+xwayland_process_auth() {
+  command -v pgrep >/dev/null 2>&1 || return 1
+  local pid arg want=0
+  while IFS= read -r pid; do
+    [[ -r "/proc/$pid/cmdline" ]] || continue
+    want=0
+    while IFS= read -r -d '' arg; do
+      if (( want == 1 )); then
+        target_can_read "$arg" && { printf '%s' "$arg"; return 0; }
+        want=0
+      elif [[ "$arg" == '-auth' ]]; then
+        want=1
+      fi
+    done < "/proc/$pid/cmdline"
+  done < <(pgrep -u "$TARGET_UID" -x Xwayland 2>/dev/null || true)
+  return 1
+}
+
+resolve_xauthority() {
+  [[ -n "$DISPLAY_VALUE" ]] || return 0
+  local candidate='' source='' p proc_auth=''
+
+  if [[ "$DISPLAY_SOURCE" == caller-session ]] && (( CURRENT_UID == TARGET_UID )) && [[ -n "${XAUTHORITY:-}" ]] && target_can_read "$XAUTHORITY"; then
+    candidate=$XAUTHORITY; source='caller-session'
+  elif [[ -z "$SESSION_SPEC" && -n "${MENV[XAUTHORITY]:-}" ]] && target_can_read "${MENV[XAUTHORITY]}"; then
+    candidate=${MENV[XAUTHORITY]}; source='systemd-user'
+  elif [[ -z "$SESSION_SPEC" ]] && proc_auth=$(xwayland_process_auth 2>/dev/null) && [[ -n "$proc_auth" ]]; then
+    candidate=$proc_auth; source='xwayland-process'
+  elif [[ -z "$SESSION_SPEC" ]] && (( CURRENT_UID == TARGET_UID )) && [[ -n "${XAUTHORITY:-}" ]] && target_can_read "$XAUTHORITY"; then
+    candidate=$XAUTHORITY; source='caller-env'
+  fi
+
+  if [[ -z "$candidate" && -n "$RUNTIME_DIR" ]]; then
+    local -a runtime_auth=()
+    for p in "$RUNTIME_DIR"/.mutter-Xwaylandauth.*; do target_can_read "$p" && runtime_auth+=("$p"); done
+    if (( ${#runtime_auth[@]} == 1 )); then candidate=${runtime_auth[0]}; source='runtime-mutter'; fi
+    if [[ -z "$candidate" && -f "$RUNTIME_DIR/gdm/Xauthority" ]] && target_can_read "$RUNTIME_DIR/gdm/Xauthority"; then
+      candidate="$RUNTIME_DIR/gdm/Xauthority"; source='runtime-gdm'
+    fi
+  fi
+  if [[ -z "$candidate" && -n "$TARGET_HOME" && -f "$TARGET_HOME/.Xauthority" ]] && target_can_read "$TARGET_HOME/.Xauthority"; then
+    candidate="$TARGET_HOME/.Xauthority"; source='home'
+  fi
+  XAUTH_VALUE=$candidate; XAUTH_SOURCE=${source:-none}
+}
+
+resolve_dbus() {
+  if [[ -n "$RUNTIME_DIR" && -S "$RUNTIME_DIR/bus" ]]; then
+    DBUS_ADDRESS="unix:path=$RUNTIME_DIR/bus"
+  elif [[ -n "${MENV[DBUS_SESSION_BUS_ADDRESS]:-}" ]]; then
+    DBUS_ADDRESS=${MENV[DBUS_SESSION_BUS_ADDRESS]}
+  elif (( CURRENT_UID == TARGET_UID )) && [[ -n "${DBUS_SESSION_BUS_ADDRESS:-}" ]]; then
+    DBUS_ADDRESS=$DBUS_SESSION_BUS_ADDRESS
+  fi
+}
+
+resolve_environment() {
+  resolve_runtime_dir
+  load_manager_env
+  resolve_wayland
+  resolve_x11_display
+  resolve_xauthority
+  resolve_dbus
+
+  if [[ -z "$SESSION_TYPE" ]]; then
+    case "${MENV[XDG_SESSION_TYPE]:-}" in
+      wayland|x11) SESSION_TYPE=${MENV[XDG_SESSION_TYPE]} ;;
+      *)
+        if (( CURRENT_UID == TARGET_UID )); then
+          case "${XDG_SESSION_TYPE:-}" in
+            wayland|x11) SESSION_TYPE=$XDG_SESSION_TYPE ;;
+          esac
+        fi
+        ;;
+    esac
+  fi
+
+  if [[ -n "$WAYLAND_VALUE" && -n "$DISPLAY_VALUE" ]]; then
+    BACKEND='wayland+x11'
+    [[ "$SESSION_TYPE" == wayland ]] && X11_MODE='xwayland' || X11_MODE='x11'
+  elif [[ -n "$WAYLAND_VALUE" ]]; then
+    BACKEND='wayland'; X11_MODE='none'
+  elif [[ -n "$DISPLAY_VALUE" ]]; then
+    BACKEND='x11'; [[ "$SESSION_TYPE" == wayland ]] && X11_MODE='xwayland' || X11_MODE='x11'
+  else
+    die "$EX_UNAVAILABLE" "no usable Wayland or X11 endpoint was found for $TARGET_USER; check the graphical login or use --user/--session to disambiguate"
+  fi
+
+  if [[ -z "$SESSION_TYPE" ]]; then
+    if [[ -n "$WAYLAND_VALUE" ]]; then SESSION_TYPE='wayland'; elif [[ -n "$DISPLAY_VALUE" ]]; then SESSION_TYPE='x11'; fi
+  fi
+}
+
+print_diagnostics() {
+  printf 'MODE=diagnose\n'
+  printf 'TARGET_USER=%s\n' "$TARGET_USER"
+  printf 'TARGET_UID=%s\n' "$TARGET_UID"
+  printf 'TARGET_HOME=%s\n' "$TARGET_HOME"
+  printf 'SESSION_ID=%s\n' "${SESSION_ID:-}"
+  printf 'SESSION_TYPE=%s\n' "${SESSION_TYPE:-}"
+  printf 'SESSION_CLASS=%s\n' "${SESSION_CLASS:-}"
+  printf 'SESSION_ACTIVE=%s\n' "${SESSION_ACTIVE:-}"
+  printf 'SESSION_SEAT=%s\n' "${SESSION_SEAT:-}"
+  printf 'PRIVILEGE_MODE=%s\n' "$PRIVILEGE_MODE"
+  printf 'XDG_RUNTIME_DIR=%s\n' "$RUNTIME_DIR"
+  printf 'SYSTEMD_USER_ENV=%s\n' "$MANAGER_ENV_STATUS"
+  printf 'DBUS_SESSION_BUS_ADDRESS=%s\n' "$DBUS_ADDRESS"
+  printf 'WAYLAND_DISPLAY=%s\n' "$WAYLAND_VALUE"
+  printf 'WAYLAND_SOURCE=%s\n' "$WAYLAND_SOURCE"
+  printf 'WAYLAND_SOCKET=%s\n' "$WAYLAND_SOCKET"
+  printf 'DISPLAY=%s\n' "$DISPLAY_VALUE"
+  printf 'DISPLAY_SOURCE=%s\n' "$DISPLAY_SOURCE"
+  printf 'XAUTHORITY=%s\n' "$XAUTH_VALUE"
+  printf 'XAUTHORITY_SOURCE=%s\n' "$XAUTH_SOURCE"
+  printf 'BACKEND=%s\n' "$BACKEND"
+  printf 'X11_MODE=%s\n' "$X11_MODE"
+}
+
+path_has_symlink_component() {
+  local candidate=$1 current='/' component
+  local -a components=()
+  IFS='/' read -r -a components <<<"${candidate#/}"
+  for component in "${components[@]}"; do
+    [[ -n "$component" ]] || continue
+    if [[ "$current" == / ]]; then current="/$component"; else current="$current/$component"; fi
+    [[ -L "$current" ]] && return 0
+  done
+  return 1
+}
+
+path_is_child_of() {
+  local candidate=$1 root=${2%/}
+  [[ "$root" != / && "$candidate" == "$root/"* ]]
+}
+
+validate_custom_log_path() {
+  [[ "$LOG_SPEC" == /* ]] || die "$EX_USAGE" "custom log path must be absolute"
+  path_has_symlink_component "$LOG_SPEC" && \
+    die "$EX_USAGE" "refusing symlink log path component: $LOG_SPEC"
+
+  local normalized work_dir tmp_root
+  normalized=$(readlink -m -- "$LOG_SPEC" 2>/dev/null) || \
+    die "$EX_USAGE" "cannot normalize custom log path"
+  work_dir=$(pwd -P) || die "$EX_CONFIG" "cannot resolve current working directory"
+  tmp_root=$(readlink -f -- /tmp 2>/dev/null || printf '%s' /tmp)
+  if ! path_is_child_of "$normalized" "$work_dir" && \
+     ! path_is_child_of "$normalized" "$tmp_root"; then
+    die "$EX_USAGE" "custom log path is outside allowed log roots (current working directory and /tmp)"
+  fi
+  if [[ -e "$LOG_SPEC" && ! -f "$LOG_SPEC" ]]; then
+    die "$EX_USAGE" "custom log path must identify a regular file"
+  fi
+}
+
+prepare_log() {
+  if [[ -n "$LOG_SPEC" ]]; then
+    validate_custom_log_path
+    mkdir -p -- "$(dirname -- "$LOG_SPEC")" 2>/dev/null || die "$EX_USAGE" "cannot create log directory for $LOG_SPEC"
+    path_has_symlink_component "$LOG_SPEC" && \
+      die "$EX_USAGE" "refusing symlink log path component: $LOG_SPEC"
+    : > "$LOG_SPEC" || die "$EX_USAGE" "cannot create log file: $LOG_SPEC"
+    LOG_FILE=$LOG_SPEC
+  else
+    local base='/tmp'
+    if (( CURRENT_UID == TARGET_UID )) && [[ -n "${TMPDIR:-}" && -d "${TMPDIR:-}" && -w "${TMPDIR:-}" ]]; then base=$TMPDIR; fi
+    LOG_FILE=$(mktemp "$base/agent-gui-${TARGET_UID}.XXXXXX.log") || die "$EX_CONFIG" "cannot create log file"
+  fi
+  chmod 600 "$LOG_FILE" 2>/dev/null || true
+  if (( CURRENT_UID == 0 && TARGET_UID != 0 )); then
+    chown "$TARGET_UID:$TARGET_GID" "$LOG_FILE" || die "$EX_CONFIG" "cannot give log file to $TARGET_USER"
+  fi
+}
+
+critical_key() {
+  case "$1" in
+    HOME|USER|LOGNAME|SHELL|PWD|XDG_RUNTIME_DIR|DBUS_SESSION_BUS_ADDRESS|WAYLAND_DISPLAY|DISPLAY|XAUTHORITY|XDG_SESSION_TYPE|XDG_SESSION_ID|XDG_SESSION_CLASS|XDG_SEAT) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+append_resolved_env() {
+  local -n arr=$1
+  arr+=("HOME=$TARGET_HOME" "USER=$TARGET_USER" "LOGNAME=$TARGET_USER" "SHELL=$TARGET_SHELL" "PWD=$PWD")
+  [[ -n "$RUNTIME_DIR" ]] && arr+=("XDG_RUNTIME_DIR=$RUNTIME_DIR")
+  [[ -n "$DBUS_ADDRESS" ]] && arr+=("DBUS_SESSION_BUS_ADDRESS=$DBUS_ADDRESS")
+  [[ -n "$WAYLAND_VALUE" ]] && arr+=("WAYLAND_DISPLAY=$WAYLAND_VALUE")
+  [[ -n "$DISPLAY_VALUE" ]] && arr+=("DISPLAY=$DISPLAY_VALUE")
+  [[ -n "$XAUTH_VALUE" ]] && arr+=("XAUTHORITY=$XAUTH_VALUE")
+  [[ -n "$SESSION_TYPE" ]] && arr+=("XDG_SESSION_TYPE=$SESSION_TYPE")
+  [[ -n "$SESSION_ID" ]] && arr+=("XDG_SESSION_ID=$SESSION_ID")
+  [[ -n "$SESSION_CLASS" ]] && arr+=("XDG_SESSION_CLASS=$SESSION_CLASS")
+  [[ -n "$SESSION_SEAT" ]] && arr+=("XDG_SEAT=$SESSION_SEAT")
+}
+
+build_execution_command() {
+  EXEC_PREFIX=()
+  EXEC_ENV=()
+  if (( CURRENT_UID == TARGET_UID )); then
+    EXEC_ENV=(env \
+      -u XDG_RUNTIME_DIR -u DBUS_SESSION_BUS_ADDRESS -u WAYLAND_DISPLAY -u DISPLAY -u XAUTHORITY \
+      -u XDG_SESSION_TYPE -u XDG_SESSION_ID -u XDG_SESSION_CLASS -u XDG_SEAT)
+    local -a overrides=()
+    append_resolved_env overrides
+    EXEC_ENV+=("${overrides[@]}")
+  else
+    if [[ -n "$RUNUSER" && -x "$RUNUSER" ]]; then
+      EXEC_PREFIX=("$RUNUSER" -u "$TARGET_USER" --)
+    elif [[ -n "$SETPRIV" && -x "$SETPRIV" ]]; then
+      EXEC_PREFIX=("$SETPRIV" --reuid="$TARGET_UID" --regid="$TARGET_GID" --init-groups --)
+    else
+      die "$EX_NOPERM" "root cannot drop privileges: neither runuser nor setpriv is available"
+    fi
+    EXEC_ENV=(env -i)
+    local key
+    for key in "${!MENV[@]}"; do
+      critical_key "$key" && continue
+      EXEC_ENV+=("$key=${MENV[$key]}")
+    done
+    [[ -n "${MENV[PATH]:-}" ]] || EXEC_ENV+=("PATH=$HELPER_PATH")
+    local -a overrides=()
+    append_resolved_env overrides
+    EXEC_ENV+=("${overrides[@]}")
+  fi
+}
+
+status_line() {
+  local state=$1 code=$2 pid=${3:-}
+  printf 'AGENT_GUI_STATUS=%s EXIT_CODE=%s USER=%s UID=%s SESSION=%s BACKEND=%s' \
+    "$state" "$code" "$TARGET_USER" "$TARGET_UID" "${SESSION_ID:-none}" "$BACKEND"
+  [[ -n "$pid" ]] && printf ' PID=%s' "$pid"
+  printf ' LOG='
+  printf '%q' "$LOG_FILE"
+  printf '\n'
+}
+
+show_log_tail() {
+  [[ -s "$LOG_FILE" ]] || return 0
+  printf '%s\n' '--- command log tail ---' >&2
+  tail -n 8 "$LOG_FILE" >&2 || true
+}
+
+execute_command() {
+  prepare_log
+  build_execution_command
+
+  if [[ "$MODE" == wait ]]; then
+    "${EXEC_PREFIX[@]}" "${EXEC_ENV[@]}" "${CMD[@]}" >"$LOG_FILE" 2>&1
+    local rc=$?
+    if (( rc == 0 )); then
+      status_line finished 0
+    else
+      status_line failed "$rc"
+      show_log_tail
+    fi
+    return "$rc"
+  fi
+
+  local -a launch=()
+  if [[ -n "$SETSID" && -x "$SETSID" ]] && "$SETSID" --help 2>&1 | grep -q -- '--wait'; then
+    launch=("$SETSID" --wait)
+  elif [[ -n "$NOHUP" && -x "$NOHUP" ]]; then
+    launch=("$NOHUP")
+  fi
+
+  "${launch[@]}" "${EXEC_PREFIX[@]}" "${EXEC_ENV[@]}" "${CMD[@]}" </dev/null >"$LOG_FILE" 2>&1 &
+  local pid=$!
+  sleep "$PROBE_SECONDS"
+  if kill -0 "$pid" 2>/dev/null; then
+    status_line running 0 "$pid"
+    return 0
+  fi
+
+  wait "$pid"
+  local rc=$?
+  if (( rc == 0 )); then
+    status_line finished 0
+  else
+    status_line failed "$rc"
+    show_log_tail
+  fi
+  return "$rc"
+}
+
+# Parse options. No command token is reinterpreted after `--`.
+while (( $# )); do
+  case "$1" in
+    --user)
+      (( $# >= 2 )) || die "$EX_USAGE" "--user requires a value"
+      USER_SPEC=$2; shift 2 ;;
+    --session)
+      (( $# >= 2 )) || die "$EX_USAGE" "--session requires a value"
+      SESSION_SPEC=$2; shift 2 ;;
+    --wait) MODE='wait'; shift ;;
+    --probe-seconds)
+      (( $# >= 2 )) || die "$EX_USAGE" "--probe-seconds requires a value"
+      PROBE_SECONDS=$2
+      [[ "$PROBE_SECONDS" =~ ^[0-9]+([.][0-9]+)?$ ]] || die "$EX_USAGE" "invalid probe duration: $PROBE_SECONDS"
+      awk -v value="$PROBE_SECONDS" -v maximum="$MAX_PROBE_SECONDS" \
+        'BEGIN { exit !(value <= maximum) }' || \
+        die "$EX_USAGE" "maximum probe duration is ${MAX_PROBE_SECONDS} seconds"
+      shift 2 ;;
+    --log)
+      (( $# >= 2 )) || die "$EX_USAGE" "--log requires a path"
+      LOG_SPEC=$2; shift 2 ;;
+    --diagnose) MODE='diagnose'; shift ;;
+    --debug) DEBUG=1; shift ;;
+    --version) printf '%s\n' "$VERSION"; exit 0 ;;
+    -h|--help) usage; exit 0 ;;
+    --) shift; break ;;
+    *) die "$EX_USAGE" "unknown option: $1 (use -- before the command)" ;;
+  esac
+done
+
+CMD=("$@")
+if [[ "$MODE" != diagnose && ${#CMD[@]} -eq 0 ]]; then
+  die "$EX_USAGE" "missing command; usage: agent-gui-run [options] -- command [arg ...]"
+fi
+if [[ "$MODE" == diagnose && ${#CMD[@]} -gt 0 ]]; then
+  die "$EX_USAGE" "--diagnose does not accept a command"
+fi
+
+if [[ "$MODE" != diagnose ]]; then
+  if (( CURRENT_UID == 0 )) && [[ -n "$LOG_SPEC" ]]; then
+    die "$EX_USAGE" "custom log path is unavailable for root callers; omit --log and use the reported default log path"
+  fi
+  validate_inner_command
+fi
+
+resolve_target
+resolve_environment
+
+if [[ "$MODE" == diagnose ]]; then
+  print_diagnostics
+  exit 0
+fi
+
+execute_command
+exit $?

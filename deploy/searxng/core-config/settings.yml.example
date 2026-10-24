@@ -1,0 +1,86 @@
+use_default_settings:
+  engines:
+    keep_only:
+      - bing
+      - baidu
+      - 360search
+      - sogou
+      - chinaso news
+      - chinaso images
+      - chinaso videos
+
+general:
+  debug: false
+  instance_name: "LLM-deployment local search"
+
+search:
+  safe_search: 0
+  autocomplete: ""
+  favicon_resolver: ""
+  default_lang: "zh-CN"
+  ban_time_on_fail: 5
+  max_ban_time_on_fail: 120
+  formats:
+    - html
+    - json
+
+server:
+  secret_key: "change-this-in-real-deployments"
+  limiter: false
+  image_proxy: false
+
+valkey:
+  url: redis://valkey:6379/0
+
+outgoing:
+  request_timeout: 5.0
+  max_request_timeout: 10.0
+  proxies:
+    http://:
+      - http://172.17.0.1:10808
+    https://:
+      - http://172.17.0.1:10808
+
+engines:
+  - name: bing
+    disabled: false
+    base_url: https://cn.bing.com/search
+
+  - name: baidu
+    disabled: false
+    proxies:
+      http://: ""
+      https://: ""
+
+  - name: 360search
+    disabled: false
+    proxies:
+      http://: ""
+      https://: ""
+
+  - name: sogou
+    disabled: false
+    proxies:
+      http://: ""
+      https://: ""
+
+  - name: chinaso news
+    disabled: false
+    inactive: false
+    proxies:
+      http://: ""
+      https://: ""
+
+  - name: chinaso images
+    disabled: false
+    inactive: false
+    proxies:
+      http://: ""
+      https://: ""
+
+  - name: chinaso videos
+    disabled: false
+    inactive: false
+    proxies:
+      http://: ""
+      https://: ""

@@ -1,0 +1,49 @@
+# 主模型推理 sglang 默认端口为 30000 （设置在 config/*-config-infer.yaml）
+# OCR VL 模型推理 sglang 默认端口为 30002
+# ASR 模型推理 sglang 默认端口为 30003
+# vllm（容器）默认在 port 8000
+# SEARXNG_PORT 默认 8080 (设置在 config/config-agent-operation.yaml)
+# Paddle-OCR complete API port 默认 8118
+
+# 本后端
+server:
+  # API服务主机地址
+  host: 0.0.0.0
+  # API服务端口（后端 API，避免与推理引擎端口冲突）
+  port: 8090
+  # 工作进程数（Thor上建议设为1）
+  workers: 1
+  # API密钥（留空表示不启用认证）
+  api_key: null
+  # 跨域允许的源（*表示允许所有）
+  cors_origins: "*"
+  # Session Hub SSE 空闲时的传输层心跳间隔（秒）；0 表示禁用。
+  session_hub_heartbeat_seconds: 15
+
+# web UI for user
+frontend:
+  # 前端开发服务器端口
+  dev_port: 3000
+  # 后端API地址（前端调用）
+  api_base_url: http://localhost:8090
+  # SSE/流式请求的空闲超时（秒）。
+  # 仅在长时间没有收到任何新 chunk/event 时才会触发。
+  chat_stream_idle_timeout_seconds: 3_600
+  agent_stream_idle_timeout_seconds: 3_600
+  cycle_stream_idle_timeout_seconds: 3_600
+
+# Paddle-OCR complete
+ocr:
+  enabled: true
+  host: 127.0.0.1
+  port: 8118
+  base_url: http://127.0.0.1:8118
+  connect_timeout_seconds: 2
+  read_timeout_seconds: 600
+  request_timeout_seconds: 600
+  pipeline_config_path: config/paddleocr-vl-thor.yaml
+  sglang_pipeline_config_path: config/paddleocr-vl-thor-sglang.yaml
+  model_manifest_path: config/paddleocr-vl-thor-model-manifest.json
+  attestation_path: logs/paddleocr-runtime-attestation.json
+  attestation_max_age_seconds: 86400
+  cuda_memory_limit_gb: 16

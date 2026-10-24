@@ -1,0 +1,11 @@
+# `config/config-agent-operation.yaml` computer-use.operator_session_safety_config_path
+# Explicit bounded native policy for operator web/CLI sessions.
+# This does not create a release calibration report.
+max_observation_age_seconds: 180  # Operator policy cap: 180 seconds.
+max_sample_age_seconds: 1
+max_validation_to_dispatch_seconds: 0.1
+global_diff_threshold: 0.01
+target_diff_threshold: 0.01
+double_click_interval_seconds: 0.25
+transport_timeout_seconds: 15
+authorization_timeout_seconds: 120

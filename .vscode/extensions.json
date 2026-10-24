@@ -1,0 +1,19 @@
+{
+    "recommendations": [
+        // Python 开发
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        "ms-python.black-formatter",
+        // 前端开发
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "bradlc.vscode-tailwindcss",
+        // 通用工具
+        "redhat.vscode-yaml",
+        "ms-vscode.makefile-tools",
+        "usernamehw.errorlens",
+        // Git
+        "eamodio.gitlens",
+        "ms-toolsai.datawrangler"
+    ]
+}

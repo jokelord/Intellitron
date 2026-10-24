@@ -1,0 +1,230 @@
+# ============================================================
+# LLM-Test 项目 .gitignore
+# ============================================================
+# ============================================================
+# Python
+# ============================================================
+__pycache__/
+*.so
+develop-eggs/
+dist/
+build/
+eggs/
+.eggs/
+parts/
+sdist/
+wheels/
+whl/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# 虚拟环境
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+.conda/
+.sglang/
+.paddle-ocr/
+.vllm/
+.trt-edge/
+deploy/Paddle-OCR
+
+# PyInstaller
+*.manifest
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# 类型检查
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pytype/
+
+# Pytest
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# ============================================================
+# Node.js / 前端
+# ============================================================
+node_modules/
+.next/
+.next-verify/
+.cache/
+
+# 环境文件
+.env*.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Vercel
+.vercel
+
+# TypeScript
+*.tsbuildinfo
+
+# ============================================================
+# IDE / 编辑器
+# ============================================================
+# VS Code（保留部分配置）
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/README.md
+!.vscode/terminal-init-sglang.sh
+!.vscode/terminal-init-vllm.sh
+!.vscode/terminal-init-trt-edge.sh
+
+# JetBrains
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Vim
+*.swp
+*.swo
+*~
+.netrwhist
+
+# Emacs
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+
+# ============================================================
+# 操作系统
+# ============================================================
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.lnk
+
+# Linux
+*~
+
+# ============================================================
+# 项目特定
+# ============================================================
+# 日志文件
+logs/
+
+# 模型文件（太大不应提交）
+*.safetensors
+*.gguf
+*.onnx
+*.engine
+*.trt
+
+# 临时文件
+tmp/
+temp/
+*.tmp
+#*.bak
+.ruff_cache/
+
+# 配置文件中的敏感信息（如需要）
+# config/config.local.ini
+# config/secrets.ini
+config/some-infer-and-model-config-yaml
+
+# 测试输出
+# test-results/
+# coverage/
+
+# Docker
+.docker/
+
+# ASR 生成的私有数据
+data/asr-tls/
+data/debug-audio/
+
+# 权重文件（建议使用 Git LFS 或外部存储）
+weights/
+# checkpoints/
+
+# 参考源码库
+vllm-main/
+sglang-main/
+aider-main/
+smolagents-main/
+hermes-agent-main/
+ref_src/
+
+# searXNG 部署相关
+deploy/searxng/dc
+deploy/searxng/backups
+deploy/searxng/backups/
+/deploy/searxng/core-config/settings.yml
+
+# skills
+.superpowers/
+.superpowers
+/.worktrees/
+/.worktree/
+
+# 备忘录
+#踩坑记录.md
+
+# 文档
+# docs/
+config/depricated-archive
+config/depricated-archive/
+
+# Playwright 浏览器agent自动化相关
+.playwright-cli/
+backend/skills/.agent
+backend/skills/.claude
+backend/skills/.playwright
+backend/.agent
+backend/.claude
+backend/.playwright
+backend/.playwright-cli-skills
+backend/skills/.playwright-cli
+backend/skills/.playwright-cli-skills
+
+# 图片素材
+frontend/public/*.jpg
+frontend/public/*.svg
+frontend/public/*.png
+
+# AI agent
+.codex/
+computer-use-diagrams/
+.agents/
+
+# Generated local Agent memory indexes and prepared encoder artifacts
+/data/agent-local-memory/
+/models/embeddings/
+/.backend-startup.*/
+memory/agent-local

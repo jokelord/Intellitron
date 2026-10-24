@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+set -uo pipefail
+HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+for arg in "$@"; do
+  if [[ "$arg" == -- ]]; then
+    printf '%s\n' 'agent-gui-diagnose: diagnose mode does not accept -- or a command' >&2
+    exit 64
+  fi
+done
+exec "$HERE/agent-gui-run" "$@" --diagnose

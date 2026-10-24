@@ -1,0 +1,428 @@
+# ============================================================
+# Agent 工具调用配置
+# 启用后在 /v1/agent/chat 端点提供 Agent 对话能力
+# ============================================================
+agent:
+  # 总开关
+  enabled: true
+  # 默认保留全部工具反馈。启用后仅在下一条普通用户请求成功接纳时剥离历史工具文本。
+  # 阈值按 Unicode 字符数计算（含空白/标点），严格超过才替换；不是 token 数。
+  tool_feedback_omission:
+    enabled: false
+    threshold_chars: 10000
+  # Agent 模式：仅支持 `tool_calling`；旧值 `code` 会自动兼容映射到 `tool_calling`
+  agent_mode: tool_calling
+  # 仅用于新建 Agent context；后端 request_accepted 后会冻结不可变快照。
+  default_profile_tools:
+    manager_agent: [read_file, write_file, edit_file, glob, grep, exec_command, list_skills, read_skill, web_fetch, search_and_fetch]
+    basic_agent: [read_file, write_file, edit_file, glob, grep, exec_command, check_process, list_skills, read_skill, web_search, web_fetch, search_and_fetch]
+  # computer-use 通过 allowlisted vision_desktop executable + exec_command 接入；不注册 computer_use tool。
+  # 当前单 session 运行时的入口 agent profile，目前支持 coordinator_1, manager_agent, basic_agent；
+  # 双阶段路由模式下，可以让 LLM 切换到不同的 agent profile（目前只支持切换到 basic_agent）
+  # 如需关闭 coordinator 路由功能，设置 entry_agent_name 为 basic_agent 或 manager_agent
+  entry_agent_name: basic_agent
+  # 当前允许启用的 agent profile 列表
+  enabled_agent_profiles: [coordinator_1, coordinator_2, manager_agent, basic_agent]
+  # manager_agent 并发子 agent 配置
+  # 同一 dispatch/shared blackboard 最多保留并同时运行的子 agent 数量；超出时从末尾截断
+  manager_agent_max_parallel_children: 4
+  manager_agent_child_event_buffer_limit: 5000
+  manager_agent_child_timeout_seconds: 72000
+  session_disposal_timeout_seconds: 30.0
+  # 每轮最多允许的 agent 切换次数
+  max_agent_switches_per_turn: 6
+  # coordinator_1 纯路由阶段超时后自动回退到 basic_agent
+  coordinator_1_timeout_seconds: 20
+  # coordinator_1 纯路由阶段的单次调用覆盖参数
+  coordinator_1_routing_temperature: 0.0
+  coordinator_1_routing_max_tokens: 150
+  coordinator_1_routing_extra_body:
+    chat_template_kwargs:
+      enable_thinking: false
+  # 调试 secondary handoff / switch_agent 控制解析时，可将关键 runtime 事件落盘为 JSONL
+  handoff_debug_log_enabled: false
+  handoff_debug_log_path: /tmp/agent_handoff_debug.jsonl
+  # 最大推理步数
+  max_steps: 99999
+  # Session 过期时间（分钟），过期后自动清理
+  session_ttl_minutes: 180
+  # 固定工作目录；缺失或不可用时命令执行会 fail closed
+  work_dir: /tmp/agent_workdir
+  # Agent 通过 exec_command 执行 Python / uv 时优先使用的专用环境解释器
+  python_executable: ~/.agent/bin/python
+  # 命令运行时：restricted_shell 是显式兼容模式；argv 禁止 shell 语法
+  exec_timeout: 60
+  command_mode: restricted_shell
+  # cd 目录白名单（含子目录）；配置支持 ~，加载时展开；空列表禁用 cd。
+  # 命令中的 cd 目标仍须字面绝对路径；cd 只在本次命令内生效。
+  # 独立于文件工具 roots；这是命令准入规则，不提供 OS 文件系统隔离。
+  command_cwd_allowlist:
+    - ~/
+    - /tmp
+  max_exec_timeout_seconds: 3600
+  max_output_bytes: 4194304
+  termination_grace_seconds: 2.0
+  # Deprecated compatibility switch for legacy sys_ops callers; the Agent
+  # browser skill is governed by exec_command and does not read this flag.
+  allow_browser: true
+  # Desktop capture/input authority is pinned when an Agent session is created.
+  # Input requires capture and both remain disabled unless explicitly enabled.
+  allow_desktop_capture: true
+  allow_desktop_input: true
+  # skill 引用按 SKILL.md frontmatter name + 显式相对脚本路径解析，目录改名/仓库迁移无需改这里。
+  # 仅授权列出的脚本，不自动放行扫描到的其他 executable；普通字符串仍遵循原 allowlist 语义。
+  # config load/reload 时解析成精确绝对路径；已有 session 保留 immutable capability，需新建 session 生效。
+  # GUI skill 是显式 trusted-launch 例外，不能作为命令沙箱。
+  # 当前依赖 command_mode: restricted_shell；argv 模式会拒绝绝对 launcher argv[0]。
+  allowed_executables:
+    [{skill: playwright-browser-skill, path: scripts/playwright-browser},
+     {skill: running-linux-gui-commands, path: scripts/agent-gui-run},
+     {skill: running-linux-gui-commands, path: scripts/agent-gui-diagnose},
+     awk, bun, cat, cp, curl, cut, date, diff, du, echo, env, find, git, grep,
+     head, ls, mkdir, mv, node, npm, npx, pnpm, printf, pwd,
+     pytest, python, python3, rg, sed, sleep, sort, tail, tar, test, touch, tr,
+     "true", uniq, uv, wc, wget, which, yarn]
+  # EnvironmentBuilder 不继承父进程 PATH；从 agent bin、NVM 和这些受信目录构造。
+  nvm_dir: ~/.nvm
+  command_path_entries: []
+  # 仅这些非敏感父环境变量可进入命令；HOME/PATH/VIRTUAL_ENV/NVM_DIR 由后端构造。
+  environment_allowlist:
+    [COLORTERM, DBUS_SESSION_BUS_ADDRESS, DISPLAY, LANG, LC_ALL, LC_CTYPE,
+     TERM, TZ, WAYLAND_DISPLAY, XAUTHORITY, XDG_RUNTIME_DIR, XDG_SESSION_TYPE,
+     # Chromium uses these markers to detect GNOME/KDE and read the user's
+     # system proxy settings through the desktop settings service.
+     XDG_CURRENT_DESKTOP, DESKTOP_SESSION]
+  # 兼容旧系统命令路径的 Playwright profile；新的纯 skill 使用按 session 隔离的临时 profile。
+  # 如需沿用用户的浏览器 Profile，则注意不写 profile 级子目录(如 /home/user/snap/chromium/common/chromium/Default），
+  # 而应该是 profile 的上一级（顶层容器）的目录：~/snap/chromium/common/chromium/
+  playwright_profile_dir: ~/snap/chromium/common/chromium/
+  # null preserves existing fallback roots without unioning search/image authority.
+  file_operation_roots: null
+  image_input_roots: null
+  session_temp_base_dir: /tmp/agent_images
+  max_file_bytes: 536870912
+  allow_overwrite_existing: true
+  # 本地搜索工具 glob / grep 的白名单根路径。支持绝对路径或 ~ 家目录路径。
+  # 仅这些根路径及其子目录允许被搜索；省略 path 参数时会搜索全部这些根路径。
+  search_whitelist_paths:
+    - ~/Documents
+    - ~/Project
+    - /tmp
+  # 本地搜索工具默认排除的噪声目录/文件模式，可按需调整
+  search_exclude_globs:
+    - .git
+    - __pycache__
+    - node_modules
+    - .next
+    - .sglang
+    - .worktrees
+    - .config
+    - .cache
+    - .vscode
+    - .idea
+    - .bun
+    - .cargo
+  # glob 的默认返回上限与安全上限
+  glob_default_limit: 100
+  glob_max_limit: 1000
+  # 本地 glob / grep 底层 ripgrep 子进程超时（秒），避免大目录扫描长期卡住
+  ripgrep_timeout_seconds: 15
+  # grep 的默认分页大小、安全上限与长行裁剪阈值
+  grep_default_head_limit: 200
+  grep_max_head_limit: 1000
+  grep_max_columns: 400
+  # 命令黑名单 - 命中以下任一正则的命令将被阻断
+  command_blacklist:
+    - pattern: "rm\\s+.*-[a-z]*r[a-z]*f[a-z]*\\s+/(?:\\s|$)"
+      reason: "递归删除根目录"
+    - pattern: "rm\\s+.*-[a-z]*f[a-z]*r[a-z]*\\s+/(?:\\s|$)"
+      reason: "递归删除根目录"
+    - pattern: "\\bsudo\\s+"
+      reason: "提权命令"
+    - pattern: "\\bmkfs\\b"
+      reason: "格式化设备"
+    - pattern: "\\bdd\\s+.*of=/dev/"
+      reason: "直接写入设备"
+    - pattern: ":\\(\\)\\s*\\{\\s*:\\s*\\|\\s*:\\s*&\\s*\\}\\s*;\\s*:"
+      reason: "Fork Bomb"
+    - pattern: "\\b(shutdown|reboot|poweroff|halt)\\b"
+      reason: "系统关机/重启"
+    - pattern: "\\bchmod\\s+[0-7]*7[0-7]*\\s+/(?:\\s|$)"
+      reason: "根目录权限扩大"
+    - pattern: "\\bcurl\\s+.*\\|\\s*(ba)?sh\\b"
+      reason: "远程脚本执行"
+    - pattern: "\\bwget\\s+.*\\|\\s*(ba)?sh\\b"
+      reason: "远程脚本执行"
+    - pattern: ">\\s*/dev/sd[a-z]"
+      reason: "直接写入磁盘设备"
+    - pattern: "\\bsystemctl\\s+(stop|disable|mask)\\s+"
+      reason: "禁用系统服务"
+
+# ============================================================
+# Pure-vision desktop grounding (authority remains in agent flags above)
+# ============================================================
+computer_use:
+  enabled: true
+  # Explicit private helper and measured calibration report; no automatic authority grant.
+  # Relative native paths resolve against the repository root, not the process CWD.
+  helper_binary: bin/linux-aarch64/computer-use-helper
+  calibration_report_path: null
+  operator_session_enabled: true
+  operator_session_safety_config_path: config/computer-use-operator-session.yaml
+  authorization_timeout_seconds: 120
+  transport_timeout_seconds: 5
+  protocol: relative_1000
+  pixel_semantics: null
+  # Both stages stretch to this configured square BEFORE drawing guides.
+  # Canonical source/crop geometry stays original; both wire axes are 0..1000.
+  # Nonbinding offline fixture choice; live Agent chooses 2/4/6/8, omission defaults 4.
+  stage1_zoom: 4
+  # Dispatch checks the live bound geometry, without screenshot age/pixel vetoes.
+  pre_action_validation: binding_only
+  diagnostics_enabled: true
+  diagnostics_path: logs/computer-use/vision-desktop.jsonl
+  diagnostics_max_bytes: 1048576
+  diagnostics_backup_count: 3
+  model_square_side_px: 1536
+  debug_save_images: true
+  debug_image_max_files: 64
+  debug_image_max_bytes: 134217728
+  grid_enabled: true
+  grid_divisions: 16
+  # Stage1 has no text. Stage2 edge: guide endpoints; repeated has 8 copies per value.
+  # Stage2 values 125..875; both axes repeat at orthogonal anchors31.25,156.25,...,906.25.
+  # X rotates CCW90; Y stays horizontal; text centers follow the shared anchors.
+  grid_label_placement: repeated
+  # Black outline pixels at canvas side 1000; scales with side, 0 disables.
+  grid_label_shadow_width_px: 1
+  max_tool_contract_retries: 1
+  # Detail inspection budget per accepted overview, reset by successful refresh.
+  max_pre_dispatch_attempts: 3
+  inference_timeout_seconds: 120
+  max_control_packet_bytes: 65536
+  max_received_fds: 1
+  max_canonical_frame_bytes: 268435456
+  # Deployment must supply calibrated safety values before readiness can be true.
+  max_observation_age_seconds: null
+  max_sample_age_seconds: null
+  max_validation_to_dispatch_seconds: null
+  global_diff_threshold: null
+  target_diff_threshold: null
+  double_click_interval_seconds: null
+  calibration_fingerprint: null
+
+# ============================================================
+# read_file v7 document processing limits
+# ============================================================
+read_file:
+  allowed_roots:
+    # Quote the home shortcut: an unquoted YAML ~ is null.
+    - "~"
+    - /tmp
+    - /var/tmp
+  max_source_bytes: 536870912
+  max_archive_members: 10000
+  max_archive_uncompressed_bytes: 1073741824
+  max_archive_compression_ratio: 100
+  max_pdf_pages: 1000
+  pdf_chunk_pages: 24
+  pdf_chunk_bytes: 67108864
+  pdf_chunk_overlap_pages: 1
+  pdf_retry_chunk_pages: 8
+  max_image_dimension: 8192
+  max_image_pixels: 67108864
+  max_image_frames: 200
+  max_decoded_image_bytes: 536870912
+  max_normalized_bytes: 67108864
+  image_workers: 2
+  max_xlsx_sheets: 200
+  max_xlsx_cells: 2000000
+  max_xlsx_rows: 200000
+  max_xlsx_columns: 16384
+  office_timeout_seconds: 120
+  base64_threshold_bytes: 16777216
+  object_url_ttl_seconds: 600
+  object_server_port: 0
+  ocr_concurrency: 1
+  ocr_queue_limit: 2
+  # SGLang's static pool already contains the resident LLM allocation. This is
+  # the additional system-available UMA floor retained during document work.
+  main_llm_memory_reserve_gb: 16
+  ocr_retry_count: 2
+  # PaddleX defaults each layout-region generation to 4096 tokens, which can
+  # truncate dense tables before their markup closes.
+  ocr_max_new_tokens: 8192
+  ocr_min_page_markdown_characters: 8
+  ocr_severe_tilt_degrees: 45
+  normal_request_use_doc_unwarping: false
+  cache_path: ~/.cache/llm-deployment/read_file/cache.sqlite3
+  cache_success_ttl_seconds: 2592000
+  cache_partial_ttl_seconds: 604800
+  cache_failure_ttl_seconds: 3600
+
+# ============================================================
+# MCP (Model Context Protocol) 配置
+# 支持连接外部 MCP 服务器以扩展工具能力
+# ============================================================
+mcp:
+  # MCP 服务器列表
+  servers: []
+  # 示例配置（取消注释启用）：
+  # - name: "excel"
+  #   command: "uvx"
+  #   args: ["excel-mcp-server", "stdio"]
+  #   env:
+  #     EXCEL_FILES_PATH: "./excel_files"
+  #     FASTMCP_PORT: "8017"
+  #
+  # 常用 Excel MCP Server:
+  # 1. haris-musa/excel-mcp-server (Python, 3.5k stars) - 推荐
+  #    https://github.com/haris-musa/excel-mcp-server
+  #    安装: uvx excel-mcp-server stdio
+  #    特点: 无需 Excel 安装，支持 Linux/Mac/Windows
+  # 2. sbroenne/mcp-server-excel (C#/.NET, 活跃维护)
+  #    https://github.com/sbroenne/mcp-server-excel
+  #    特点: 使用 Excel COM API，需要 Windows + Excel
+  # 3. sbraind/excel-mcp-server (TypeScript/ExcelJS)
+  #    https://github.com/sbraind/excel-mcp-server
+  #    特点: 34 个工具，跨平台
+
+# ============================================================
+# Web 搜索工具配置
+# ============================================================
+web_tools:
+  # Web 搜索 provider
+  provider: searxng
+
+  # === SearXNG Configuration ===
+  searxng:
+    # SearXNG 实例根地址
+    base_url: http://127.0.0.1:8080
+    # 搜索 API 路径
+    search_path: /search
+    # 单次搜索请求超时（秒）
+    timeout: 20
+    # 返回格式
+    format: json
+    # 语言
+    language: all
+    # 安全搜索级别：0=off, 1=moderate, 2=strict
+    safe_search: 0
+    # 内部分页抓取时最多向 SearXNG 连续请求的页数
+    max_pages: 3
+    # 限定分类；留空表示使用实例默认配置
+    categories: []
+    # 限定引擎；留空表示使用实例默认配置
+    engines: []
+    # 如实例启用鉴权可在此配置 token
+    api_token: null
+    # 是否校验 TLS 证书
+    verify_tls: true
+
+  # === 直接网页抓取代理配置 ===
+  # 仅供 backend 直接抓取网页 （web_fetch) 和 Wikipedia 使用。
+  # SearXNG 的搜索引擎出站代理由 deploy/searxng/core-config/settings.yml 管理；
+  # backend 到本地 SearXNG 始终直连，不读取此配置。
+  # 格式: "http://127.0.0.1:10808"
+  fetch_proxy: null
+
+  # === Wikipedia 搜索 ===
+  # 是否启用 Wikipedia 搜索
+  enable_wikipedia: false
+
+  # === 搜索工具超时配置 ===
+  # search_and_fetch 整体 deadline，覆盖 SearXNG 分页、curl 与 Crawl4AI fallback。
+  # 🦸 LLM 无法控制此值，完全由配置决定
+  search_timeout: 45
+  # Wikipedia 复合搜索工具超时（默认回退到 search_timeout）
+  wikipedia_search_timeout: 15
+
+  # === 网页抓取稳健性配置 ===
+  # 🥇 主抓取传输层: auto / curl / curl_cffi / crawl4ai
+  # Jetson 上使用独立 curl 子进程，隔离单次抓取的 native 资源生命周期。
+  # HTML 正文解析、curl_cffi 和 Crawl4AI 统一在隔离 worker 中执行，避免 native abort 杀死 API。
+  fetch_transport: curl
+  # 🥈 主抓取失败或命中拦截页时的回退传输层: curl / curl_cffi / crawl4ai / null
+  fetch_fallback_transport: crawl4ai
+  # 🥉 完整网页抓取失败后的内容兜底: null / searxng_snippet
+  fetch_content_fallback: searxng_snippet
+  # curl_cffi 的浏览器指纹模拟配置（仅在已安装 curl_cffi 时生效）
+  fetch_impersonate: chrome
+  # === Crawl4AI 浏览器抓取设置 ===
+  # 仅当 fetch_transport 或 fetch_fallback_transport 选择 crawl4ai 时生效。
+  # Crawl4AI 能处理更多 JS 渲染页面；本项目默认把它作为 curl 主传输失败后的 fallback。
+  crawl4ai_browser_type: chromium
+  # 是否启用 Crawl4AI 的 stealth 浏览器设置；默认开启，不保证绕过所有 CAPTCHA。
+  crawl4ai_enable_stealth: true
+  # 是否无头运行浏览器。true 更适合后端服务；false 主要用于人工调试浏览s器行为。
+  crawl4ai_headless: true
+  # 页面加载等待策略，传给 Crawl4AI/Playwright。
+  # 推荐 domcontentloaded：等待 DOM 初始加载完成即可返回，避免知乎等站点因长连接/埋点导致 networkidle 长时间不结束。
+  # networkidle 更保守但容易“干等”；load 介于两者之间。
+  crawl4ai_wait_until: domcontentloaded
+  # Crawl4AI 内部页面导航 timeout，单位毫秒，最终传给 CrawlerRunConfig(page_timeout=...)。
+  # 注意：当前代码会同时受 fetch_crawl4ai_timeout_seconds 限制，实际 page_timeout = min(crawl4ai_page_timeout_ms, fetch_crawl4ai_timeout_seconds * 1000)。
+  # 因此如果此值小于 fetch_crawl4ai_timeout_seconds * 1000，它才是实际页面导航上限；否则外层 fetch_crawl4ai_timeout_seconds 生效。
+  # 这两个参数目前语义有重叠，保留它是为了兼容 Crawl4AI/Playwright 的毫秒级底层配置。
+  crawl4ai_page_timeout_ms: 20000
+  # Crawl4AI 内容抽取的最小词数阈值，用于过滤过短文本块；不是最终“成功/失败”的唯一标准。
+  # 最终仍会经过 backend 的 block-page 检测、空内容检测和低质量文本检测。
+  crawl4ai_word_count_threshold: 50
+  # 是否绕过 Crawl4AI 缓存。true 可避免复用旧的 challenge/block 页面。
+  # 新版 Crawl4AI 内部会被转换为 cache_mode=CacheMode.BYPASS；旧版才会退回 bypass_cache。
+  crawl4ai_bypass_cache: true
+  # Crawl4AI magic 为实验性能力，默认关闭；仅显式配置 true 时启用。
+  crawl4ai_magic: false
+  # Crawl4AI 较重，默认不额外重试。该参数只控制 crawl4ai transport，不影响 curl_cffi/curl。
+  # 如果设置为 1，会在 Crawl4AI 失败后再尝试一次浏览器抓取，可能明显增加延迟。
+  crawl4ai_retry_count: 0
+  # search_and_fetch 并发抓取网页的最大 worker 数
+  fetch_max_workers: 150
+  # 保留的通用重试配置；curl/curl_cffi 使用 hedge，Crawl4AI 使用独立 retry_count。
+  fetch_retry_count: 1
+  # 普通 HTTP transport 的重试退避秒数基线（指数退避）。
+  # 当 crawl4ai_retry_count=0 时，这个退避不会影响 Crawl4AI。
+  fetch_retry_backoff_seconds: 1.0
+  # curl 子进程单次抓取预算。必须短于整体 search_timeout，给 Crawl4AI fallback 留出时间。
+  fetch_curl_timeout_seconds: 6
+  # curl 第 2 个 hedged 请求的启动延迟；两个请求共享上面的 6 秒总预算。
+  fetch_curl_hedge_delay_seconds: 3
+  # curl 子进程单个响应的最大下载字节数，超限后进入 Crawl4AI fallback。
+  fetch_curl_max_response_bytes: 8388608
+  # curl_cffi 单次抓取超时秒数；避免轻量 transport 吃完整体 search_timeout 预算。
+  # 这是 curl_cffi hedged requests 的总预算：最多启动 2 个 curl_cffi 请求，整个 curl_cffi 阶段不应超过该预算太多。
+  # 如果 curl_cffi 在该时间内没有产生可用正文，会尽快进入 crawl4ai fallback，而不是一直等待到总 deadline。
+  fetch_curl_cffi_timeout_seconds: 6
+  # curl_cffi 第 2 个 hedged 请求的启动延迟秒数。
+  # 第 1 个请求先启动；如果过了该时间仍没有任何反馈，则启动第 2 个请求，但不主动取消第 1 个。
+  # 当前推荐 3 秒：在 6 秒总预算中，第 2 个请求从第 3 秒开始，用剩余预算竞争返回。
+  fetch_curl_cffi_hedge_delay_seconds: 3
+  # Crawl4AI 单次浏览器抓取外层预算，单位秒。
+  # 当前代码会将 Crawl4AI 内部 page_timeout 限制为 min(crawl4ai_page_timeout_ms, fetch_crawl4ai_timeout_seconds * 1000)。
+  # 因此它和 crawl4ai_page_timeout_ms 存在重叠；如果只想保留一个 Crawl4AI timeout，未来应优先保留这个“秒级 transport timeout”。
+  fetch_crawl4ai_timeout_seconds: 15
+  # 全局 Crawl4AI 页面任务上限（跨 search_and_fetch 调用共享），不是浏览器进程数量。
+  # worker 复用浏览器；实际并发还受可用内存和任务数量影响。
+  fetch_crawl4ai_max_concurrency: 50
+  # 隔离抓取和正文解析的常驻 worker 进程数；与页面任务上限独立。
+  fetch_worker_processes: 4
+  # 取消后等待 worker 清理的宽限秒数；超时可终止该 worker，同 worker 其他在途任务也会失败。
+  fetch_worker_cancel_grace_seconds: 1.0
+  # 系统内存使用率达到该百分比时延迟启动新页面；0 < 值 < 100，不是内存硬配额。
+  crawl4ai_memory_threshold_percent: 85.0
+  crawl4ai_memory_check_interval_seconds: 0.1
+  # 汇集同一 worker 的页面任务以复用批量调度；允许 0，单位秒。
+  crawl4ai_batch_wait_seconds: 0.01
+  # 若正文提取少于该字符数，则尝试更保守的回退提取
+  fetch_min_text_chars: 200
+  # Stage 1 最终正文质量判定；不是正文候选解析阈值; 以下2个统计结果如任意一个低于对应阈值，则会触发使用 crawl4ai. 
+  fetch_quality_min_text_chars: 800
+  fetch_quality_min_text_lines: 15
+  # 是否在主提取不足时启用额外正文提取回退
+  fetch_enable_readability_fallback: true
+  # 额外拦截页关键词；命中后会触发回退传输层
+  fetch_block_markers:
+    - captcha
+    - just a moment
+    - enable javascript
+    - access denied

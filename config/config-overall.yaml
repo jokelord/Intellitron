@@ -1,0 +1,38 @@
+# ============================================================
+# LLM-Test 配置文件
+# 目标平台: NVIDIA Jetson Thor (ARM64, Ubuntu) / Desktop GPU
+# 作者: 
+# ============================================================
+
+# 模型基本信息（model_path / model_name / model_type）已合并进 infer 文件的 model 段；
+# tensor_parallel_size / max_context_length 已去重，仅保留 infer 内引擎侧
+# （sglang.tensor_parallel_size / max_context_length，vllm.tensor_parallel_size / max_model_len），
+# backend 会 fallback 读取。旧 *-config-model.yaml 不再被引用：
+# 新文件（qwen3.8-radixArk-NVFP4）已内嵌 model 段；旧文件缺 model 段时 backend
+# 按 infer 同名 sibling 自动回退加载（如 qwen3__6-*），以保持兼容。
+# 推理相关配置（如sglang的注意力后端、推理模式等），对应的启动sh启动脚本位于/scripts目录
+infer: config/qwen3.8-radixArk-no-DSPARK-NVFP4-config-infer.yaml
+
+# 服务器和前端相关配置（如API端口、跨域设置等），ocr pipeline 相关配置
+server: config/config-server.yaml
+
+# Web UI 皮肤和页面组件尺寸配置
+webUI: config/config-webUI.yaml
+
+# Agent 运行与工具操作配置（agent、read_file、mcp、web_tools）
+agent_operation: config/config-agent-operation.yaml
+
+# Agentic工具相关的提示词配置
+agent_prompts: config/config-agent-prompts.yaml
+
+# 浏览器语音采集、Silero VAD 与独立 Qwen3-ASR SGLang 服务
+asr: config/config-asr.yaml
+
+# 图片、视觉相关配置
+vision: config/config-vision.yaml
+
+# 其他杂项配置（如 compact、runtime、debug、platform、logging、cycle 等）
+misc: config/config-misc.yaml
+
+# Agent 本地 Markdown 记忆与 zvec 检索
+local_memory: config/config-local-memory.yaml

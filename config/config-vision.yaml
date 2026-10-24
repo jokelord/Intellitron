@@ -1,0 +1,78 @@
+# ============================================================
+# VLM multi-modal 手动上传图片
+# （原各 *-config-model.yaml 中的 5 项已迁移至此 vision_upload 段；
+#  backend 优先读 vision_upload，缺失时回退读 model 段以兼容旧文件）
+# ============================================================
+vision_upload:
+  # 最大图片大小 (字节, 默认 10MB)
+  max_image_size: 10485760
+  # 支持的图片格式 (逗号分隔)
+  supported_formats: png,jpg,jpeg,gif,webp
+  # 最大图片 token 数
+  max_image_tokens: 8192
+  # ========== 图片预处理（降低 TTFT）==========
+  # 文件上传图片最大边长（像素）：上传图片在后端预处理时缩放到此尺寸以内
+  #   原理：Qwen3-VL visual encoder 的 token 数 ∝ 像素数，2560x1600 ≈ 4M 像素 → ~8000 token → TTFT ~100s
+  #         缩放到 1280 max → ~1M 像素 → ~2000 token → TTFT ~25s（约 4x 加速）
+  #   设为 0 / null = 不缩放（保持原始分辨率，供需要最高精度的场景使用）
+  #   作用链路: config-vision.yaml → backend ModelConfig → /config 端点 vision.max_image_dimension
+  #             → 后端 process_image_binary 实际缩放（ImageUploader 上传路径）
+  max_image_dimension: 1280
+  # 摄像头拍照图片的前端 canvas 预缩最大边长（像素）
+  #   摄像头路径在前端 canvas 阶段即完成缩放，后端不会二次触发缩放（因低于 max_image_dimension）
+  #   适当降低此值可进一步减少拍照场景的 TTFT，但会损失细节
+  #   设为 0 / null = 不缩放（保持摄像头原始分辨率）
+  #   作用链路: config-vision.yaml → backend ModelConfig → /config 端点 vision.camera_max_dimension
+  #             → 前端 CameraCapture.tsx canvas 预缩（CameraCapture 拍照路径）
+  camera_max_dimension: 1024
+
+# ============================================================
+# 摄像头手动拍照
+# （原 config/config-misc.yaml 中的 camera 段已整体迁移至此；
+#  backend _parse_camera_config 直接读 camera 段，与来源文件无关）
+# ============================================================
+camera:
+  # USB 摄像头参数
+  usb:
+    # 设备打开后等待初始化时间（秒）
+    device_open_delay: 0.05
+    # 预热帧数（丢弃这些帧让自动曝光稳定）
+    warmup_frames: 2
+  # 内置摄像头参数（通常需要更长的初始化时间）
+  builtin:
+    # 设备打开后等待初始化时间（秒）
+    device_open_delay: 0.05
+    # 预热帧数（丢弃这些帧让自动曝光稳定）
+    warmup_frames: 2
+  # 通用参数
+  common:
+    # 最大重试次数（含首次尝试）
+    max_capture_attempts: 3
+    # 亮度验证阈值（帧平均像素值低于此值视为黑帧）
+    min_brightness: 10.0
+    # 摄像头期望采集分辨率（最大边长，像素）
+    # 摄像头硬件会协商到最接近的支持档位（如配置值大于实际最大分辨率则自动回退）
+    # 采集后的图片由 vision_upload.camera_max_dimension 缩放后再发给 VLM
+    capture_dimension: 1280
+
+# ============================================================
+# 视觉自动化：浏览器本地视觉自动化采样配置
+# ============================================================
+vision_automation:
+  enabled: true
+  interval_seconds: 1.0
+  max_frames_per_source: 16
+  thumbnail_size_px: 32
+  capture_during_inference: false
+  lock_first_bundle: false
+  tick_timeout_seconds: 10
+  consecutive_tick_failure_limit: 3
+  max_encoded_payload_mib: 128
+  initial_jpeg_quality: 85
+  minimum_jpeg_quality: 40
+  minimum_image_dimension_px: 256
+  base64_encode_concurrency: 8
+  max_request_body_mib: 136
+  request_status_ttl_seconds: 600
+
+# computer-use (pure vision) 的配置请见 `config/config-agent-operation.yaml` 中 computer_use

@@ -1,0 +1,149 @@
+# ============================================================
+# Compact (/compact) command configuration
+# ============================================================
+# See docs/superpowers/specs/2026-06-06-slash-commands-and-compact-design.md
+compact:
+  enabled: true
+  auto_trigger: true
+  # 压缩策略二选一（默认 performance）：
+  # 'performance' (max_context * ratio) or 'utilization' (max_context - 当前待输出的 reserve - 预留量 buffer)
+  strategy: performance
+  performance_ratio: 0.4
+  utilization_summary_reserve: 20000
+  utilization_buffer: 13000
+  max_summary_tokens: 18000
+  temperature: 0.1
+  top_p: 0.9
+  # Compact is an internal summarization call. Disable Qwen thinking to avoid
+  # spending minutes decoding reasoning tokens before the summary.
+  extra_body:
+    chat_template_kwargs:
+      enable_thinking: false
+  # Hard cap for compact source prompt tokens. If SGLang prefix cache misses,
+  # this bounds prefill latency by keeping prior summary + recent tail only.
+  source_token_budget: 10000
+  # cycle mode 中，最多每 N 步 compact 一次但决不漏
+  cycle_min_steps_between_compacts: 0
+  image_token_estimate_per_image: 512
+  diagnostics_enabled: true
+  # cache_first_tail_with_fallback reuses the prior chat/agent prefix when SGLang
+  # radix cache has it; strict validation keeps reliable_position1 fallback safe.
+  prompt_shape: cache_first_tail_with_fallback
+  # Disabled by default to force cache-first attempts to surface their real
+  # validation/cache behavior instead of silently falling back to reliable_position1.
+  reliable_fallback_enabled: false
+  # When true, cache-first compact appends one self-contained internal instruction
+  # at the tail. Normal chat/agent prompts must not receive INTERNAL COMPACT
+  # CONTROL RULE or any stable compact-control system clause.
+  prompt_control_enabled: true
+  validation_min_summary_chars: 200
+  validation_min_summary_prompt_ratio: 0.002
+  validation_require_summary_sections: true
+
+# ============================================================
+# runtime time
+# ============================================================
+runtime_prompts:
+  # 运行时提示词会插入到首个 system message 里，而不是改写用户提示词或 user delta。
+  # 同一 session 内它是 pinned/fixed 的，不会随时间变化而更新，以免破坏 prefix cache 命中。
+  # 时间信息只存在于 system 侧，后续工具调用链和历史上下文不会被重新灌入新的时间文本。
+  enable_runtime_time_context: true
+
+# ============================================================
+# Debug 调试开关
+# 启用后会在终端输出对应模块的详细调试信息
+# ============================================================
+debug:
+  # 总开关：关闭后忽略所有debug子开关
+  enabled: true
+  # 模型加载调试：显示模型加载进度、内存占用、设备信息
+  debug_model_loading: true
+  # 推理过程调试：显示推理耗时、token统计、生成速度
+  debug_inference: false
+  # API请求调试：显示请求/响应详情、参数校验
+  debug_api: false
+  # 内存监控调试：显示显存/内存占用变化
+  debug_memory: false
+  # 配置加载调试：显示配置文件解析过程
+  debug_config: true
+  # 前端调试：启用前端详细日志
+  debug_frontend: true
+
+# ============================================================
+# 平台特定配置
+# 针对不同部署平台的特殊设置
+# ============================================================
+platform:
+  # 当前平台标识: desktop / jetson_thor
+  current: desktop
+  jetson_thor:
+    # Jetson Thor 专用配置
+    # 启用 DLA 加速（如果可用）
+    use_dla: false
+    # 功耗模式: MAXN / 15W / 30W
+    power_mode: MAXN
+    # 启用内存优化模式
+    memory_optimize: true
+  desktop:
+    # 桌面GPU专用配置
+    # 是否使用多GPU
+    multi_gpu: false
+    # GPU设备ID列表（逗号分隔）
+    gpu_devices: 0
+
+# ============================================================
+# 日志记录
+# ============================================================
+logging:
+  # 日志级别: DEBUG / INFO / WARNING / ERROR / CRITICAL
+  level: INFO
+  # 日志文件路径（留空表示仅输出到控制台）
+  file_path: null
+  # 日志格式
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  # 是否启用彩色输出
+  colorize: true
+
+# ============================================================
+# Cycle 可编程循环序列配置
+# 定义自动化执行的 LLM 对话序列（支持嵌套循环、定时等待、多摄像头拍照）
+# ============================================================
+cycle:
+  # 总开关
+  enabled: true
+  # 最大嵌套深度
+  max_depth: 5
+  # 最大执行时间（秒）
+  max_duration: 36_000
+  # 是否在聊天中显示拍照缩略图
+  show_thumbnails: true
+  # Cycle run uses an explicit lifecycle instead of generic run-level timeout.
+  # legacy_bounded remains available only for deployments retaining max_duration.
+  timeout_policy: exempt_cycle_run
+  # Finite wall-clock horizon for the independent scheduled track (30 days).
+  scheduled_track_max_duration_seconds: 2592000
+  # Per scheduled message daily recurrence cap; no infinite recurrence.
+  max_scheduled_message_days: 30
+  # In-process reconnect journal retention limits.
+  event_journal_retention_seconds: 86400
+  event_journal_max_records: 20000
+  # 默认序列模板（前端可编辑覆盖）
+  default_sequence:
+    - wait: 1
+    - message: "你好，请描述你看到的画面"
+      photo: [0]
+    - cycle:
+        count: 3
+        steps:
+          - wait: 8
+          - message: "请继续观察并报告变化"
+            photo: [0]
+  # Top-level scheduled track defaults. It is deliberately separate from
+  # default_sequence so it cannot be nested in an ordinary cycle step.
+  default_scheduled_messages: []
+
+# ============================================================
+# 手动拍照 - 摄像头配置
+# 已迁移至 config/config-vision.yaml 的 camera 段，本文件不再保留。
+# backend _parse_camera_config 直接读 camera 段，与来源文件无关。
+# ============================================================

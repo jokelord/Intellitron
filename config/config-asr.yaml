@@ -1,0 +1,204 @@
+# 配置结构版本；当前实现只接受版本 1。
+version: 1
+# 是否启用 ASR 网关和独立的 Qwen3-ASR 服务配置。
+enabled: true
+
+audio:
+  # 浏览器和后端统一使用的采样率；当前仅支持 16 kHz。
+  sample_rate_hz: 16000
+  # 录音声道数；当前仅支持单声道。
+  channels: 1
+  # 浏览器发送的 PCM 样本格式。
+  sample_format: float32
+  # 浏览器每个 PCM 帧的时长；20 ms 对应 320 个样本。
+  capture_frame_ms: 20
+  # 浏览器缓存缺失时的增益兜底，也是旧客户端的会话默认值；后端只对原始 PCM 应用一次。
+  input_gain_db: 0
+  # Web 输入增益滑块允许的最小值、最大值和步长；后端实时控制使用同一约束。
+  input_gain_min_db: -12
+  input_gain_max_db: 30
+  input_gain_step_db: 1
+  # 增益后样本的绝对值裁剪上限，避免超过有效浮点 PCM 范围。
+  clip_limit: 0.999
+  browser_constraints:
+    # 是否请求浏览器启用回声消除；关闭可减少浏览器侧音频改写。
+    echo_cancellation: false
+    # 是否请求浏览器启用降噪。
+    noise_suppression: false
+    # 是否请求浏览器启用自动增益；项目默认由后端统一增益。
+    auto_gain_control: false
+
+recording:
+  # 触发前保留的滑动音频窗口，避免丢失开头语音。
+  pretrigger_buffer_ms: 550
+  # 满足结束条件后继续保留的尾音时长。
+  posttrigger_tail_ms: 0
+  # 单个 utterance 主体允许的最大时长，达到后强制结束。
+  max_utterance_ms: 180000
+  # 低于此时长的 utterance 会被丢弃，不调用 ASR。
+  min_utterance_ms: 600
+  # SPL 触发后等待 Silero 确认人声的最长时间。
+  candidate_confirmation_timeout_ms: 900
+  # RECORDING 阶段连续该时长未检出人声（VAD 概率低于阈值）即结束录音并提交 ASR。
+  # 结束判定只依赖 Silero VAD 人声概率，不使用绝对静音(SPL)判断，嘈杂环境也能正常收尾。
+  end_no_voice_duration_ms: 1800
+  # 提交 ASR 前裁剪已验证无声的尾部窗口：仅保留该时长的衰减缓冲（气息/弱尾音），
+  # 其余约 1600ms 静音不再上传。0 表示激进全裁；上限为 end_no_voice_duration_ms。
+  end_no_voice_trim_pad_ms: 0
+  # 禁止相邻 utterance 复用已经提交过的音频样本；当前必须为 true。
+  prevent_segment_overlap: true
+
+audio_trigger:
+  # 是否使用 SPL 启动触发；关闭时改用持续 VAD 人声触发。
+  enabled: true
+  # SPL 计算指标；当前固定为增益后 PCM 的 RMS dBFS。
+  metric: rms_dbfs
+  # BUFFERING 阶段的独立启动阈值；高于或等于该值开始累计触发时间。
+  # 仅用于启动录音；结束录音由 recording.end_no_voice_duration_ms 的 VAD 判定负责。
+  start_threshold_dbfs: -29.0
+  # 启动 SPL/VAD 条件需要连续满足的最短时间。
+  min_trigger_duration_ms: 30
+  # SPL 触发后是否必须再由 Silero 确认为人声。
+  require_vad_confirmation: true
+
+vad:
+  # VAD 引擎名称。
+  engine: silero
+  # Silero VAD 配置兼容版本。
+  version: "6.2"
+  # Silero 推理后端；使用 ONNX CPU，避免占用 GPU 推理显存。
+  backend: onnx
+  # Silero 包内 ONNX 模型资源路径。
+  model_path: package://silero_vad/data/silero_vad.onnx
+  # VAD 运行设备。
+  device: cpu
+  # 即时人声概率阈值；概率高于或等于该值视为人声。
+  threshold: 0.50
+  # Silero VAD 内部使用 LSTM 层在音频块（chunk）之间维持内部状态，这导致了一个典型的"粘滞"行为：1 一旦检测到语音，倾向于"粘"在语音状态；2 需要持续一段时间的静音才会切换。可通过本 min_silence_duration_ms 等参数调节"粘"的程度，值越大越"粘"。
+  # 其意为 语音切片在结束后需要持续静音多少毫秒才判定为语音结束；它是 Silero 语音切片的内部控制参数，与以上更“宏观“的 `end_no_voice_duration_ms` 是两码事。
+  min_silence_duration_ms: 500
+  # Silero 状态机在人声结束后的额外保留时间；录音结束仍使用即时概率。
+  # 注意：本项目语义为“与 min_silence_duration_ms 相加的退出滞回”，并非上游 Silero 的双向段边界 padding。
+  speech_pad_ms: 30
+  # 每次送入 Silero 的样本数；16 kHz 模型固定为 512。
+  frame_samples: 512
+  # 计算门控：idle（BUFFERING 且低于唤醒线）时暂停 Silero 推理以节省 CPU。
+  # 仅在 audio_trigger.enabled=true 时生效；关闭 SPL 触发后 VAD 即主触发源，不可门控。
+  compute_gating_enabled: true
+  # 唤醒线：RMS dBFS 高于该值即恢复推理。须低于 SPL start 阈值（schema 校验），
+  # 让 Silero 在触发前先预热；-35 约比 -29 触发线低 6dB，语音渐入型起始可提前约 30–150ms。
+  compute_wake_threshold_dbfs: -35.0
+  # 持续低于唤醒线该时长后才挂起推理（抗抖动滞回）。500ms 高于语句内停顿(约 80–250ms)，
+  # 低于对话轮换间隙(约 1s)；瞬态噪声较多的环境可上调至 750–1000ms。
+  compute_suspend_after_quiet_ms: 500
+  # 唤醒预热：重置后从 ring 回放该时长的真实音频充注 Silero LSTM 状态；
+  # 重置后的概率需数个 chunk 才校准，预热期内概率不参与判定。100ms ≈ 3 个 512 chunk。
+  compute_warmup_context_ms: 100
+
+sglang:
+  # 独立 ASR SGLang 服务监听地址。
+  host: 127.0.0.1
+  # 独立 ASR SGLang 服务端口。
+  port: 30003
+  # SGLang 对外暴露并由健康检查验证的模型名称。
+  served_model_name: Qwen3-ASR-1.7B
+  # 本地 Qwen3-ASR 模型目录；启动前会严格检查模型和 tokenizer 文件。
+  model_path: ~/Project/LLM-weight/Qwen3-ASR-1.7B
+  # 模型权重与推理计算的数据类型。
+  dtype: bfloat16
+  # SGLang 静态显存池可使用的设备内存比例。
+  mem_fraction_static: 0.08
+  # 单请求最大上下文长度；直接限制可接受的 token 上下文。
+  context_length: 16384
+  # KV Cache 内存池允许分配的 token 总数，必须不小于 context_length。
+  max_total_tokens: 16384
+  # 同时运行的 ASR 请求上限；单路 ASR 使用 1。
+  max_running_requests: 1
+  # 是否允许模型仓库执行自定义 Python 代码。
+  trust_remote_code: false
+  # 单次 /health 或 /v1/models 探测的最长等待时间。
+  health_timeout_seconds: 10.0
+  # 模型加载和 warmup 的总等待时间；期间 HTTP 503 会继续重试。
+  startup_timeout_seconds: 300.0
+
+transcription:
+  # 是否请求 SGLang 返回流式 partial transcript。
+  streaming: false
+  # final transcript 完成后是否自动走现有 Chat/Agent 发送入口。
+  auto_send: true
+  # 指定识别语言；null 表示让模型自动判断。
+  language: null
+  # ASR 解码温度；0 表示确定性更高。
+  temperature: 0.0
+  # SGLang transcription endpoint 的响应格式。
+  response_format: json
+  # 单次 ASR 推理请求的总超时时间。
+  request_timeout_seconds: 600
+
+dictation_magic_send:
+  # 听写模式下，输入框以这些大小写敏感的精确后缀结尾时自动发送。
+  commands: ["Over, over.", "Over. Over.", "Over, over. ", "over, over. ", "over, over."]
+  # 浏览器轮询输入框后缀的间隔；不得低于 100ms。
+  poll_interval_ms: 500
+
+transport:
+  # 浏览器连接 FastAPI ASR WebSocket 的路径。
+  websocket_path: /v1/asr/stream
+  # 可选的公开 WebSocket 完整地址；null 时按当前页面主机和后端端口构造。
+  public_websocket_url: null
+  # WebSocket 建立后等待 start 握手的最长时间。
+  handshake_timeout_seconds: 180
+  # 单个二进制 PCM WebSocket 消息允许的最大字节数。
+  max_binary_frame_bytes: 65536
+  # 浏览器和后端分别允许缓存的最大 PCM 帧数，防止无界内存增长。
+  max_buffered_frames: 250
+  # 向前端发送音量/波形事件的最小间隔。
+  level_event_interval_ms: 100
+
+runtime:
+  # 是否运行时热加载 ASR 配置；当前固定关闭，保证单 session 配置稳定。
+  config_reload_enabled: false
+  # 是否拒绝 YAML 中未定义的字段；当前固定开启。
+  fail_on_unknown_config: true
+  # 后端同时允许的浏览器 Voice session 数量。
+  max_active_sessions: 4
+  # 每个 session 等待识别的 utterance 上限；当前固定为 1。
+  max_pending_utterances_per_session: 1
+  # 后端同时提交给独立 SGLang ASR 的请求数。
+  asr_worker_concurrency: 1
+  # abort/shutdown 等待 frame、ASR 和 debug worker 收尾的最长时间。
+  shutdown_timeout_seconds: 300
+
+browser_security:
+  # 是否让后端和前端启动脚本启用本地 HTTPS。
+  https_enabled: false
+  # 是否要求 Voice 只能运行在 HTTPS 或 localhost 安全上下文。
+  require_secure_context_for_voice: true
+  # Android/Desktop 需要信任的本地 CA 证书路径。
+  ca_certificate_path: data/asr-tls/llm-deployment-ca.crt
+  # 后端和前端 HTTPS 使用的服务器证书路径。
+  certificate_path: data/asr-tls/llm-deployment-server.crt
+  # 服务器证书对应的私钥路径。
+  private_key_path: data/asr-tls/llm-deployment-server.key
+  # 证书必须精确包含的 DNS/IP SAN；修改后需要重新生成证书。
+  subject_alt_names:
+    - localhost
+    - 127.0.0.1
+    - 192.168.1.88
+    - 192.168.2.54
+
+debug:
+  # 是否将成功转写的精确 WAV 通过 WebSocket 返回给当前页面用于回放；不落盘。
+  replay: false
+
+observability:
+  # 是否保存已确认 utterance 的调试 WAV；开启后涉及语音隐私。
+  save_debug_audio: false
+  # 调试 WAV 保存目录；默认权限为目录 0700、文件 0600。
+  debug_audio_directory: data/debug-audio
+  # 是否记录每个 VAD 帧的概率诊断，不记录 PCM 或 transcript 正文。
+  log_vad_probability: false
+  # 是否记录增益后音量和 clipping ratio。
+  log_audio_level: false
+  # 是否记录录音状态机的状态切换。
+  log_state_transitions: true

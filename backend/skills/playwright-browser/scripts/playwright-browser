@@ -1,0 +1,30 @@
+#!/bin/sh
+# Trusted browser-skill launcher.
+#
+# This file is intentionally the only executable the Agent needs to call.  It
+# pins only the browser skill to the repository's .sglang interpreter and
+# Playwright package. It does not alter the Agent PATH used by ordinary
+# commands.
+set -eu
+
+SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+REPOSITORY_ROOT=$(CDPATH= cd -- "$SCRIPT_DIR/../../../.." && pwd)
+PYTHON="$REPOSITORY_ROOT/.sglang/bin/python"
+
+if [ ! -x "$PYTHON" ]; then
+    echo "playwright-browser: .sglang Python interpreter is unavailable: $PYTHON" >&2
+    exit 78
+fi
+
+# Clear interpreter, loader, shell-startup, and Playwright runtime overrides
+# before entering the pinned browser environment. Preserve the upstream Agent
+# PATH and GUI variables such as DISPLAY, WAYLAND_DISPLAY, XAUTHORITY, and
+# XDG_RUNTIME_DIR for the browser daemon and Chromium descendants.
+unset \
+    VIRTUAL_ENV PYTHONHOME PYTHONPATH PYTHONSTARTUP PYTHONINSPECT \
+    PYTHONDEBUG PYTHONWARNINGS UV_PROJECT_ENVIRONMENT \
+    PLAYWRIGHT_BROWSERS_PATH PLAYWRIGHT_NODEJS_PATH NODE_OPTIONS \
+    BASH_ENV ENV LD_PRELOAD LD_LIBRARY_PATH LD_AUDIT \
+    DYLD_INSERT_LIBRARIES DYLD_LIBRARY_PATH
+
+exec "$PYTHON" "$SCRIPT_DIR/../playwright_browser.py" "$@"

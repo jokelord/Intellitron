@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "models": {
+    "LayoutDetection": {
+      "model_id": "PaddlePaddle/PP-DocLayoutV3_safetensors",
+      "model_name": "PP-DocLayoutV3",
+      "model_dir": "~/.paddlex/official_models/PP-DocLayoutV3_safetensors",
+      "revision": "f8bd2e7f6bb8773617356c59592a9beea51a9a6f",
+      "files": {
+        "config.json": {"bytes": 2460, "sha256": "3cf834b91d23a756b1519bce4db42c09e852f3e35c35092dd5a3e253a50c071a"},
+        "inference.yml": {"bytes": 1482, "sha256": "506fcfac13b3b546ae40d7886b44126420f392adb694e3f8bb6a6286a1f90fdc"},
+        "model.safetensors": {"bytes": 133270468, "sha256": "5ea422c6cc5fe759a47e1357c35639b58173508e025a3131cbe4b6ac59e2b85e"},
+        "preprocessor_config.json": {"bytes": 575, "sha256": "519fe0187a43a1ca429e3ad8317bab8700f0d5e8fb3a6e3a0a413ffac078ba42"}
+      }
+    },
+    "VLRecognition": {
+      "model_id": "PaddlePaddle/PaddleOCR-VL-1.6",
+      "model_name": "PaddleOCR-VL-1.6-0.9B",
+      "model_dir": "~/.paddlex/official_models/PaddleOCR-VL-1.6",
+      "revision": "d911116c363676c602c4786ad0b9667b1aee055f",
+      "files": {
+        "added_tokens.json": {"bytes": 25381, "sha256": "f59f889088e0fe21c523e7cf121bb6dca3b0bb148cb7159fbb4572c74dfc5644"},
+        "chat_template.jinja": {"bytes": 1474, "sha256": "2f27812dab7f333e471884e0c803d807f11953d5453140dfb1aaba234f872bc8"},
+        "config.json": {"bytes": 2059, "sha256": "ce7f4565f8b1db78532ad5d1b9ebe55c2139d49bd4cb04778b580a08a598f171"},
+        "configuration_paddleocr_vl.py": {"bytes": 8104, "sha256": "753dd93654c3a9c8c85a3eaee1e3092dd12591b0f2dce0305e1abfb7a41ff160"},
+        "generation_config.json": {"bytes": 133, "sha256": "a6701d78ab3b4d972307cdec3b69d4c13f46e0d5140514f50ab7d84259324b94"},
+        "image_processing_paddleocr_vl.py": {"bytes": 25032, "sha256": "a4fa521b9cb16e207f94b7f2d16427771776dfc634420d319fc4916ee58049ec"},
+        "inference.yml": {"bytes": 43, "sha256": "1587aece2d6442366efce34161d5f7d5f67f09ebfbf043168e5fade892c2780e"},
+        "model.safetensors": {"bytes": 1917255968, "sha256": "85a479d506a11e724e7285d395c551be69f41dbc16b6342d3cacfb189aed71db"},
+        "modeling_paddleocr_vl.py": {"bytes": 103889, "sha256": "c5013dff57ca8b87dc1de64d0fd839a44313de09d230a4fb2d08289d2cad5111"},
+        "preprocessor_config.json": {"bytes": 641, "sha256": "111872ab1e8bb7fd040ac5087bfced7ab8f011f02139b088cba294964c3b1d0e"},
+        "processing_paddleocr_vl.py": {"bytes": 12253, "sha256": "e29cb1e5f275f2bd3ce051bd5c9983a33894e693b2823a0e13d4c07c8c4f9e13"},
+        "processor_config.json": {"bytes": 137, "sha256": "1568858960a9760c54431dae693a6152e601ff55cdf6d2eab97a4a99958faea0"},
+        "special_tokens_map.json": {"bytes": 1151, "sha256": "d3a125c03103deb2acaf7730791bdbbf196f620e5a2213b664511ff9b4b25bab"},
+        "tokenizer_config.json": {"bytes": 186947, "sha256": "1f979337347cc0cb72a6282d8a23ed183539aa81a87a906f022aee2bab83c7c5"},
+        "tokenizer.json": {"bytes": 11189060, "sha256": "c8a215a59183d0d0781adc33bacd3ce6162716f7fd568fb30234a74d69803a7d"},
+        "tokenizer.model": {"bytes": 1614363, "sha256": "34ef7db83df785924fb83d7b887b6e822a031c56e15cff40aaf9b982988180df"}
+      }
+    },
+    "DocOrientationClassify": {
+      "model_id": "PaddlePaddle/PP-LCNet_x1_0_doc_ori_safetensors",
+      "model_name": "PP-LCNet_x1_0_doc_ori",
+      "model_dir": "~/.paddlex/official_models/PP-LCNet_x1_0_doc_ori_safetensors",
+      "revision": "04cd0dee25d2300e63442f6989e8984b1f3dae77",
+      "files": {
+        "config.json": {"bytes": 229, "sha256": "c095e58d1c6644f37f37ccdb729b1dda3896c5bdeb55a911ea462fd2061dc4a5"},
+        "inference.yml": {"bytes": 766, "sha256": "9e195eb729a8173588cd0e8a852c8b373aa606e79e77b4ac7d8346f5426caf26"},
+        "model.safetensors": {"bytes": 6769728, "sha256": "cd7d708dae2ccfc418b181f4486343631dd791bccbe6c9ae4f69ce93df4b64bf"},
+        "preprocessor_config.json": {"bytes": 749, "sha256": "1e45010aa1911814dc98b1dc68f51acabe78c2e69a98a7e4440fc6fe7137e458"}
+      }
+    },
+    "DocUnwarping": {
+      "model_id": "PaddlePaddle/UVDoc_safetensors",
+      "model_name": "UVDoc",
+      "model_dir": "~/.paddlex/official_models/UVDoc_safetensors",
+      "revision": "505cd57c9915ac2656bee70ae4204aa12201aa1f",
+      "files": {
+        "config.json": {"bytes": 1421, "sha256": "7cab8c18905afaca325792ddba0dfc73a13dcadd886a5a7c008dabcb7fae7dd1"},
+        "inference.yml": {"bytes": 330, "sha256": "be83d537b358f3ff87740e77e14a83ee9e9a7bb215c33d091b69e8bd5904fe39"},
+        "model.safetensors": {"bytes": 31667380, "sha256": "65f980e3083b4919d962d7b4c8ddb42a926dc8b36f4909944746cf2d7b7325dc"},
+        "preprocessor_config.json": {"bytes": 240, "sha256": "d117e9226a945206cfb76a9d75d3ae5483080d90b48a34253626444b61771436"}
+      }
+    }
+  }
+}

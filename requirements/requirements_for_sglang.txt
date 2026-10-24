@@ -1,0 +1,140 @@
+# 【LLM-Test 后端依赖】
+# ============================================================
+# ⚠️ 重要：Python 版本必须是 3.12（PyTorch 不支持 3.14）
+# ============================================================
+
+# ============================================================
+# ⚠️ 重要：安装 uv 包管理器（如果尚未安装）
+# 使用 curl 下载脚本并通过 sh 执行：
+# curl -LsSf https://astral.sh/uv/install.sh | sh
+# 如果系统没有 curl，可以使用 wget：
+# wget -qO- https://astral.sh/uv/install.sh | sh
+# ============================================================
+
+# ============================================================
+# 核心依赖
+# 直接 uv pip install -r requirements_for_sglang.txt
+# 但有些依赖需要特殊安装，比如指定 CUDA 版本的 torch，详见注释
+# ============================================================
+
+# 用户备忘：sglang 0.5.18 之后 升级了 pytorch 版本至 torch 2.13.0，并且统一了多个依赖的编译缓存文件路径——估计与我们 `scripts/1_A_start_sglang.sh` 中设定的不一致。要求：以更新后的官方路径为准。
+
+# 配置文件解析
+PyYAML>=6.0
+
+# Web 框架
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+pydantic>=2.5.0
+
+# 异步支持
+python-multipart>=0.0.6
+httpx>=0.25.0
+
+# 模型和推理
+# Verified working together in the current .sglang environment.
+transformers==5.12.1
+huggingface-hub==1.31.0
+tokenizers==0.22.2
+
+sentencepiece>=0.2.0          # Qwen3/Qwen3-VL tokenizer（不由 sglang[all] 自动安装）
+einops>=0.8.0                 # Qwen-VL 视觉 attention（ViT 内部 einsum 操作）
+timm>=1.0.0                   # 视觉编码器骨干网络（Qwen3-VL SigLIP/ViT backbone）
+
+# 本地浏览器语音输入的 CPU ONNX VAD（安装到同一 .sglang uv 环境）
+silero-vad==6.2.0
+
+# SGLang 推理引擎 (需要特殊安装，详见注释) 
+sglang==0.5.17
+# uv pip install --upgrade --prerelease=allow sglang==0.5.17
+# 可不用装 sglang[all] 
+
+# 特殊步骤：装 sglang-kernel wheel
+# uv pip uninstall sglang-kernel || true && uv pip install --no-deps whl/sglang_kernel-0.4.6.post1+cu130-cp310-abi3-manylinux2014_aarch64.whl
+
+# flash-cubin 版本可能和 flashinfer-python 版本不一致，可能会导致某些 sglang 版本报错，最好去自己下、自己安装： `https://github.com/flashinfer-ai/flashinfer/releases/tag/v0.6.17` 
+
+# 💌 特殊步骤：sglang 0.5.17 版本的 [torch 2.11.0]👇
+# uv pip install torch==2.11.0 torchvision==0.26.0 torchaudio==2.11.0 --index-url https://download.pytorch.org/whl/cu130
+
+# LLM工具调用
+smolagents==1.22.0
+litellm==1.82.3
+mcp>=1.26.0
+curl_cffi>=0.15.0
+trafilatura>=2.0.0
+readability-lxml>=0.8.4.1
+# 某个需要单独下载的子依赖
+chardet>=7.4.3
+crawl4ai==0.9.3
+# Directly pin the Python binding used by the browser skill.  Crawl4AI also
+# depends on Playwright, but a transitive-only dependency would let an
+# environment refresh silently change the tested browser/runtime pairing.
+playwright==1.63.0
+
+
+# 浏览器 skill 复用本环境中的 Python Playwright（crawl4ai 的依赖），不需要安装 npm 全局 playwright-cli。
+
+
+# ============================================================
+# LLM 推理依赖的正确与错误示例
+# ============================================================
+
+# PyTorch - 必须使用 NVIDIA PyPI 源安装（从 0.5.11 起，pytorch 从 2.9 升级到了 2.11
+# ✅ 正确:
+#   uv pip install torch==2.11.0 torchvision==0.26.0 torchaudio==2.11.0 --index-url https://download.pytorch.org/whl/cu130
+# ❌ 错误:
+#   pip install torch  # 标准源没有 aarch64 版本或无 GPU 加速
+
+# SGLang - 推理引擎
+# ✅ 正确:
+#   uv pip install sglang==0.5.15
+#   uv pip install whl/sglang_kernel-0.4.4+cu130-cp310-abi3-manylinux2014_aarch64.whl
+# ❌ 错误:
+#   pip install sglang  # 可能版本不匹配或缺少依赖
+
+# ============================================================
+# 工具库
+# ============================================================
+
+# 图片处理
+Pillow>=10.0.0
+
+# read_file v7 document processing (model serving remains isolated)
+PyMuPDF>=1.26.0,<2.0
+markitdown[xlsx]>=0.1.6,<0.2
+python-magic>=0.4.27,<0.5
+pillow-heif>=1.1.0,<2.0
+CairoSVG>=2.8.0,<3.0
+defusedxml>=0.7.1,<1.0
+ImageHash>=4.3.2,<5.0
+
+# 日志彩色输出
+colorama>=0.4.6
+
+# 系统监控
+psutil>=5.9.0
+
+# 类型检查存根
+types-psutil>=5.9.0
+
+# 配置文件解析 (标准库已包含 configparser)
+
+# ============================================================
+# 开发依赖 (可选)
+# ============================================================
+
+# 代码格式化
+# black>=23.0.0
+# isort>=5.12.0
+
+# 类型检查
+# mypy>=1.7.0
+
+# 测试框架
+# pytest>=7.4.0
+# pytest-asyncio>=0.21.0
+
+# Agent 本地语义记忆（复用已有 transformers/torch encoder）
+zvec==0.7.0
+charset-normalizer==3.5.1  # 本地记忆文本编码推断；复用环境现有版本，固定直接依赖。

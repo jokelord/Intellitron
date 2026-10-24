@@ -1,0 +1,11 @@
+--- a/sglang/srt/layers/attention/flashinfer_backend.py
++++ b/sglang/srt/layers/attention/flashinfer_backend.py
+@@ -282,6 +282,8 @@
+         False,  # disable_split_kv
+         0,  # num_colocated_ctas
+     ]
++    if os.environ.get("LLM_DEPLOYMENT_FLASHINFER_PREFILL_UNIFORM_Q_LEN_COMPAT") == "1":
++        args.append(0)  # uniform_q_len
+     self._plan_info = self._cached_module.plan(*args)
+ 
+ 

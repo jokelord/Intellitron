@@ -1,0 +1,36 @@
+# Agent 本地文本记忆（.md/.txt，扩展名不区分大小写）。服务启动同步与 Web 默认关闭的检索开关相互独立。
+local_memory: # 本地记忆服务；修改本文件后重启 backend 生效，不监听运行期 YAML 变化。
+  enabled: true # 是否启用后台服务，与 Web 默认关闭的热开关独立。
+  sync_on_startup: true # 启动时增量同步；切分参数变化时完整重建新一代索引。
+  source_dir: memory/agent-local # 用户维护的 .md/.txt 源目录，扩展名不区分大小写，相对项目根目录。
+  state_dir: data/agent-local-memory # 派生向量、manifest 与恢复日志目录，不得与源目录重叠。
+  decoding: # 文件字节解码策略；变化时下次启动完整重建，不改写源文件。
+    encoding: auto # 优先 BOM、严格 UTF-8，再从受支持编码推断；短文本或歧义编码请指定 overrides。
+    overrides: {} # 精确的相对文件路径到编码名映射，优先于全局 encoding；不支持通配符或 auto。
+    # overrides 示例：{notes/example.txt: gb18030, notes/utf16.txt: utf-16-le}；路径不扩大读取范围。
+  embedding: # 本地多语言编码器；身份变化会触发完整索引重建。
+    model_id: intfloat/multilingual-e5-small # 预先准备的模型标识。
+    revision: 614241f622f53c4eeff9890bdc4f31cfecc418b3 # 固定模型版本，需与本地 artifact 校验记录一致。
+    local_model_path: models/embeddings/multilingual-e5-small # 本地完整模型目录，相对项目根目录。
+    local_files_only: true # 启动和检索只读本地模型，禁止隐式下载。
+    device: cpu # 使用 CPU，复用已有 torch/transformers 环境。
+    dimension: 384 # E5 输出维度；改变文本长度不会改变此维度。
+    batch_size: 8 # 每批编码的文本块数量。
+  chunking: # 原文切分参数；任一值变化均在下次启动完整重建并更新 manifest。
+    max_chars: 200 # 单块 Unicode 字符数上限，同时受 max_tokens 限制。
+    overlap_chars: 16 # 相邻原文块的字符重叠上限，必须小于 max_chars。
+    max_tokens: 320 # 单块编码输入上限，包含 passage 前缀与 special tokens。
+  retrieval: # 每轮检索与引用预算；这些参数变化不要求重新编码语料。
+    min_similarity: 0.82 # 直接命中种子的最低余弦相似度，邻接块不单独过此阈值。
+    candidate_k: 16 # zvec 在相似度过滤和种子选择前返回的最近向量候选数。
+    top_k: 4 # 邻接扩展前最多保留的直接命中种子数，并非最终注入块数上限。
+    adjacent_distance: 2 # 每个种子在同文件同版本中前后扩展的块数；非负整数，0 仅使用种子。
+    max_injected_chars: 6000 # 完整引用尾部字符上限；不足先逐级缩小统一扩展距离，再移除最弱种子。
+    timeout_ms: 4000 # 检索等待预算（毫秒），包含排队、编码、来源核验与组装。
+    max_pending_queries: 8 # 已提交且实际 worker 尚未结束的查询数量上限。
+  indexing: # 启动扫描资源上限；扫描不完整时不把未见文件当作已删除。
+    max_file_bytes: 2097152 # 单个受支持文本文件最大字节数。
+    max_files: 256 # 可扫描的 .md/.txt 文本文件数量上限。
+  startup: # 后台同步与 SearXNG 启动协调的有限等待预算。
+    gate_timeout_seconds: 30 # 后端等待启动脚本释放同步 gate 的最长秒数。
+    searxng_attempt_timeout_seconds: 120 # SearXNG 启动尝试及清理的秒数上限；后台尝试不阻塞记忆同步。

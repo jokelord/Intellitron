@@ -1,0 +1,100 @@
+<h2>Section 1: 统一消息模型架构</h2>
+<p class="subtitle">核心目标：同一份 canonical timeline，同时服务于“用户可见流式体验”和“LLM 高质量上下文管理”，两者解耦但不分裂。</p>
+
+<div class="section">
+  <div class="label">Core Idea</div>
+  <div class="mockup">
+    <div class="mockup-header">Single Canonical Timeline, Dual Projections</div>
+    <div class="mockup-body">
+      <div style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;align-items:center;">
+        <div style="padding:14px;border-radius:14px;background:#0f172a;color:#e2e8f0;text-align:center;">用户输入<br><span style="font-size:12px;opacity:.8;">text / vision</span></div>
+        <div style="padding:14px;border-radius:14px;background:#1d4ed8;color:#eff6ff;text-align:center;">coordinator_1<br><span style="font-size:12px;opacity:.85;">极速 LLM 路由</span></div>
+        <div style="padding:14px;border-radius:14px;background:#7c3aed;color:#f5f3ff;text-align:center;">Canonical Timeline<br><span style="font-size:12px;opacity:.85;">统一事件日志</span></div>
+        <div style="padding:14px;border-radius:14px;background:#0f766e;color:#ecfeff;text-align:center;">可见消息层<br><span style="font-size:12px;opacity:.85;">Web UI / CLI</span></div>
+        <div style="padding:14px;border-radius:14px;background:#854d0e;color:#fffbeb;text-align:center;">Agent 行为层<br><span style="font-size:12px;opacity:.85;">上下文精细管理</span></div>
+      </div>
+      <div style="margin-top:12px;font-size:13px;color:#94a3b8;">
+        不再直接把“前端看到什么”和“LLM 吃到什么”绑死在同一份原始 message 上，而是先落到统一事件时间线，再分别投影成两层。
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="label">Routing + Execution Flow</div>
+  <div class="split">
+    <div class="mockup">
+      <div class="mockup-header">Visible Message Layer</div>
+      <div class="mockup-body">
+        <div style="display:flex;flex-direction:column;gap:10px;">
+          <div style="padding:10px 12px;border-radius:12px;background:#172554;color:#dbeafe;">任务调度卡片：展示 coordinator_1 的全量流式推理</div>
+          <div style="padding:10px 12px;border-radius:12px;background:#1e293b;color:#e2e8f0;">若选中 coordinator_2：其 reasoning/content 直接进入聊天气泡流式展示</div>
+          <div style="padding:10px 12px;border-radius:12px;background:#1e293b;color:#e2e8f0;">若选中 basic_agent：继续显示 tool / observation / thought 等 agent UI</div>
+          <div style="padding:10px 12px;border-radius:12px;background:#1e293b;color:#e2e8f0;">若 coordinator_1 超时 10s：卡片显示 fallback，并立即切 basic_agent</div>
+        </div>
+      </div>
+    </div>
+    <div class="mockup">
+      <div class="mockup-header">Agent Behavior Layer</div>
+      <div class="mockup-body">
+        <div style="display:flex;flex-direction:column;gap:10px;">
+          <div style="padding:10px 12px;border-radius:12px;background:#78350f;color:#fef3c7;">把 coordinator_1 的原始流，整理成“清洁路由记录”写入上下文</div>
+          <div style="padding:10px 12px;border-radius:12px;background:#78350f;color:#fef3c7;">为每个 agent 维护独立、整洁、可摘要的行为上下文</div>
+          <div style="padding:10px 12px;border-radius:12px;background:#78350f;color:#fef3c7;">coordinator_2 可继续切换到 basic_agent / future agents</div>
+          <div style="padding:10px 12px;border-radius:12px;background:#78350f;color:#fef3c7;">最终给模型看的不是 UI 噪音，而是结构化历史与精简行为记录</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="label">Agent Roles</div>
+  <div class="cards">
+    <div class="card">
+      <div class="card-body">
+        <h3>coordinator_1</h3>
+        <p>只负责极速选路。提示词极简。必须作出 agent 选择。</p>
+        <p>10 秒内若未作出选择，system fallback 到 basic_agent。</p>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-body">
+        <h3>coordinator_2</h3>
+        <p>复杂推理 agent。其推理像“非 agent 模式”一样流式出现在聊天气泡。</p>
+        <p>必要时可继续切换到 basic_agent / future agents。</p>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-body">
+        <h3>basic_agent / future agents</h3>
+        <p>负责工具调用、文件操作、浏览器、搜索、以及未来扩展职能。</p>
+        <p>都通过统一 timeline 接入，而不是各自发明一套显示/上下文协议。</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="label">Harness Engineering Rule</div>
+  <div class="pros-cons">
+    <div class="pros">
+      <h4>用户层</h4>
+      <ul>
+        <li>消息整洁</li>
+        <li>必须流式</li>
+        <li>有明确“没死机”的反馈</li>
+        <li>dispatch 卡片持续滚动，而不是只闪一次</li>
+      </ul>
+    </div>
+    <div class="cons">
+      <h4>模型层</h4>
+      <ul>
+        <li>不直接喂 UI 装饰文本</li>
+        <li>不直接喂前端拼接后的嘈杂消息</li>
+        <li>只喂结构化且可摘要的行为历史</li>
+        <li>让上下文窗口保持清晰、精炼、可追踪</li>
+      </ul>
+    </div>
+  </div>
+</div>

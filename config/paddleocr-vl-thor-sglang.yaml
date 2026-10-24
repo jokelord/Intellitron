@@ -1,0 +1,146 @@
+# PaddleX 官方完整 Pipeline 配置。下面的 batch_size 按文档页分组，
+# 不是 VLM 生成批大小；增大可提高多页吞吐，但会增加图片和中间结果内存。
+pipeline_name: PaddleOCR-VL-1.6
+device: gpu:0
+batch_size: 8
+
+# 队列重叠输入加载、文档 CV/layout 和 VLM 阶段，主要优化多页吞吐。
+use_queues: true
+
+use_doc_preprocessor: True
+use_layout_detection: True
+use_chart_recognition: True
+use_seal_recognition: False
+use_ocr_for_image_block: True
+format_block_content: True
+merge_layout_blocks: True
+markdown_ignore_labels:
+  - number
+  - header
+  - header_image
+  - footer
+  - footer_image
+
+SubModules:
+  # SubModules 是父 Pipeline 直接调用的独立模型组件。
+  LayoutDetection:
+    module_name: layout_detection
+    model_name: PP-DocLayoutV3
+    # ModelScope revision f8bd2e7f6bb8773617356c59592a9beea51a9a6f.
+    model_dir: ~/.paddlex/official_models/PP-DocLayoutV3_safetensors
+    engine: transformers
+    engine_config:
+      dtype: float32
+      device_type: gpu
+      device_id: 0
+      attn_implementation: eager
+    # 版面检测 batch 按页面计数；增大时会提高 UMA 峰值。
+    batch_size: 4
+    threshold: 0.3
+    layout_nms: True
+    layout_unclip_ratio: [1.0, 1.0]
+    layout_merge_bboxes_mode:
+      0: "union" # abstract
+      1: "union" # algorithm
+      2: "union" # aside_text
+      3: "large" # chart
+      4: "union" # content
+      5: "large" # display_formula
+      6: "large" # doc_title
+      7: "union" # figure_title
+      8: "union" # footer
+      9: "union" # footer
+      10: "union" # footnote
+      11: "union" # formula_number
+      12: "union" # header
+      13: "union" # header
+      14: "union" # image
+      15: "large" # inline_formula
+      16: "union" # number
+      17: "large" # paragraph_title
+      18: "union" # reference
+      19: "union" # reference_content
+      20: "union" # seal
+      21: "union" # table
+      22: "union" # text
+      23: "union" # text
+      24: "union" # vision_footnote
+  VLRecognition:
+    module_name: vl_recognition
+    model_name: PaddleOCR-VL-1.6-0.9B
+    # ModelScope revision d911116c363676c602c4786ad0b9667b1aee055f.
+    model_dir: ~/.paddlex/official_models/PaddleOCR-VL-1.6
+    # 远程 VLM batch 表示一轮提交的裁剪区域数量，不是一个 tensor batch。
+    batch_size: 8
+    genai_config:
+      backend: sglang-server
+      server_url: http://127.0.0.1:30002/v1
+      # 同时在途的 HTTP 区域请求数，⭕ 应与 SGLang max_running_requests 对齐。
+      max_concurrency: 8
+
+SubPipelines:
+  # SubPipelines 是有自己处理流程的嵌套 Pipeline。DocPreprocessor
+  # 负责页面预处理，并继续包含方向分类和按需 UVDoc 矫正模块。
+  DocPreprocessor:
+    pipeline_name: doc_preprocessor
+    # 文档预处理 batch 按页面计数；启用 layout 队列时还受 layout batch 限制。
+    batch_size: 4
+    use_doc_orientation_classify: True
+    # PaddleX 3.6.1 only constructs UVDoc when this initialization flag is true.
+    # Project-owned normal requests explicitly send useDocUnwarping: false.
+    use_doc_unwarping: True
+    SubModules:
+      DocOrientationClassify:
+        module_name: doc_text_orientation
+        model_name: PP-LCNet_x1_0_doc_ori
+        # ModelScope revision 04cd0dee25d2300e63442f6989e8984b1f3dae77.
+        model_dir: ~/.paddlex/official_models/PP-LCNet_x1_0_doc_ori_safetensors
+        engine: transformers
+        engine_config:
+          dtype: float32
+          device_type: gpu
+          device_id: 0
+          attn_implementation: eager
+        # 方向分类模型的页面 batch。
+        batch_size: 4
+      DocUnwarping:
+        module_name: image_unwarping
+        model_name: UVDoc
+        # ModelScope revision 505cd57c9915ac2656bee70ae4204aa12201aa1f.
+        model_dir: ~/.paddlex/official_models/UVDoc_safetensors
+        engine: transformers
+        engine_config:
+          dtype: float32
+          device_type: gpu
+          device_id: 0
+          attn_implementation: eager
+        # UVDoc batch；正常请求不启用，仅失真模式或质量失败重试使用。
+        batch_size: 1
+
+Serving:
+  visualize: False
+  return_urls: False
+  extra:
+    max_num_input_imgs: 32
+
+# 本项目启动脚本专用配置。PaddleX 3.6.1 忽略这个未知顶层键。
+LLMDeploymentSGLangBackend:
+  host: 127.0.0.1
+  port: 30002
+  model_dir: ~/.paddlex/official_models/PaddleOCR-VL-1.6
+  served_model_name: PaddleOCR-VL-1.6-0.9B
+  chat_template: ~/.paddlex/official_models/PaddleOCR-VL-1.6/chat_template.jinja
+  trust_remote_code: true
+  context_length: 32768
+  # SGLang 同时运行的区域请求上限；提高吞吐也会增加 KV、UMA 和主模型竞争。
+  max_running_requests: 8
+  # 配置的 prefill 调度 token 预算；SGLang 实际下限取该值与 context_length 的较大者。
+  max_prefill_tokens: 16384
+  # SGLang 模型/KV 静态池初始比例，不是进程硬内存上限。
+  mem_fraction_static: 0.10
+  enable_metrics: true
+  # 只记录请求元数据，不记录图片、prompt 或输出。
+  log_requests: true
+  log_requests_level: 0
+  readiness_timeout_seconds: 900
+  shutdown_timeout_seconds: 30

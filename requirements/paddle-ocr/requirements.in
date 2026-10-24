@@ -1,0 +1,10 @@
+--extra-index-url https://download.pytorch.org/whl/cu130
+paddleocr[doc-parser]>=3.6.0,<3.7.0
+paddlex[serving]>=3.6.0,<3.7.0
+transformers>=5.10.0,<6.0
+safetensors>=0.7.0
+torch==2.11.0+cu130
+torchvision==0.26.0+cu130
+httpx>=0.28.0,<1.0
+PyYAML>=6.0,<7.0
+chardet>=5.0,<6.0

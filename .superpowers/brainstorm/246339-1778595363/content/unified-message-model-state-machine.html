@@ -1,0 +1,148 @@
+<h2>Section 2: 统一事件时间线与状态机</h2>
+<p class="subtitle">目标：让 <code>coordinator_1</code>、<code>coordinator_2</code>、<code>basic_agent</code>、future agents 都落到同一套事件协议里，再由不同投影器决定给谁看什么。</p>
+
+<div class="section">
+  <div class="label">Canonical Timeline Event Types</div>
+  <div class="cards">
+    <div class="card">
+      <div class="card-body">
+        <h3>Turn Events</h3>
+        <p><code>turn_started</code>, <code>user_message</code>, <code>turn_completed</code>, <code>turn_aborted</code></p>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-body">
+        <h3>Routing Events</h3>
+        <p><code>routing_started</code>, <code>routing_delta</code>, <code>routing_decision</code>, <code>routing_timeout_fallback</code></p>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-body">
+        <h3>Visible Message Events</h3>
+        <p><code>message_started</code>, <code>message_delta</code>, <code>message_completed</code></p>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-body">
+        <h3>Agent Action Events</h3>
+        <p><code>agent_switched</code>, <code>tool_call_started</code>, <code>tool_call_completed</code>, <code>observation_added</code></p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="label">Main State Machine</div>
+  <div class="mockup">
+    <div class="mockup-header">Turn Lifecycle</div>
+    <div class="mockup-body">
+      <div style="display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:10px;align-items:center;">
+        <div style="padding:12px;border-radius:12px;background:#0f172a;color:#e2e8f0;text-align:center;">User Turn</div>
+        <div style="padding:12px;border-radius:12px;background:#1d4ed8;color:#eff6ff;text-align:center;">Routing Active<br><span style="font-size:12px;opacity:.8;">coordinator_1</span></div>
+        <div style="padding:12px;border-radius:12px;background:#7c3aed;color:#f5f3ff;text-align:center;">Decision Ready</div>
+        <div style="padding:12px;border-radius:12px;background:#0f766e;color:#ecfeff;text-align:center;">Coordinator_2 Visible Stream</div>
+        <div style="padding:12px;border-radius:12px;background:#14532d;color:#dcfce7;text-align:center;">Basic Agent Execution</div>
+        <div style="padding:12px;border-radius:12px;background:#9a3412;color:#ffedd5;text-align:center;">Future Agent Execution</div>
+        <div style="padding:12px;border-radius:12px;background:#334155;color:#f8fafc;text-align:center;">Done</div>
+      </div>
+      <div style="margin-top:14px;font-size:13px;color:#94a3b8;">
+        一轮请求始终先进入 <code>Routing Active</code>，但之后的显示方式与上下文沉淀方式，会依据目标 agent 类型发生分流。
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="label">Routing Branches</div>
+  <div class="split">
+    <div class="mockup">
+      <div class="mockup-header">Branch A: coordinator_1 在 10 秒内成功选路</div>
+      <div class="mockup-body">
+        <div style="display:flex;flex-direction:column;gap:10px;">
+          <div style="padding:10px 12px;border-radius:12px;background:#172554;color:#dbeafe;">routing_started</div>
+          <div style="padding:10px 12px;border-radius:12px;background:#172554;color:#dbeafe;">routing_delta × N</div>
+          <div style="padding:10px 12px;border-radius:12px;background:#172554;color:#dbeafe;">routing_decision(target=coordinator_2/basic_agent/future_agent)</div>
+          <div style="padding:10px 12px;border-radius:12px;background:#334155;color:#f8fafc;">agent_switched</div>
+          <div style="padding:10px 12px;border-radius:12px;background:#1e293b;color:#e2e8f0;">进入对应 agent 的可见/行为流</div>
+        </div>
+      </div>
+    </div>
+    <div class="mockup">
+      <div class="mockup-header">Branch B: coordinator_1 超时 10 秒</div>
+      <div class="mockup-body">
+        <div style="display:flex;flex-direction:column;gap:10px;">
+          <div style="padding:10px 12px;border-radius:12px;background:#172554;color:#dbeafe;">routing_started</div>
+          <div style="padding:10px 12px;border-radius:12px;background:#172554;color:#dbeafe;">routing_delta × N</div>
+          <div style="padding:10px 12px;border-radius:12px;background:#7f1d1d;color:#fee2e2;">routing_timeout_fallback(target=basic_agent)</div>
+          <div style="padding:10px 12px;border-radius:12px;background:#334155;color:#f8fafc;">agent_switched(target=basic_agent, reason=timeout_fallback)</div>
+          <div style="padding:10px 12px;border-radius:12px;background:#14532d;color:#dcfce7;">basic_agent 接管</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="label">Projection Rules</div>
+  <div class="pros-cons">
+    <div class="pros">
+      <h4>可见消息层投影</h4>
+      <ul>
+        <li><code>routing_delta</code> → 任务调度卡片滚动文本</li>
+        <li><code>routing_timeout_fallback</code> → 卡片显示“超时，已转 basic_agent”</li>
+        <li><code>message_delta(source=coordinator_2)</code> → 普通聊天气泡流式显示</li>
+        <li><code>tool_call_*</code> / <code>observation_added</code> → agent steps UI</li>
+      </ul>
+    </div>
+    <div class="cons">
+      <h4>行为层投影</h4>
+      <ul>
+        <li><code>routing_delta</code> 不直接整段写回给下一轮 agent</li>
+        <li>而是沉淀成“路由摘要 + 原始 routing transcript 可选引用”</li>
+        <li><code>coordinator_2</code> 的可见推理可保留，但写回上下文时要有结构化边界</li>
+        <li>工具执行历史按 action/observation 对保存，保证后续 agent 清晰消费</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="label">Special Rule: coordinator_2 Chat Bubble</div>
+  <div class="mockup">
+    <div class="mockup-header">为什么需要单独事件，而不是继续沿用 thought</div>
+    <div class="mockup-body">
+      <div style="display:flex;flex-direction:column;gap:10px;">
+        <div style="padding:10px 12px;border-radius:12px;background:#1e293b;color:#e2e8f0;">如果继续把 coordinator_2 的输出当 <code>agent_step.thought</code>，它会继续被渲染成思考框，而不是普通聊天气泡。</div>
+        <div style="padding:10px 12px;border-radius:12px;background:#1e293b;color:#e2e8f0;">因此 timeline 里必须允许 <code>message_started/message_delta/message_completed</code> 这种“可见消息事件”，并且标明 source=<code>coordinator_2</code>。</div>
+        <div style="padding:10px 12px;border-radius:12px;background:#1e293b;color:#e2e8f0;">这样前端才能把它当成普通 assistant 消息流，而不是 agent 内部步骤。</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="label">CLI Rule</div>
+  <div class="mockup">
+    <div class="mockup-header">高自由度，但服从可读性</div>
+    <div class="mockup-body">
+      <div class="placeholder">CLI 可以选择：1) routing 阶段只打摘要状态；2) coordinator_2 / basic_agent 做节流流式；3) 若依旧过于噪声，则仅输出阶段状态与最终结果。Web UI 则强制保留真实流式。</div>
+    </div>
+  </div>
+</div>
+
+<div class="options">
+  <div class="option" data-choice="state-machine-right" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>这版状态机正确</h3>
+      <p>继续进入下一节。</p>
+    </div>
+  </div>
+  <div class="option" data-choice="state-machine-adjust" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>需要调整</h3>
+      <p>先修这部分状态机，再继续。</p>
+    </div>
+  </div>
+</div>

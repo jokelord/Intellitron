@@ -1,0 +1,32 @@
+#!/usr/bin/env python3
+"""Fail-closed marker for the registered ``vision_desktop`` executable.
+
+Agent calls are intercepted by ``backend.tools.sys_ops.exec_command`` before a
+process is started.  This file exists so deployments can register and audit a
+stable executable name; direct shell execution has no session capability,
+native binding, or authenticated observation channel and must never capture
+the desktop.  It therefore reports an unavailable result instead of guessing
+or attempting a fallback.
+"""
+
+from __future__ import annotations
+
+import json
+import sys
+
+
+def main() -> int:
+    payload = {
+        "state": "UNAVAILABLE",
+        "code": "BACKEND_BRIDGE_REQUIRED",
+        "text": (
+            "vision_desktop must be invoked through the session-bound Agent "
+            "executable bridge"
+        ),
+    }
+    sys.stdout.write(json.dumps(payload, ensure_ascii=False) + "\n")
+    return 78
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
