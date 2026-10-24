@@ -1,13 +1,22 @@
 use_default_settings:
   engines:
     keep_only:
-      - bing
+      # 英文通用搜索
+      - google
+      - startpage
+      - mojeek
+      - duckduckgo
+      # 学术 / 论文 / DOI
+      # - google scholar
+      # - semantic scholar
+      # - openalex
+      # - arxiv
+      # - crossref
+      # 中国大陆搜索
       - baidu
       - 360search
       - sogou
       - chinaso news
-      - chinaso images
-      - chinaso videos
 
 general:
   debug: false
@@ -17,7 +26,8 @@ search:
   safe_search: 0
   autocomplete: ""
   favicon_resolver: ""
-  default_lang: "zh-CN"
+  #  default_lang: "zh-CN"
+  default_lang: "all"
   ban_time_on_fail: 5
   max_ban_time_on_fail: 120
   formats:
@@ -27,60 +37,108 @@ search:
 server:
   secret_key: "REPLACE WITH YOUR SECRET KEY"
   limiter: false
-  image_proxy: false
+  image_proxy: true
 
 valkey:
   url: redis://valkey:6379/0
 
 outgoing:
-  request_timeout: 5.0
-  max_request_timeout: 10.0
-  proxies:
-    http://:
-      - http://172.17.0.1:10808
-    https://:
-      - http://172.17.0.1:10808
+  request_timeout: 60.0
+  max_request_timeout: 60.0
 
 engines:
-  - name: bing
+  
+  # 中国大陆以外引擎：显式走 V2rayN 代理
+
+  - name: google
     disabled: false
-    base_url: https://cn.bing.com/search
+    proxies:
+      all://:
+        - http://host.docker.internal:10808
+
+  - name: duckduckgo
+    disabled: false
+    proxies:
+      all://:
+        - http://host.docker.internal:10808
+
+  # - name: bing
+  #   disabled: false
+  #   proxies:
+  #     http://:
+  #       - http://172.18.0.1:10808
+  #     https://:
+  #       - http://172.18.0.1:10808
+
+  # - name: brave
+  #   disabled: false
+  #   proxies:
+  #     http://:
+  #       - http://172.18.0.1:10808
+  #     https://:
+  #       - http://172.18.0.1:10808
+
+  - name: startpage
+    disabled: false
+    proxies:
+      all://:
+        - http://host.docker.internal:10808
+
+  - name: mojeek
+    disabled: false
+    proxies:
+      all://:
+        - http://host.docker.internal:10808
+
+  - name: google scholar
+    disabled: false
+    proxies:
+      all://:
+        - http://host.docker.internal:10808
+
+  - name: semantic scholar
+    disabled: false
+    proxies:
+      all://:
+        - http://host.docker.internal:10808
+
+  - name: openalex
+    disabled: false
+    proxies:
+      all://:
+        - http://host.docker.internal:10808
+
+  - name: arxiv
+    disabled: false
+    proxies:
+      all://:
+        - http://host.docker.internal:10808
+
+  - name: crossref
+    disabled: false
+    proxies:
+      all://:
+        - http://host.docker.internal:10808
+
+ # 中国大陆搜索引擎：不配置 proxies，保持直连
 
   - name: baidu
     disabled: false
-    proxies:
-      http://: ""
-      https://: ""
 
   - name: 360search
     disabled: false
-    proxies:
-      http://: ""
-      https://: ""
 
   - name: sogou
     disabled: false
-    proxies:
-      http://: ""
-      https://: ""
 
   - name: chinaso news
     disabled: false
     inactive: false
-    proxies:
-      http://: ""
-      https://: ""
 
-  - name: chinaso images
-    disabled: false
-    inactive: false
-    proxies:
-      http://: ""
-      https://: ""
-
-  - name: chinaso videos
-    disabled: false
-    inactive: false
-    proxies:
-      http://: ""
-      https://: ""
+# cn bing 貌似不支持中文关键词搜索
+  # - name: bing
+  #   disabled: false
+  #   base_url: https://cn.bing.com
+  #   proxies:
+  #     http://: ""
+  #     https://: ""
