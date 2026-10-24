@@ -13,7 +13,7 @@
 1. **视觉阅读伴侣**：Vision Automation 按间隔采集共享屏幕或摄像头画面并发送给模型，让 Agent 随着你翻页持续辅助理解；参见 [Vision 页面说明](frontend/src/app/vision/README.md)。
 2. **自动工作流编排**：Cycle 模式组合等待、消息、拍照与嵌套循环，并支持定时消息，可复用重复的 Chat / Agent 工作流程；参见 [Cycle 配置](config/config-misc.yaml)。
 3. **桌面视觉交互**：内置 [computer-use-vision Skill](backend/skills/computer-use-vision/SKILL.md)，让视觉模型通过桌面截图定位目标，再执行点击、滚动等操作；参见 [操作指南](docs/computer-use-vision-operations.md)。
-4. **批量网络搜索与抓取**：按 [SearXNG 部署教程](deploy/searxng/01_Docker-Compose安装及searXNG拉取教材.md) 和 [后端托管配置指南](deploy/searxng/02_searxng-backend-managed-setup.md) 部署后，`search_and_fetch` 可批量搜索并并发抓取网页正文。
+4. **批量网络搜索与抓取**：按 [SearXNG 部署教程](deploy/searxng/01_Docker-Compose安装及searXNG拉取教材.md) 和 [后端托管配置指南](deploy/searxng/02_searxng-backend-managed-setup.md) 部署后，`search_and_fetch` 可批量搜索并并发抓取网页正文。 将[示例](deploy/searxng/core-config/settings.yml.example)复制为同目录的 `settings.yml`，并填写密钥。
 5. **直接阅读文档**：部署 PaddleOCR-VL 后，Agent 的 `read_file` 可阅读 PDF、Word 等文档；Word 等 Office 格式需要 LibreOffice 转换。OCR 启动方式见下方「部署与启动」。
 6. **自动语音输入与听写**：部署独立 Qwen3-ASR 服务后，可选择识别后自动发送的语音模式，或转为可编辑文本的听写模式。Dictation Magic Send 可在转写输入末尾精确匹配配置的口令，减少手动点击发送。参见 [ASR 配置](config/config-asr.yaml) 与下方启动说明。
 7. **并行任务分工**：可将入口设为 `manager_agent`，让它把相互独立的任务分发给多个 `basic_agent` 并行执行，并在界面查看进度；参见 [Agent 配置](config/config-agent-operation.yaml)。
