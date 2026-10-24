@@ -25,7 +25,7 @@ search:
     - json
 
 server:
-  secret_key: "change-this-in-real-deployments"
+  secret_key: "REPLACE WITH YOUR SECRET KEY"
   limiter: false
   image_proxy: false
 
