@@ -1,0 +1,671 @@
+{
+  "schema_version": 1,
+  "snapshot_date": "2026-10-26",
+  "lockfile": "frontend/package-lock.json",
+  "lockfile_sha256": "3c2419fba168bdb0413557f5272058bf79656b5f77b7c8bb4507e2879f05474f",
+  "scope": "Bounded source-release notice collection: direct dependencies, audited notable transitive licenses, and known embedded exceptions. Not a complete attribution inventory for arbitrary builds or whole environments. No dependency binaries are copied.",
+  "entries": [
+    {
+      "package": "@react-three/fiber",
+      "version": "8.18.0",
+      "license": "MIT",
+      "scope": "direct runtime/build",
+      "upstream": "https://www.npmjs.com/package/@react-three/fiber/v/8.18.0",
+      "files": [
+        {
+          "path": "react-three__fiber/LICENSE",
+          "source": "https://raw.githubusercontent.com/pmndrs/react-three-fiber/f81bfe8cb29373d2687433c6130e0ce1daf7222c/LICENSE",
+          "sha256": "ebd6a29bec64bdfcf8795388f2eceaf1479c14d343c0846de347ab8609d66139",
+          "bytes": 1070
+        }
+      ],
+      "notes": "Direct runtime/build dependency; shipped code depends on the build. npm installation omits its license file; source is the upstream commit identified by published npm version gitHead."
+    },
+    {
+      "package": "katex",
+      "version": "0.16.47",
+      "license": "MIT",
+      "scope": "direct runtime/build",
+      "upstream": "https://www.npmjs.com/package/katex/v/0.16.47",
+      "files": [
+        {
+          "path": "katex/LICENSE",
+          "source": "frontend/node_modules/katex/LICENSE",
+          "sha256": "766ccc1f306c885aa45542a9846bbd0a505b27a0374f146778171c2254ce18e3",
+          "bytes": 1107
+        }
+      ],
+      "notes": "Direct runtime/build dependency; shipped code depends on the build."
+    },
+    {
+      "package": "lucide-react",
+      "version": "0.469.0",
+      "license": "ISC",
+      "scope": "direct runtime/build",
+      "upstream": "https://www.npmjs.com/package/lucide-react/v/0.469.0",
+      "files": [
+        {
+          "path": "lucide-react/LICENSE",
+          "source": "frontend/node_modules/lucide-react/LICENSE",
+          "sha256": "1e7290b35280a048667bbf0ebabac1c7fd52a75300e8b2946ac165715997f2bc",
+          "bytes": 880
+        }
+      ],
+      "notes": "Direct runtime/build dependency; shipped code depends on the build. Exact license retains Feather MIT attribution; supplemental Feather MIT text is listed separately."
+    },
+    {
+      "package": "mermaid",
+      "version": "11.16.0",
+      "license": "MIT",
+      "scope": "direct runtime/build",
+      "upstream": "https://www.npmjs.com/package/mermaid/v/11.16.0",
+      "files": [
+        {
+          "path": "mermaid/LICENSE",
+          "source": "frontend/node_modules/mermaid/LICENSE",
+          "sha256": "ec9fb67dcb25eccc416ed56e1aab819222c805a2a4bfe4cb19e7556bf2ffde80",
+          "bytes": 1089
+        }
+      ],
+      "notes": "Direct runtime/build dependency; shipped code depends on the build."
+    },
+    {
+      "package": "next",
+      "version": "14.2.35",
+      "license": "MIT",
+      "scope": "direct runtime/build",
+      "upstream": "https://www.npmjs.com/package/next/v/14.2.35",
+      "files": [
+        {
+          "path": "next/license.md",
+          "source": "frontend/node_modules/next/license.md",
+          "sha256": "e4f76a7a19ef2989dd79339bd3abf8afcf1d6f065e5a10c76c19415ffd727eb3",
+          "bytes": 1079
+        }
+      ],
+      "notes": "Direct runtime/build dependency; shipped code depends on the build."
+    },
+    {
+      "package": "react",
+      "version": "18.3.1",
+      "license": "MIT",
+      "scope": "direct runtime/build",
+      "upstream": "https://www.npmjs.com/package/react/v/18.3.1",
+      "files": [
+        {
+          "path": "react/LICENSE",
+          "source": "frontend/node_modules/react/LICENSE",
+          "sha256": "52412d7bc7ce4157ea628bbaacb8829e0a9cb3c58f57f99176126bc8cf2bfc85",
+          "bytes": 1086
+        }
+      ],
+      "notes": "Direct runtime/build dependency; shipped code depends on the build."
+    },
+    {
+      "package": "react-dom",
+      "version": "18.3.1",
+      "license": "MIT",
+      "scope": "direct runtime/build",
+      "upstream": "https://www.npmjs.com/package/react-dom/v/18.3.1",
+      "files": [
+        {
+          "path": "react-dom/LICENSE",
+          "source": "frontend/node_modules/react-dom/LICENSE",
+          "sha256": "52412d7bc7ce4157ea628bbaacb8829e0a9cb3c58f57f99176126bc8cf2bfc85",
+          "bytes": 1086
+        }
+      ],
+      "notes": "Direct runtime/build dependency; shipped code depends on the build."
+    },
+    {
+      "package": "react-markdown",
+      "version": "9.1.0",
+      "license": "MIT",
+      "scope": "direct runtime/build",
+      "upstream": "https://www.npmjs.com/package/react-markdown/v/9.1.0",
+      "files": [
+        {
+          "path": "react-markdown/license",
+          "source": "frontend/node_modules/react-markdown/license",
+          "sha256": "f6196c64e144f9a6fa9154c3a80bc8b89615a9567934b83a8951879f06ba2aef",
+          "bytes": 1079
+        }
+      ],
+      "notes": "Direct runtime/build dependency; shipped code depends on the build."
+    },
+    {
+      "package": "rehype-katex",
+      "version": "7.0.1",
+      "license": "MIT",
+      "scope": "direct runtime/build",
+      "upstream": "https://www.npmjs.com/package/rehype-katex/v/7.0.1",
+      "files": [
+        {
+          "path": "rehype-katex/LICENSE",
+          "source": "https://raw.githubusercontent.com/remarkjs/remark-math/88a9497e1ede93b958237c85edbf5651faeca7af/license",
+          "sha256": "cb992262f361a5359e6771c28740d33c7041e15332ae8537fae40538992591a9",
+          "bytes": 1098
+        }
+      ],
+      "notes": "Direct runtime/build dependency; shipped code depends on the build. npm installation omits its license file; source is the upstream commit identified by published npm version gitHead."
+    },
+    {
+      "package": "remark-gfm",
+      "version": "4.0.1",
+      "license": "MIT",
+      "scope": "direct runtime/build",
+      "upstream": "https://www.npmjs.com/package/remark-gfm/v/4.0.1",
+      "files": [
+        {
+          "path": "remark-gfm/license",
+          "source": "frontend/node_modules/remark-gfm/license",
+          "sha256": "dd1081884a92952802f4803110a6bb543acea9a814c786d58605b4c1219b5ebb",
+          "bytes": 1094
+        }
+      ],
+      "notes": "Direct runtime/build dependency; shipped code depends on the build."
+    },
+    {
+      "package": "remark-math",
+      "version": "6.0.0",
+      "license": "MIT",
+      "scope": "direct runtime/build",
+      "upstream": "https://www.npmjs.com/package/remark-math/v/6.0.0",
+      "files": [
+        {
+          "path": "remark-math/LICENSE",
+          "source": "https://raw.githubusercontent.com/remarkjs/remark-math/d5d0660b150810a535bbb07eac6cc96a4510aa24/license",
+          "sha256": "cb992262f361a5359e6771c28740d33c7041e15332ae8537fae40538992591a9",
+          "bytes": 1098
+        }
+      ],
+      "notes": "Direct runtime/build dependency; shipped code depends on the build. npm installation omits its license file; source is the upstream commit identified by published npm version gitHead."
+    },
+    {
+      "package": "three",
+      "version": "0.184.0",
+      "license": "MIT",
+      "scope": "direct runtime/build",
+      "upstream": "https://www.npmjs.com/package/three/v/0.184.0",
+      "files": [
+        {
+          "path": "three/LICENSE",
+          "source": "frontend/node_modules/three/LICENSE",
+          "sha256": "8b378ebe60e2fe500158cb0ac71cb5e8b7d92953c2abcc63a0eb90499653b5bc",
+          "bytes": 1081
+        }
+      ],
+      "notes": "Direct runtime/build dependency; shipped code depends on the build."
+    },
+    {
+      "package": "@types/node",
+      "version": "22.19.7",
+      "license": "MIT",
+      "scope": "direct development/build",
+      "upstream": "https://www.npmjs.com/package/@types/node/v/22.19.7",
+      "files": [
+        {
+          "path": "types__node/LICENSE",
+          "source": "frontend/node_modules/@types/node/LICENSE",
+          "sha256": "c2cfccb812fe482101a8f04597dfc5a9991a6b2748266c47ac91b6a5aae15383",
+          "bytes": 1141
+        }
+      ],
+      "notes": "Direct development/build tool; relevant when redistributing this tool."
+    },
+    {
+      "package": "@types/react",
+      "version": "18.3.27",
+      "license": "MIT",
+      "scope": "direct development/build",
+      "upstream": "https://www.npmjs.com/package/@types/react/v/18.3.27",
+      "files": [
+        {
+          "path": "types__react/LICENSE",
+          "source": "frontend/node_modules/@types/react/LICENSE",
+          "sha256": "c2cfccb812fe482101a8f04597dfc5a9991a6b2748266c47ac91b6a5aae15383",
+          "bytes": 1141
+        }
+      ],
+      "notes": "Direct development/build tool; relevant when redistributing this tool."
+    },
+    {
+      "package": "@types/react-dom",
+      "version": "18.3.7",
+      "license": "MIT",
+      "scope": "direct development/build",
+      "upstream": "https://www.npmjs.com/package/@types/react-dom/v/18.3.7",
+      "files": [
+        {
+          "path": "types__react-dom/LICENSE",
+          "source": "frontend/node_modules/@types/react-dom/LICENSE",
+          "sha256": "c2cfccb812fe482101a8f04597dfc5a9991a6b2748266c47ac91b6a5aae15383",
+          "bytes": 1141
+        }
+      ],
+      "notes": "Direct development/build tool; relevant when redistributing this tool."
+    },
+    {
+      "package": "@types/three",
+      "version": "0.184.1",
+      "license": "MIT",
+      "scope": "direct development/build",
+      "upstream": "https://www.npmjs.com/package/@types/three/v/0.184.1",
+      "files": [
+        {
+          "path": "types__three/LICENSE",
+          "source": "frontend/node_modules/@types/three/LICENSE",
+          "sha256": "c2cfccb812fe482101a8f04597dfc5a9991a6b2748266c47ac91b6a5aae15383",
+          "bytes": 1141
+        }
+      ],
+      "notes": "Direct development/build tool; relevant when redistributing this tool."
+    },
+    {
+      "package": "autoprefixer",
+      "version": "10.4.23",
+      "license": "MIT",
+      "scope": "direct development/build",
+      "upstream": "https://www.npmjs.com/package/autoprefixer/v/10.4.23",
+      "files": [
+        {
+          "path": "autoprefixer/LICENSE",
+          "source": "frontend/node_modules/autoprefixer/LICENSE",
+          "sha256": "c4630ac8b89cb317ac5bdd60ac5e4e185eab9bd5151a0c7b3afa41aa83d7ec9b",
+          "bytes": 1095
+        }
+      ],
+      "notes": "Direct development/build tool; relevant when redistributing this tool."
+    },
+    {
+      "package": "eslint",
+      "version": "9.39.2",
+      "license": "MIT",
+      "scope": "direct development/build",
+      "upstream": "https://www.npmjs.com/package/eslint/v/9.39.2",
+      "files": [
+        {
+          "path": "eslint/LICENSE",
+          "source": "frontend/node_modules/eslint/LICENSE",
+          "sha256": "3b6be04f862a077a4b97929dbf247299360824d9365f8603c263769303ace18c",
+          "bytes": 1094
+        }
+      ],
+      "notes": "Direct development/build tool; relevant when redistributing this tool."
+    },
+    {
+      "package": "eslint-config-next",
+      "version": "15.5.9",
+      "license": "MIT",
+      "scope": "direct development/build",
+      "upstream": "https://www.npmjs.com/package/eslint-config-next/v/15.5.9",
+      "files": [
+        {
+          "path": "eslint-config-next/LICENSE",
+          "source": "https://raw.githubusercontent.com/vercel/next.js/c5de33e93ccccaf3bee60cf50603e2152f9886e1/license.md",
+          "sha256": "ee765244e2d59f5234d474f62e0766fa0c8b99af967fdd4c0cb8dcb0c76ea224",
+          "bytes": 1079
+        }
+      ],
+      "notes": "Direct development/build tool; relevant when redistributing this tool. npm installation omits its license file; source is the upstream commit identified by published npm version gitHead."
+    },
+    {
+      "package": "postcss",
+      "version": "8.5.6",
+      "license": "MIT",
+      "scope": "direct development/build",
+      "upstream": "https://www.npmjs.com/package/postcss/v/8.5.6",
+      "files": [
+        {
+          "path": "postcss/LICENSE",
+          "source": "frontend/node_modules/postcss/LICENSE",
+          "sha256": "c4630ac8b89cb317ac5bdd60ac5e4e185eab9bd5151a0c7b3afa41aa83d7ec9b",
+          "bytes": 1095
+        }
+      ],
+      "notes": "Direct development/build tool; relevant when redistributing this tool."
+    },
+    {
+      "package": "tailwindcss",
+      "version": "3.4.19",
+      "license": "MIT",
+      "scope": "direct development/build",
+      "upstream": "https://www.npmjs.com/package/tailwindcss/v/3.4.19",
+      "files": [
+        {
+          "path": "tailwindcss/LICENSE",
+          "source": "frontend/node_modules/tailwindcss/LICENSE",
+          "sha256": "60e0b68c0f35c078eef3a5d29419d0b03ff84ec1df9c3f9d6e39a519a5ae7985",
+          "bytes": 1071
+        }
+      ],
+      "notes": "Direct development/build tool; relevant when redistributing this tool."
+    },
+    {
+      "package": "typescript",
+      "version": "5.9.3",
+      "license": "Apache-2.0",
+      "scope": "direct development/build",
+      "upstream": "https://www.npmjs.com/package/typescript/v/5.9.3",
+      "files": [
+        {
+          "path": "typescript/ThirdPartyNoticeText.txt",
+          "source": "frontend/node_modules/typescript/ThirdPartyNoticeText.txt",
+          "sha256": "1af3c68039c57e539422da82a4faada506ce6d0ea6f90e0b699d02dbcdb7a90c",
+          "bytes": 37824
+        },
+        {
+          "path": "typescript/LICENSE.txt",
+          "source": "frontend/node_modules/typescript/LICENSE.txt",
+          "sha256": "a7d00bfd54525bc694b6e32f64c7ebcf5e6b7ae3657be5cc12767bce74654a47",
+          "bytes": 9197
+        }
+      ],
+      "notes": "Direct development/build tool; relevant when redistributing this tool."
+    },
+    {
+      "package": "dompurify",
+      "version": "3.4.11",
+      "license": "Apache-2.0",
+      "scope": "runtime via mermaid",
+      "upstream": "https://www.npmjs.com/package/dompurify/v/3.4.11",
+      "files": [
+        {
+          "path": "dompurify/LICENSE",
+          "source": "frontend/node_modules/dompurify/LICENSE",
+          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+          "bytes": 11358
+        },
+        {
+          "path": "dompurify/license_header",
+          "source": "frontend/node_modules/dompurify/src/license_header",
+          "sha256": "5803fa925ae1703b9c752921c95a321570e6cabf06fcf2de895ddaf1687cebef",
+          "bytes": 192
+        }
+      ],
+      "notes": "Select the Apache-2.0 option from the installed MPL-2.0 OR Apache-2.0 license. Not MIT. Original source header is retained verbatim, including the alternative MPL offer and Cure53 copyright."
+    },
+    {
+      "package": "caniuse-lite",
+      "version": "1.0.30001765",
+      "license": "CC-BY-4.0",
+      "scope": "browser compatibility data / build",
+      "upstream": "https://www.npmjs.com/package/caniuse-lite/v/1.0.30001765",
+      "files": [
+        {
+          "path": "caniuse-lite/LICENSE",
+          "source": "frontend/node_modules/caniuse-lite/LICENSE",
+          "sha256": "fd3a263fe19ed8faa9068b43abaebafc02c77897b0c6fc09abc04bb592e5f16e",
+          "bytes": 18651
+        },
+        {
+          "path": "caniuse-lite/README.md",
+          "source": "frontend/node_modules/caniuse-lite/README.md",
+          "sha256": "faeae3abbed5d0a3a806eaaebe43981abe575d9395ea969c970aa1c4cb0e52b7",
+          "bytes": 164
+        },
+        {
+          "path": "caniuse-lite/package.json",
+          "source": "frontend/node_modules/caniuse-lite/package.json",
+          "sha256": "23090aeaa8ea1e6ecd170e30675db929af43083d7b26b8d67a76a537641c67b0",
+          "bytes": 742
+        }
+      ],
+      "notes": "Used through Next and browser/build tooling; preserve attribution and CC terms when shipping this data."
+    },
+    {
+      "package": "axe-core",
+      "version": "4.11.1",
+      "license": "MPL-2.0",
+      "scope": "development via eslint-plugin-jsx-a11y",
+      "upstream": "https://www.npmjs.com/package/axe-core/v/4.11.1",
+      "files": [
+        {
+          "path": "axe-core/LICENSE",
+          "source": "frontend/node_modules/axe-core/LICENSE",
+          "sha256": "af175b9d96ee93c21a036152e1b905b0b95304d4ae8c2c921c7609100ba8df7e",
+          "bytes": 15921
+        },
+        {
+          "path": "axe-core/LICENSE-3RD-PARTY.txt",
+          "source": "frontend/node_modules/axe-core/LICENSE-3RD-PARTY.txt",
+          "sha256": "4f8563870d0fca38bbc3e00b6f670cb7fa9f380ba9f26a7f7d1184a6b18b1653",
+          "bytes": 3766
+        }
+      ],
+      "notes": "Separate MPL-covered tool if redistributed. Its license does not impose MPL on the application."
+    },
+    {
+      "package": "argparse",
+      "version": "2.0.1",
+      "license": "Python-2.0",
+      "scope": "development",
+      "upstream": "https://www.npmjs.com/package/argparse/v/2.0.1",
+      "files": [
+        {
+          "path": "argparse/LICENSE",
+          "source": "frontend/node_modules/argparse/LICENSE",
+          "sha256": "de4d1f2d2ad5ad0cfd1657a106476b31cb5db5ef9d1ff842b237c0c81f0c8a23",
+          "bytes": 12775
+        }
+      ],
+      "notes": "Preserve complete permissive Python license when redistributed."
+    },
+    {
+      "package": "robust-predicates",
+      "version": "3.0.3",
+      "license": "Unlicense",
+      "scope": "runtime visualization",
+      "upstream": "https://www.npmjs.com/package/robust-predicates/v/3.0.3",
+      "files": [
+        {
+          "path": "robust-predicates/LICENSE",
+          "source": "frontend/node_modules/robust-predicates/LICENSE",
+          "sha256": "88d9b4eb60579c191ec391ca04c16130572d7eedc4a86daa58bf28c6e14c9bcd",
+          "bytes": 1210
+        }
+      ],
+      "notes": "Transitive runtime package."
+    },
+    {
+      "package": "busboy",
+      "version": "1.6.0",
+      "license": "MIT",
+      "scope": "server via next",
+      "upstream": "https://www.npmjs.com/package/busboy/v/1.6.0",
+      "files": [
+        {
+          "path": "busboy/LICENSE",
+          "source": "frontend/node_modules/busboy/LICENSE",
+          "sha256": "d06b5d27bbbbe22c36b1fd88406b1208876e2d37d795f5b8eaed951a459a3111",
+          "bytes": 1067
+        }
+      ],
+      "notes": "Installed SPDX metadata missing; exact license file supplies MIT terms."
+    },
+    {
+      "package": "streamsearch",
+      "version": "1.1.0",
+      "license": "MIT",
+      "scope": "server via busboy",
+      "upstream": "https://www.npmjs.com/package/streamsearch/v/1.1.0",
+      "files": [
+        {
+          "path": "streamsearch/LICENSE",
+          "source": "frontend/node_modules/streamsearch/LICENSE",
+          "sha256": "7c28463b739e2e73a49bf127d0bda427f8c55f0b37365a044c3c3f254716118b",
+          "bytes": 1085
+        }
+      ],
+      "notes": "Installed SPDX metadata missing; exact license file supplies MIT terms."
+    },
+    {
+      "package": "khroma",
+      "version": "2.1.0",
+      "license": "MIT",
+      "scope": "runtime via mermaid",
+      "upstream": "https://www.npmjs.com/package/khroma/v/2.1.0",
+      "files": [
+        {
+          "path": "khroma/license",
+          "source": "frontend/node_modules/khroma/license",
+          "sha256": "66b333b0f66759a0b710459e03f7029abe17f4358114a128d2c972e642961b49",
+          "bytes": 1105
+        }
+      ],
+      "notes": "Installed SPDX metadata missing; exact license file supplies MIT terms."
+    },
+    {
+      "package": "KaTeX fonts",
+      "version": "0.16.47",
+      "license": "OFL-1.1",
+      "scope": "browser runtime via frontend/src/app/globals.css",
+      "upstream": "https://github.com/KaTeX/KaTeX/blob/v0.16.47/src/fonts/lib/Space.ttx",
+      "files": [
+        {
+          "path": "katex-fonts/OFL-1.1.txt",
+          "source": "frontend/node_modules/three/examples/fonts/MPLUSRounded1c/OFL.txt",
+          "sha256": "76efb90a3bf8d7d91a3498d15fb409ee59ff43b0bf614b4afa0a947b6d7c75d3",
+          "bytes": 4303
+        },
+        {
+          "path": "katex-fonts/Space.ttx",
+          "source": "frontend/node_modules/katex/src/fonts/lib/Space.ttx",
+          "sha256": "31c0949994e017db007263b87b7f9a013d66de421934eea7b84d60d555ca3dc7",
+          "bytes": 7561
+        },
+        {
+          "path": "katex-fonts/FONT-NOTICES.json",
+          "source": "Decoded embedded name records: frontend/node_modules/katex/dist/fonts/*.ttf",
+          "sha256": "bd2736fa97c5b0b209271a588b21ce172429bb9a002354e53afc49e2f90092ad",
+          "bytes": 16874
+        }
+      ],
+      "notes": "Software MIT does not replace font OFL. FONT-NOTICES.json preserves all 20 TTF copyright/license records and Reserved Font Names. The full standard OFL text is copied verbatim from another installed font license; it does not change KaTeX attribution."
+    },
+    {
+      "package": "Feather original MIT notice",
+      "version": "upstream v4.29.2 reference; not a resolved package",
+      "license": "MIT",
+      "scope": "attribution for Feather-derived Lucide icons",
+      "upstream": "https://raw.githubusercontent.com/feathericons/feather/v4.29.2/LICENSE",
+      "files": [
+        {
+          "path": "feather/LICENSE",
+          "source": "https://raw.githubusercontent.com/feathericons/feather/v4.29.2/LICENSE",
+          "sha256": "308028e93fcf84972523cdf6e616f73168546b4953895f516d01287f16fe7bee",
+          "bytes": 1082
+        }
+      ],
+      "notes": "Supplemental original MIT permission text. Installed lucide-react/LICENSE retains its precise inherited attribution. This reference does not assert a separately resolved Feather dependency."
+    },
+    {
+      "package": "Next vendored @vercel/og",
+      "version": "0.6.3",
+      "license": "MPL-2.0",
+      "scope": "conditional: whole dependency/package distribution",
+      "upstream": "https://github.com/vercel/next.js/tree/v14.2.35/packages/next/src/compiled/@vercel/og",
+      "files": [
+        {
+          "path": "next-vendored-og/LICENSE",
+          "source": "frontend/node_modules/next/dist/compiled/@vercel/og/LICENSE",
+          "sha256": "1f256ecad192880510e84ad60474eab7589218784b9a50bc7ceee34c2b91f1d5",
+          "bytes": 16725
+        },
+        {
+          "path": "next-vendored-og/satori/LICENSE",
+          "source": "frontend/node_modules/next/dist/compiled/@vercel/og/satori/LICENSE",
+          "sha256": "1f256ecad192880510e84ad60474eab7589218784b9a50bc7ceee34c2b91f1d5",
+          "bytes": 16725
+        }
+      ],
+      "notes": "No next/og or ImageResponse use found in app source. Relevant when redistributing these components or the full Next installation; supply access to corresponding MPL-covered source with executable distribution."
+    },
+    {
+      "package": "Next vendored glob",
+      "version": "vendored in next 14.2.35",
+      "license": "ISC; logo CC-BY-SA-4.0",
+      "scope": "conditional: whole dependency/package distribution",
+      "upstream": "https://github.com/vercel/next.js/tree/v14.2.35/packages/next/src/compiled/glob",
+      "files": [
+        {
+          "path": "next-vendored-glob/LICENSE",
+          "source": "frontend/node_modules/next/dist/compiled/glob/LICENSE",
+          "sha256": "6236fa0b88a4a0cce3dda0367979491b2052b3c8d6b1c10b3668de083e86a7f0",
+          "bytes": 976
+        },
+        {
+          "path": "next-vendored-glob/CC-BY-SA-4.0.txt",
+          "source": "https://creativecommons.org/licenses/by-sa/4.0/legalcode.txt",
+          "sha256": "28a9529c7d0bb4dc51f4bf5c116a3d16ef247a052f7591466768ddf563fd1cf5",
+          "bytes": 20138
+        }
+      ],
+      "notes": "Code ISC; only its logo is CC-BY-SA-4.0. No app use of that logo found. Full CC-BY-SA terms retained for conditional redistribution."
+    },
+    {
+      "package": "Three example fonts",
+      "version": "bundled in three 0.184.0",
+      "license": "OFL-1.1; Apache-2.0; MgOpen custom; CC0-1.0",
+      "scope": "conditional: whole dependency/package distribution",
+      "upstream": "https://github.com/mrdoob/three.js/tree/r184/examples/fonts",
+      "files": [
+        {
+          "path": "three-example-fonts/LICENSE",
+          "source": "frontend/node_modules/three/examples/fonts/LICENSE",
+          "sha256": "35e8279356d7890871c4fce804d157e3f21456a7311ef2caab5cb4705c71b6bd",
+          "bytes": 2006
+        },
+        {
+          "path": "three-example-fonts/README.md",
+          "source": "frontend/node_modules/three/examples/fonts/README.md",
+          "sha256": "502a6cab7895e6132f0a6946c6979933d3959b1d769de04b85682b30626b4340",
+          "bytes": 334
+        },
+        {
+          "path": "three-example-fonts/droid/README.txt",
+          "source": "frontend/node_modules/three/examples/fonts/droid/README.txt",
+          "sha256": "c8b88077052fed912b3f724c0ed230c501cf4e18833af7ca44338d3cd0b093e2",
+          "bytes": 692
+        },
+        {
+          "path": "three-example-fonts/MPLUSRounded1c/OFL.txt",
+          "source": "frontend/node_modules/three/examples/fonts/MPLUSRounded1c/OFL.txt",
+          "sha256": "76efb90a3bf8d7d91a3498d15fb409ee59ff43b0bf614b4afa0a947b6d7c75d3",
+          "bytes": 4303
+        },
+        {
+          "path": "three-example-fonts/ttf/README.md",
+          "source": "frontend/node_modules/three/examples/fonts/ttf/README.md",
+          "sha256": "839a0690ee62d559779bd978fa28828f1686db0071f46b5febca8c553af16039",
+          "bytes": 188
+        },
+        {
+          "path": "three-example-fonts/CC0-1.0.txt",
+          "source": "https://creativecommons.org/publicdomain/zero/1.0/legalcode.txt",
+          "sha256": "a2010f343487d3f7618affe54f789f5487602331c0a8d03f49e9a7c547cf0499",
+          "bytes": 7048
+        }
+      ],
+      "notes": "No app use of examples/fonts, FontLoader or TextGeometry found. Relevant only when these examples or full package are redistributed. These font terms remain separate from Three software MIT."
+    }
+  ],
+  "local_assets_excluded_from_source_release": [
+    {
+      "path": "frontend/public/qwen.png",
+      "status": "Local ignored file, excluded from this source release per user-confirmed remote snapshot. Provenance not established; confirm rights only if added to a later distribution."
+    },
+    {
+      "path": "frontend/public/blue-knight-1.jpg",
+      "status": "Local ignored file, excluded from this source release per user-confirmed remote snapshot. Provenance not established; confirm rights only if added to a later distribution."
+    },
+    {
+      "path": "frontend/public/welcome.png",
+      "status": "Local ignored file, excluded from this source release per user-confirmed remote snapshot. Provenance not established; confirm rights only if added to a later distribution."
+    },
+    {
+      "path": "frontend/public/me.jpg",
+      "status": "Local ignored file, excluded from this source release per user-confirmed remote snapshot. Provenance not established; confirm rights only if added to a later distribution."
+    }
+  ]
+}

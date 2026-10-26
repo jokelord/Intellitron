@@ -226,4 +226,4 @@ LLM-deployment/
 └── .sglang/                 # uv Python environment (usually excluded from version control)
 ```
 
-License: MIT
+[MIT](LICENSE); [third-party terms](THIRD_PARTY_NOTICES.md), including AGPL/GPL, also apply.

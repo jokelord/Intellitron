@@ -228,4 +228,4 @@ LLM-deployment/
 └── .sglang/                 # uv Python 环境（通常不纳入版本控制）
 ```
 
-许可证：MIT
+原创部分采用 [MIT](LICENSE)；第三方依赖及素材保留各自条款（含 AGPL/GPL），见[许可说明](THIRD_PARTY_NOTICES.md)。
