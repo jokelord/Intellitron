@@ -26,7 +26,7 @@ _FOOTER = '[本地记忆参考结束]'
 class LocalMemoryService:
     def __init__(self, config: LocalMemoryConfig, *, project_root: str | Path, encoder=None):
         self.config = config.validate(Path(project_root))
-        self.project_root = Path(project_root).absolute()
+        self.project_root = Path(project_root).expanduser().absolute()
         self._corpus = MemoryCorpus(config, self.project_root, encoder)
         self._encoder = encoder
         self._executor = None

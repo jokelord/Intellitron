@@ -4,7 +4,7 @@
 >
 > 日期：2026-09-16
 >
-> 适用项目：`/home/zk/Project/LLM-deployment`
+> 适用项目：`~/Project/LLM-deployment`
 
 ## 1. 摘要
 
@@ -21,11 +21,11 @@
 
 ### 2.1 当前仓库事实
 
-- [config/config-agent-operation.yaml](/home/zk/Project/LLM-deployment/config/config-agent-operation.yaml) 当前配置 `fetch_transport: curl`，`fetch_fallback_transport: crawl4ai`。
+- [config/config-agent-operation.yaml](../../../config/config-agent-operation.yaml) 当前配置 `fetch_transport: curl`，`fetch_fallback_transport: crawl4ai`。
 - 当前 `fetch_proxy: null`，表示 backend 的直接网页抓取默认不使用代理。
-- SearXNG 的国外引擎在 [deploy/searxng/core-config/settings.yml](/home/zk/Project/LLM-deployment/deploy/searxng/core-config/settings.yml) 中配置了代理；国内引擎使用空代理字符串表达直连。
-- Crawl4AI runtime 在 [backend/tools/fetch_worker_runtime.py](/home/zk/Project/LLM-deployment/backend/tools/fetch_worker_runtime.py) 创建 `BrowserConfig` 时，目前只传入浏览器类型、headless 和日志选项，没有传入 `proxy_config`。
-- Stage 1 的正文质量检查位于 [backend/tools/web_tools.py](/home/zk/Project/LLM-deployment/backend/tools/web_tools.py) 的 `_looks_like_low_quality_text()`，当前硬编码了 `1000` 字符和 `5` 行边界。
+- SearXNG 的国外引擎在 [deploy/searxng/core-config/settings.yml](../../../deploy/searxng/core-config/settings.yml) 中配置了代理；国内引擎使用空代理字符串表达直连。
+- Crawl4AI runtime 在 [backend/tools/fetch_worker_runtime.py](../../../backend/tools/fetch_worker_runtime.py) 创建 `BrowserConfig` 时，目前只传入浏览器类型、headless 和日志选项，没有传入 `proxy_config`。
+- Stage 1 的正文质量检查位于 [backend/tools/web_tools.py](../../../backend/tools/web_tools.py) 的 `_looks_like_low_quality_text()`，当前硬编码了 `1000` 字符和 `5` 行边界。
 - 现有 `fetch_min_text_chars: 200` 是正文候选提取阶段的阈值，不是 Stage 1 最终成功判定的 1000 字阈值，不能直接复用来表达两个不同语义。
 - 当前本地环境检测到 `crawl4ai 0.9.0`、`playwright 1.61.0` 和 `curl-cffi 0.15.0`。curl-cffi 不在本次研究和实现范围内。
 - SearXNG Compose 使用服务名 `valkey`，因此 `redis://valkey:6379/0` 与当前 Compose 网络拓扑一致；Valkey 地址不是本次成功率问题的默认根因。

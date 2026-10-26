@@ -73,7 +73,7 @@ def validate_asr_model(
     check_port: bool = True,
     check_registry: bool = True,
 ) -> ModelPreflightReport:
-    config_path = config_path.resolve()
+    config_path = config_path.expanduser().resolve()
     try:
         config = load_asr_config(config_path, project_root=PROJECT_ROOT)
         configured_path = Path(config.sglang.model_path).expanduser()

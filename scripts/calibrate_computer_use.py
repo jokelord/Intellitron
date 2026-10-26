@@ -39,7 +39,7 @@ def generate_fixtures(config, fingerprint, output_dir, *, target_size_px=17):
     from PIL import Image, ImageDraw
     from backend.computer_use.contracts import CanonicalFrame, InputBinding, GroundingRequest, InspectRegion
     from backend.computer_use.model_adapter import describe_stage, encode_stage
-    output_dir = Path(output_dir)
+    output_dir = Path(output_dir).expanduser()
     output_dir.mkdir(parents=True, exist_ok=True)
     config = replace(config, calibration_fingerprint=fingerprint)
     descriptor = ProtocolDescriptor(config.protocol, pixel_semantics=config.pixel_semantics)
@@ -174,6 +174,11 @@ def main():
     parser.add_argument('--max-axis-error', type=float)
     parser.add_argument('--min-pass-rate', type=float)
     args = parser.parse_args()
+    args.samples = args.samples.expanduser() if args.samples is not None else None
+    args.generate_fixtures = (
+        args.generate_fixtures.expanduser() if args.generate_fixtures is not None else None
+    )
+    args.output = args.output.expanduser() if args.output is not None else None
     app = get_config()
     fingerprint = deployment_fingerprint(app)
     if args.generate_fixtures is not None:

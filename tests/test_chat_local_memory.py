@@ -339,7 +339,8 @@ def test_first_chat_bootstrap_history_can_retrieve_with_opaque_window_anchor(rol
 
 
 @pytest.mark.parametrize("backend", ["sglang", "vllm"])
-def test_chat_budget_uses_actual_configured_template_and_output_reserve(tmp_path, monkeypatch, backend):
+@pytest.mark.parametrize("use_tilde", [False, True])
+def test_chat_budget_uses_actual_configured_template_and_output_reserve(tmp_path, monkeypatch, backend, use_tilde):
     from tokenizers import Tokenizer
     from tokenizers.models import WordLevel
     from tokenizers.pre_tokenizers import Whitespace
@@ -353,11 +354,14 @@ def test_chat_budget_uses_actual_configured_template_and_output_reserve(tmp_path
     tokenizer.chat_template = "{{ messages[-1].content }}"
     template = tmp_path / "serving.jinja"
     template.write_text("{{ 'x ' * 20 }}{% for n in range(5) %}{{ messages[-1].content }} {% endfor %}", encoding="utf-8")
+    monkeypatch.setenv("HOME", str(tmp_path))
     service = Service()
     service.active_backend = backend
     service.config.sglang.max_context_length = 60
     service.config.vllm.max_model_len = 60
-    getattr(service.config, backend).chat_template = str(template)
+    getattr(service.config, backend).chat_template = (
+        f"~/{template.name}" if use_tilde else str(template)
+    )
     monkeypatch.setattr(TokenCounter, "get", lambda: SimpleNamespace(
         _use_real_tokenizer=True, _tokenizer=tokenizer))
     fits = _context_validator(service, [Message(role="user", content="x")], None, 5, False)

@@ -31,6 +31,80 @@ def test_configuration_defaults_and_strict_validation(tmp_path):
         load_local_memory_config(path, tmp_path)
 
 
+def test_local_memory_config_and_corpus_expand_home_paths(tmp_path, monkeypatch):
+    import yaml
+    from backend.retrieval.corpus import MemoryCorpus
+
+    home = tmp_path / "home"
+    project = home / "project"
+    (home / "notes").mkdir(parents=True)
+    project.mkdir(parents=True)
+    monkeypatch.setenv("HOME", str(home))
+    config_path = home / "memory.yaml"
+    config_path.write_text(yaml.safe_dump({"local_memory": {
+        "source_dir": "~/notes",
+        "state_dir": "~/index",
+        "embedding": {"local_model_path": "~/encoder"},
+    }}))
+
+    config = load_local_memory_config("~/memory.yaml", "~/project")
+    corpus = MemoryCorpus(config, "~/project")
+
+    assert corpus.root == project
+    assert corpus.source == home / "notes"
+    assert corpus.state == home / "index"
+    assert config.embedding.local_model_path == "~/encoder"
+    overlapping = LocalMemoryConfig(source_dir="~/notes", state_dir="~/notes/index")
+    with pytest.raises(ValueError, match="must not overlap"):
+        overlapping.validate(project)
+
+
+def test_local_embedding_encoder_expands_home_model_path(tmp_path, monkeypatch):
+    import sys
+    import types
+    from backend.retrieval.config import EmbeddingConfig
+    from backend.retrieval.embedding import LocalE5Encoder, write_artifact_manifest
+
+    home = tmp_path / "home"
+    model_path = home / "encoder"
+    model_path.mkdir(parents=True)
+    monkeypatch.setenv("HOME", str(home))
+    (model_path / "config.json").write_text("{}")
+    (model_path / "tokenizer.json").write_text("{}")
+    (model_path / "model.safetensors").write_bytes(b"weights")
+    write_artifact_manifest(model_path, model_id="test", revision="rev")
+
+    calls = {}
+    class FakeTokenizer:
+        @staticmethod
+        def from_pretrained(path, **kwargs):
+            calls["tokenizer"] = path
+            return FakeTokenizer()
+
+    class FakeModel:
+        @staticmethod
+        def from_pretrained(path, **kwargs):
+            calls["model"] = path
+            return FakeModel()
+        def to(self, device):
+            return self
+        def float(self):
+            return self
+        def eval(self):
+            return self
+
+    torch = types.ModuleType("torch")
+    transformers = types.ModuleType("transformers")
+    transformers.AutoTokenizer = FakeTokenizer
+    transformers.AutoModel = FakeModel
+    monkeypatch.setitem(sys.modules, "torch", torch)
+    monkeypatch.setitem(sys.modules, "transformers", transformers)
+
+    LocalE5Encoder(EmbeddingConfig(model_id="test", revision="rev", local_model_path="~/encoder"), tmp_path / "project")
+
+    assert calls == {"tokenizer": str(model_path), "model": str(model_path)}
+
+
 def test_splitter_enforces_unicode_and_token_caps_without_loss():
     text = '# 习惯\n\n' + ('中文 text ' * 100) + '\n```python\n' + 'x = 1\n' * 100 + '```\n'
     config = LocalMemoryConfig().chunking

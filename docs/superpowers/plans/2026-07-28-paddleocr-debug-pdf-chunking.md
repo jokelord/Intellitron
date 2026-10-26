@@ -368,7 +368,7 @@ Run:
 
 ```bash
 .paddle-ocr/bin/python scripts/debug_OCR_with_SGLang_backend.py \
-  "/home/zk/Documents/Jetson_Thor_Module_Carrier_Board_Spec_SP-12533-001_v1.2.pdf"
+  ~/Documents/Jetson_Thor_Module_Carrier_Board_Spec_SP-12533-001_v1.2.pdf
 ```
 
 Expected:

@@ -6,6 +6,7 @@ import sys
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from backend.retrieval.config import load_local_memory_config
 from backend.retrieval.embedding import write_artifact_manifest, artifact_digest
+from scripts.path_utils import resolve_path
 
 
 def main():
@@ -13,8 +14,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--config', type=Path, default=root / 'config/config-local-memory.yaml')
     args = parser.parse_args()
-    config = load_local_memory_config(args.config, root).embedding
-    path = root / config.local_model_path
+    config = load_local_memory_config(args.config.expanduser(), root).embedding
+    path = resolve_path(config.local_model_path, root)
     if (path / 'artifact-manifest.json').exists():
         artifact_digest(path, model_id=config.model_id, revision=config.revision)
         print('Local encoder artifact already validated.')

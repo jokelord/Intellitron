@@ -71,7 +71,7 @@ class FixtureDesktop:
         if tool_name == 'read_file':
             path = (arguments.get('path') or arguments.get('file_path')
                     if isinstance(arguments, dict) else None)
-            if isinstance(path, str) and Path(path).resolve() == _SKILL.resolve():
+            if isinstance(path, str) and Path(path).expanduser().resolve() == _SKILL.resolve():
                 return _SKILL.read_text()
             raise RuntimeError('OFFLINE_CALIBRATION_TOOL_BLOCKED')
         if tool_name != 'exec_command' or not isinstance(arguments, dict) or set(arguments) != {'command'}:
@@ -143,7 +143,8 @@ def run_fixture_calibration(app, *, fixtures: Path, output_dir: Path = DIAGRAMS_
     app.agent.allow_desktop_input = False
     if type(repeats) is not int or not 2 <= repeats <= 20:
         raise ValueError('repeats must be an integer in [2,20]')
-    fixtures, output_dir = Path(fixtures), Path(output_dir)
+    fixtures = Path(fixtures).expanduser()
+    output_dir = Path(output_dir).expanduser()
     if service_factory is None and not output_dir.resolve().is_relative_to(DIAGRAMS_ROOT.resolve()):
         raise ValueError('real-model evidence must remain under logs/computer-use/calibration-evidence')
     manifest = json.loads((fixtures / 'samples.json').read_text())
@@ -260,6 +261,8 @@ def main(argv=None):
     args = parser.parse_args(argv)
     if args.resume and args.output_dir is None:
         parser.error('--resume requires --output-dir')
+    args.fixtures = args.fixtures.expanduser()
+    args.output_dir = args.output_dir.expanduser() if args.output_dir is not None else None
     output = args.output_dir or DIAGRAMS_ROOT / f'run-{uuid.uuid4().hex[:12]}'
     result = run_fixture_calibration(get_config(), fixtures=args.fixtures,
                                      repeats=args.repeats, output_dir=output,

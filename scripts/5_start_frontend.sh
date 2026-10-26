@@ -38,25 +38,24 @@ def q(value):
 
 project_root = Path(sys.argv[1])
 overall_path = Path(sys.argv[2])
+sys.path.insert(0, str(project_root / "scripts"))
+from path_utils import resolve_path
+
 overall = yaml.safe_load(overall_path.read_text(encoding="utf-8")) or {}
-server_path = project_root / overall.get("server", "config/config-server.yaml")
+server_path = resolve_path(overall.get("server", "config/config-server.yaml"), project_root)
 server_cfg = yaml.safe_load(server_path.read_text(encoding="utf-8")) or {}
 frontend = server_cfg.get("frontend", {}) or {}
-asr_path = project_root / overall.get("asr", "config/config-asr.yaml")
+asr_path = resolve_path(overall.get("asr", "config/config-asr.yaml"), project_root)
 asr_cfg = load_asr_config(asr_path, project_root=project_root)
 security = asr_cfg.browser_security
-
-def resolve(value):
-    path = Path(value).expanduser()
-    return path if path.is_absolute() else project_root / path
 
 print(f"FRONTEND_DEV_PORT={q(frontend.get('dev_port', 3000))}")
 print(f"FRONTEND_API_BASE_URL={q(frontend.get('api_base_url', 'http://localhost:8090'))}")
 print(f"BACKEND_PORT={q(server_cfg.get('server', {}).get('port', 8090))}")
 print(f"ASR_HTTPS_ENABLED={q(str(security.https_enabled).lower())}")
-print(f"ASR_CA_CERTIFICATE={q(resolve(security.ca_certificate_path))}")
-print(f"ASR_CERTIFICATE={q(resolve(security.certificate_path))}")
-print(f"ASR_PRIVATE_KEY={q(resolve(security.private_key_path))}")
+print(f"ASR_CA_CERTIFICATE={q(resolve_path(security.ca_certificate_path, project_root))}")
+print(f"ASR_CERTIFICATE={q(resolve_path(security.certificate_path, project_root))}")
+print(f"ASR_PRIVATE_KEY={q(resolve_path(security.private_key_path, project_root))}")
 PYEOF
 )"; then
     echo "❌ ASR typed/TLS config validation failed; frontend was not started."
@@ -111,8 +110,7 @@ NEXT_ARGS=(--port "$FRONTEND_DEV_PORT")
 BACKEND_API_BASE_URL="$FRONTEND_API_BASE_URL"
 if [ "$ASR_HTTPS_ENABLED" = "true" ]; then
     for name in ASR_CA_CERTIFICATE ASR_CERTIFICATE ASR_PRIVATE_KEY; do
-        value="${!name/#\~/$HOME}"
-        [[ "$value" = /* ]] || value="$PROJECT_ROOT/$value"
+        value="$(resolve_project_path "${!name}" "$PROJECT_ROOT")"
         printf -v "$name" '%s' "$value"
         [ -f "$value" ] || { echo "ASR HTTPS file missing: $value"; exit 1; }
     done

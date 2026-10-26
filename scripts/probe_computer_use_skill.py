@@ -353,6 +353,7 @@ def _save_input(encoded, expected: bytes, path: Path) -> None:
     sent = _artifact_bytes(encoded)
     if sent != expected:
         raise ProbeError("MODEL_IMAGE_PAYLOAD_MISMATCH")
+    path = Path(path).expanduser()
     path.write_bytes(sent)
 
 
@@ -698,6 +699,7 @@ def run_probe(
     windowed_diagnostic: bool = False,
 ):
     """Run real Stage-1/2 inference, with strict isolated-target click gates."""
+    helper_binary = str(Path(helper_binary).expanduser())
     if (isinstance(overall_timeout_seconds, bool) or not isinstance(overall_timeout_seconds, (int, float))
             or not 0 < overall_timeout_seconds <= 900):
         raise ValueError("overall_timeout_seconds must be in (0, 900]")
@@ -1098,6 +1100,7 @@ def main(argv=None):
         parser.error("idle diagnostic mode must not include --send-test-click")
     if args.diagnose_windowed and args.diagnose_idle_seconds is None:
         parser.error("--diagnose-windowed requires --diagnose-idle-seconds")
+    args.helper_binary = str(Path(args.helper_binary).expanduser())
     if not args.helper_binary.startswith("/") or "\x00" in args.helper_binary:
         parser.error("--helper-binary must be an absolute path")
     if not _local_api(args.api):

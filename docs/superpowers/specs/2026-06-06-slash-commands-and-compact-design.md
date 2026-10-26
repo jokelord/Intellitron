@@ -24,7 +24,7 @@
 
 ### 4.1 Reference implementation: `ref_src/services/compact/`
 
-Located at `/home/zk/Project/LLM-deployment/ref_src/services/compact/`. Key files and ideas borrowed:
+Located at `~/Project/LLM-deployment/ref_src/services/compact/`. Key files and ideas borrowed:
 
 - `autoCompact.ts`: three-layer threshold buffer pattern (13k trigger / 20k warning / 3k hard ceiling), NO_TOOLS preamble/trailer, `<analysis>` draft + `<summary>` final block two-step method, 9-section fixed summary skeleton, automatic clean-up of old `TaskStep` history
 - `prompt.ts`: the canonical 9-section skeleton (Primary Request / Key Technical Concepts / Files and Code Sections / Errors and Fixes / Problem Solving / All User Messages / Pending Tasks / Current Work / Optional Next Step), `<analysis>` and `<summary>` tag stripping post-processing, envelope template that wraps the cleaned summary into a single user message before re-injection

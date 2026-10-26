@@ -29,7 +29,7 @@ MANIFEST_END = "<!-- READ_FILE_V7_MANIFEST_END -->"
 
 
 def load_manifest(path: str | Path) -> dict[str, Any]:
-    text = Path(path).read_text(encoding="utf-8")
+    text = Path(path).expanduser().read_text(encoding="utf-8")
     try:
         payload = text.split(MANIFEST_BEGIN, 1)[1].split(MANIFEST_END, 1)[0]
         manifest = json.loads(payload)
@@ -140,7 +140,7 @@ class _TegrastatsSampler:
 def _read_file(path: str) -> str:
     from backend.tools.file_ops import read_file
 
-    return read_file(path)
+    return read_file(str(Path(path).expanduser()))
 
 
 class _HighWaterSampler:
@@ -322,6 +322,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--smoke", action="store_true")
     parser.add_argument("--soak", type=int, default=0)
     args = parser.parse_args(argv)
+    args.manifest = args.manifest.expanduser()
+    args.output = args.output.expanduser()
     manifest = load_manifest(args.manifest)
     warnings: list[str] = []
     telemetry_sampler = _TegrastatsSampler()

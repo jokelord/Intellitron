@@ -1733,6 +1733,9 @@ def _build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = _build_parser().parse_args(argv)
+    for name, value in vars(args).items():
+        if isinstance(value, Path):
+            setattr(args, name, value.expanduser())
     try:
         if args.command == "check-env":
             result = _check_env(args.config)

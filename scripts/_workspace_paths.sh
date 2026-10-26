@@ -10,6 +10,25 @@ get_project_root() {
     cd "$script_dir/.." && pwd
 }
 
+expand_home_path() {
+    local value="$1"
+    case "$value" in
+        '~') printf '%s\n' "$HOME" ;;
+        '~/'*) printf '%s/%s\n' "$HOME" "${value#\~/}" ;;
+        *) printf '%s\n' "$value" ;;
+    esac
+}
+
+resolve_project_path() {
+    local value base_dir
+    value="$(expand_home_path "$1")"
+    base_dir="$(expand_home_path "$2")"
+    case "$value" in
+        /*) printf '%s\n' "$value" ;;
+        *) printf '%s/%s\n' "${base_dir%/}" "$value" ;;
+    esac
+}
+
 get_shared_workspace_root() {
     local project_root="${1:-$(get_project_root)}"
     local git_file="$project_root/.git"

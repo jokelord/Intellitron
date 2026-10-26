@@ -3,7 +3,7 @@ from dataclasses import asdict
 import hashlib
 import json
 from pathlib import Path
-from .config import EmbeddingConfig
+from .config import EmbeddingConfig, resolve_local_memory_path
 from .safe_fs import atomic_json, read_json, read_regular
 
 ARTIFACT_MANIFEST = 'artifact-manifest.json'
@@ -43,7 +43,7 @@ def artifact_digest(path: Path, *, model_id: str, revision: str) -> str:
 class LocalE5Encoder:
     def __init__(self, config: EmbeddingConfig, project_root: Path):
         self.config = config
-        path = Path(project_root) / config.local_model_path
+        path = resolve_local_memory_path(project_root, config.local_model_path)
         digest = artifact_digest(path, model_id=config.model_id, revision=config.revision)
         # Import only after validating prepared files; no runtime network fallback.
         import torch

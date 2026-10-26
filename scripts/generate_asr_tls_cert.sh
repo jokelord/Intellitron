@@ -17,7 +17,10 @@ import yaml
 
 root = Path(sys.argv[1])
 overall = yaml.safe_load(Path(sys.argv[2]).read_text(encoding="utf-8")) or {}
-asr_path = root / overall["asr"]
+sys.path.insert(0, str(root / "scripts"))
+from path_utils import resolve_path
+
+asr_path = resolve_path(overall["asr"], root)
 asr = yaml.safe_load(asr_path.read_text(encoding="utf-8")) or {}
 security = asr["browser_security"]
 

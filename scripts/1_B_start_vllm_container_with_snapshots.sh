@@ -11,7 +11,8 @@ set -euo pipefail
 # 1. 参数配置
 CONTAINER_TAG="nvcr.io/nvidia/vllm:26.06-py3"
 PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-YAML_OVERALL="${CONFIG_OVERALL_PATH:-$PROJECT_ROOT/config/config-overall.yaml}"
+source "$PROJECT_ROOT/scripts/_workspace_paths.sh"
+YAML_OVERALL="$(expand_home_path "${CONFIG_OVERALL_PATH:-$PROJECT_ROOT/config/config-overall.yaml}")"
 DOCKER_BIN="${VLLM_DOCKER_BIN:-docker}"
 
 # 旧版（26.03）引入的持久化编译缓存方案暂时禁用，供 26.06 端到端实验使用。
@@ -240,8 +241,7 @@ eval "$CONFIG_VALUES"
 # Resolve repository-relative template paths before mapping the file into NGC.
 CHAT_TEMPLATE_HOST=""
 if is_set_value "$CHAT_TEMPLATE"; then
-    CHAT_TEMPLATE_HOST="$CHAT_TEMPLATE"
-    [[ "$CHAT_TEMPLATE_HOST" = /* ]] || CHAT_TEMPLATE_HOST="$PROJECT_ROOT/$CHAT_TEMPLATE_HOST"
+    CHAT_TEMPLATE_HOST="$(resolve_project_path "$CHAT_TEMPLATE" "$PROJECT_ROOT")"
     [[ -f "$CHAT_TEMPLATE_HOST" ]] || { echo "❌ Chat template 不存在: $CHAT_TEMPLATE_HOST"; exit 1; }
     CHAT_TEMPLATE="/opt/llm-chat-template.jinja"
 fi
@@ -249,8 +249,7 @@ fi
 # Plugins are repository artifacts, mounted read-only without modifying vLLM.
 TOOL_PARSER_PLUGIN_HOST=""
 if is_set_value "$TOOL_PARSER_PLUGIN"; then
-    TOOL_PARSER_PLUGIN_HOST="$TOOL_PARSER_PLUGIN"
-    [[ "$TOOL_PARSER_PLUGIN_HOST" = /* ]] || TOOL_PARSER_PLUGIN_HOST="$PROJECT_ROOT/$TOOL_PARSER_PLUGIN_HOST"
+    TOOL_PARSER_PLUGIN_HOST="$(resolve_project_path "$TOOL_PARSER_PLUGIN" "$PROJECT_ROOT")"
     [[ -f "$TOOL_PARSER_PLUGIN_HOST" ]] || { echo "❌ Tool parser plugin 不存在: $TOOL_PARSER_PLUGIN_HOST"; exit 1; }
     TOOL_PARSER_PLUGIN="/opt/llm-tool-parser-plugin.py"
 fi

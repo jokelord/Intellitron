@@ -201,9 +201,9 @@ SubPipelines:
 LLMDeploymentSGLangBackend:
   host: 127.0.0.1
   port: 30002
-  model_dir: /home/zk/.paddlex/official_models/PaddleOCR-VL-1.6
+  model_dir: ~/.paddlex/official_models/PaddleOCR-VL-1.6
   served_model_name: PaddleOCR-VL-1.6-0.9B
-  chat_template: /home/zk/.paddlex/official_models/PaddleOCR-VL-1.6/chat_template.jinja
+  chat_template: ~/.paddlex/official_models/PaddleOCR-VL-1.6/chat_template.jinja
   trust_remote_code: true
   context_length: 16384
   max_running_requests: 4
@@ -390,7 +390,9 @@ Expected: fail because the script does not exist.
 Use:
 
 ```python
-DOCUMENT_PATH = "/home/zk/Documents/example.pdf"
+from pathlib import Path
+
+DOCUMENT_PATH = str(Path("~/Documents/example.pdf").expanduser())
 PADDLEX_API_URL = "http://127.0.0.1:8118"
 OCR_SGLANG_URL = "http://127.0.0.1:30002"
 SERVED_MODEL_NAME = "PaddleOCR-VL-1.6-0.9B"

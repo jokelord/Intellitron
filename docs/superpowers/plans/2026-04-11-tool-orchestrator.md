@@ -162,7 +162,7 @@ class TestDependencyAnalyzer:
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `cd /home/zk/Project/LLM-deployment && .sglang/bin/python -m pytest tests/test_orchestrator.py -v`
+Run: `cd ~/Project/LLM-deployment && .sglang/bin/python -m pytest tests/test_orchestrator.py -v`
 Expected: FAIL with `ModuleNotFoundError: No module named 'backend.agent.orchestrator'`
 
 - [ ] **Step 3: Implement DependencyAnalyzer and ExecutionPlan**
@@ -337,7 +337,7 @@ class DependencyAnalyzer:
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `cd /home/zk/Project/LLM-deployment && .sglang/bin/python -m pytest tests/test_orchestrator.py -v`
+Run: `cd ~/Project/LLM-deployment && .sglang/bin/python -m pytest tests/test_orchestrator.py -v`
 Expected: All 10 tests PASS
 
 - [ ] **Step 5: Commit**
@@ -498,7 +498,7 @@ class TestPlanExecutor:
 
 - [ ] **Step 2: Run tests to verify new tests fail**
 
-Run: `cd /home/zk/Project/LLM-deployment && .sglang/bin/python -m pytest tests/test_orchestrator.py::TestPlanExecutor -v`
+Run: `cd ~/Project/LLM-deployment && .sglang/bin/python -m pytest tests/test_orchestrator.py::TestPlanExecutor -v`
 Expected: FAIL with `ImportError` (PlanExecutor not defined yet)
 
 - [ ] **Step 3: Implement PlanExecutor**
@@ -748,7 +748,7 @@ class ToolOrchestrator:
 
 - [ ] **Step 4: Run all orchestrator tests**
 
-Run: `cd /home/zk/Project/LLM-deployment && .sglang/bin/python -m pytest tests/test_orchestrator.py -v`
+Run: `cd ~/Project/LLM-deployment && .sglang/bin/python -m pytest tests/test_orchestrator.py -v`
 Expected: All tests PASS
 
 - [ ] **Step 5: Commit**
@@ -847,7 +847,7 @@ class TestSearchAndFetch:
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `cd /home/zk/Project/LLM-deployment && .sglang/bin/python -m pytest tests/test_search_and_fetch.py -v`
+Run: `cd ~/Project/LLM-deployment && .sglang/bin/python -m pytest tests/test_search_and_fetch.py -v`
 Expected: FAIL with `ModuleNotFoundError`
 
 - [ ] **Step 3: Implement search_and_fetch**
@@ -1030,7 +1030,7 @@ def search_and_fetch_impl(
 
 - [ ] **Step 4: Run tests**
 
-Run: `cd /home/zk/Project/LLM-deployment && .sglang/bin/python -m pytest tests/test_search_and_fetch.py -v`
+Run: `cd ~/Project/LLM-deployment && .sglang/bin/python -m pytest tests/test_search_and_fetch.py -v`
 Expected: All tests PASS
 
 - [ ] **Step 5: Commit**
@@ -1086,7 +1086,7 @@ class TestWikipediaSearchAndFetch:
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `cd /home/zk/Project/LLM-deployment && .sglang/bin/python -m pytest tests/test_search_and_fetch.py::TestWikipediaSearchAndFetch -v`
+Run: `cd ~/Project/LLM-deployment && .sglang/bin/python -m pytest tests/test_search_and_fetch.py::TestWikipediaSearchAndFetch -v`
 Expected: FAIL
 
 - [ ] **Step 3: Implement wikipedia_search_and_fetch**
@@ -1243,7 +1243,7 @@ def wikipedia_search_and_fetch_impl(
 
 - [ ] **Step 4: Run tests**
 
-Run: `cd /home/zk/Project/LLM-deployment && .sglang/bin/python -m pytest tests/test_search_and_fetch.py -v`
+Run: `cd ~/Project/LLM-deployment && .sglang/bin/python -m pytest tests/test_search_and_fetch.py -v`
 Expected: All tests PASS
 
 - [ ] **Step 5: Commit**
@@ -1421,7 +1421,7 @@ Add **before** the MemoryToolCall handler (so orchestration events are caught fi
 
 - [ ] **Step 4: Verify by running existing tests (no regressions)**
 
-Run: `cd /home/zk/Project/LLM-deployment && .sglang/bin/python -m pytest tests/ -v --ignore=tests/test_camera_service.py --ignore=tests/test_cycle_api.py --ignore=tests/test_cycle_config.py --ignore=tests/test_cycle_executor.py --ignore=tests/test_load_images_script.py -x`
+Run: `cd ~/Project/LLM-deployment && .sglang/bin/python -m pytest tests/ -v --ignore=tests/test_camera_service.py --ignore=tests/test_cycle_api.py --ignore=tests/test_cycle_config.py --ignore=tests/test_cycle_executor.py --ignore=tests/test_load_images_script.py -x`
 Expected: All tests PASS (no regressions)
 
 - [ ] **Step 5: Commit**
@@ -1495,7 +1495,7 @@ And in the wikipedia conditional block (around line 642-650), add after `wikiped
 
 - [ ] **Step 3: Verify registration**
 
-Run: `cd /home/zk/Project/LLM-deployment && .sglang/bin/python -c "from backend.agent.agent_runner import _get_tools; tools = _get_tools(); print([getattr(t, 'name', type(t).__name__) for t in tools])"`
+Run: `cd ~/Project/LLM-deployment && .sglang/bin/python -c "from backend.agent.agent_runner import _get_tools; tools = _get_tools(); print([getattr(t, 'name', type(t).__name__) for t in tools])"`
 Expected: Output should include `search_and_fetch` and `wikipedia_search_and_fetch`
 
 - [ ] **Step 4: Commit**
@@ -1578,7 +1578,7 @@ This is already correct — it preserves real tools and drops final_answer. No c
 **Verify with a test:**
 
 ```bash
-cd /home/zk/Project/LLM-deployment && .sglang/bin/python -c "
+cd ~/Project/LLM-deployment && .sglang/bin/python -c "
 # Quick sanity check: _extract_tool_calls with multi-tool + final_answer
 from unittest.mock import MagicMock
 import json
@@ -1615,7 +1615,7 @@ echo "local_llm_model.py already handles multi-tool + final_answer correctly"
 - [ ] **Step 1: Restore api.ts from git**
 
 ```bash
-cd /home/zk/Project/LLM-deployment && git checkout 577d730 -- frontend/src/lib/api.ts
+cd ~/Project/LLM-deployment && git checkout 577d730 -- frontend/src/lib/api.ts
 ```
 
 - [ ] **Step 2: Extend AgentStep interface**
@@ -2047,7 +2047,7 @@ git commit -m "docs: update AGENTS.md with orchestrator architecture and composi
 - [ ] **Step 1: Run all unit tests**
 
 ```bash
-cd /home/zk/Project/LLM-deployment && .sglang/bin/python -m pytest tests/test_orchestrator.py tests/test_search_and_fetch.py tests/test_write_memory_tool_calls.py tests/test_strip_tool_call_text.py -v
+cd ~/Project/LLM-deployment && .sglang/bin/python -m pytest tests/test_orchestrator.py tests/test_search_and_fetch.py tests/test_write_memory_tool_calls.py tests/test_strip_tool_call_text.py -v
 ```
 
 Expected: All tests PASS
@@ -2055,7 +2055,7 @@ Expected: All tests PASS
 - [ ] **Step 2: Run full test suite (skip hardware-dependent tests)**
 
 ```bash
-cd /home/zk/Project/LLM-deployment && .sglang/bin/python -m pytest tests/ -v --ignore=tests/test_camera_service.py --ignore=tests/test_cycle_api.py --ignore=tests/test_cycle_config.py --ignore=tests/test_cycle_executor.py --ignore=tests/test_load_images_script.py -x
+cd ~/Project/LLM-deployment && .sglang/bin/python -m pytest tests/ -v --ignore=tests/test_camera_service.py --ignore=tests/test_cycle_api.py --ignore=tests/test_cycle_config.py --ignore=tests/test_cycle_executor.py --ignore=tests/test_load_images_script.py -x
 ```
 
 Expected: All tests PASS
@@ -2063,7 +2063,7 @@ Expected: All tests PASS
 - [ ] **Step 3: Verify frontend builds**
 
 ```bash
-cd /home/zk/Project/LLM-deployment/frontend && npm run build
+cd ~/Project/LLM-deployment/frontend && npm run build
 ```
 
 Expected: Build succeeds with no TypeScript errors
@@ -2071,7 +2071,7 @@ Expected: Build succeeds with no TypeScript errors
 - [ ] **Step 4: Quick smoke test — import verification**
 
 ```bash
-cd /home/zk/Project/LLM-deployment && .sglang/bin/python -c "
+cd ~/Project/LLM-deployment && .sglang/bin/python -c "
 from backend.agent.orchestrator import ToolOrchestrator, DependencyAnalyzer, PlanExecutor, ExecutionPlan, ToolResult
 from backend.tools.search_and_fetch import search_and_fetch_impl
 from backend.tools.wikipedia_search_and_fetch import wikipedia_search_and_fetch_impl

@@ -93,7 +93,7 @@ The corrections are also pinned at the **end of this document** in §P1–§P6 (
 
 ## Conventions for the Engineer
 
-- Backend uses `.sglang/bin/python` (uv-managed env at `/home/zk/Project/LLM-deployment/.sglang`); all pytest invocations use `PYTHONPATH=. "/home/zk/Project/LLM-deployment/.sglang/bin/python" -m pytest ...`
+- Backend uses `.sglang/bin/python` (uv-managed env at `~/Project/LLM-deployment/.sglang`); all pytest invocations use `PYTHONPATH=. ~/Project/LLM-deployment/.sglang/bin/python -m pytest ...`
 - Frontend uses `node --test --experimental-strip-types` for pure function tests; `npm run type-check` and `npm run build` for verification
 - TDD discipline: write test → run and verify it fails (RED) → implement minimal code → run and verify it passes (GREEN) → commit
 - Spec cross-references use Section numbers (1-17 in the spec)
@@ -2841,7 +2841,7 @@ git commit -m "docs(AGENTS): add traps #17, #18, #19 for /compact and slash fram
 ### Task 24: Run all backend tests
 
 ```bash
-PYTHONPATH=. "/home/zk/Project/LLM-deployment/.sglang/bin/python" -m pytest \
+PYTHONPATH=. ~/Project/LLM-deployment/.sglang/bin/python -m pytest \
   tests/test_compact_config.py \
   tests/test_compact_tokenizer.py \
   tests/test_compact_threshold.py \

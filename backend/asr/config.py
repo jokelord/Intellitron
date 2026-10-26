@@ -374,7 +374,7 @@ class BrowserSecurityConfig(StrictModel):
         if not self.https_enabled:
             return self
         context = info.context or {}
-        project_root = Path(context.get("project_root", Path.cwd()))
+        project_root = Path(context.get("project_root", Path.cwd())).expanduser()
         resolved_paths = {}
         for field_name in (
             "ca_certificate_path",
@@ -571,7 +571,7 @@ class AsrConfig(StrictModel):
             )
         if self.enabled:
             context = info.context or {}
-            project_root = Path(context.get("project_root", Path.cwd()))
+            project_root = Path(context.get("project_root", Path.cwd())).expanduser()
             validate_asr_model_artifacts(
                 _resolve_path(project_root, self.sglang.model_path)
             )
@@ -580,11 +580,14 @@ class AsrConfig(StrictModel):
 
 def _resolve_path(project_root: Path, value: str) -> Path:
     path = Path(value).expanduser()
-    return path if path.is_absolute() else project_root / path
+    root = Path(project_root).expanduser()
+    return path if path.is_absolute() else root / path
 
 
 def load_asr_config(path: Path, *, project_root: Path) -> AsrConfig:
     """Load a complete ASR YAML file and reject invalid or unknown values."""
+    path = Path(path).expanduser()
+    project_root = Path(project_root).expanduser()
     raw = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
     if not isinstance(raw, dict):
         raise ValueError(f"ASR config must be a mapping: {path}")

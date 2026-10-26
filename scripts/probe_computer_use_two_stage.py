@@ -125,6 +125,7 @@ def annotated(image_bytes: bytes, title: str, footer: str,
 def contact_sheet(images: list[tuple[str, Image.Image]], path: Path) -> None:
     if not images:
         return
+    path = Path(path).expanduser()
     card_w, card_h = 650, 430
     columns = 2
     rows = (len(images) + columns - 1) // columns
@@ -196,6 +197,8 @@ def _compare_variant(*, api, model, base, output_dir, index, variant, detail, cr
                      encoded, target_x, target_y, target_bounds, target_size_px,
                      stage1_full_containment, source_width, source_height):
     """Save the exact model input and score one grid variant independently."""
+    base = Path(base).expanduser()
+    output_dir = Path(output_dir).expanduser()
     output_dir.mkdir(parents=True, exist_ok=True)
     sent_url = encoded.messages[0]['content'][1]['image_url']['url']
     if not sent_url.startswith('data:image/png;base64,'):
@@ -277,6 +280,10 @@ def main() -> None:
                         help='infer gridded and gridless Stage-2 images from the same Stage-1 crop')
     parser.add_argument('--api', default='http://127.0.0.1:30000')
     args = parser.parse_args()
+    args.fixtures = args.fixtures.expanduser()
+    args.stage1_results = (
+        args.stage1_results.expanduser() if args.stage1_results is not None else None
+    )
     if args.compare_grid and not args.infer_stage2:
         parser.error('--compare-grid requires --infer-stage2')
 

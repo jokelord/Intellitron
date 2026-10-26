@@ -40,7 +40,7 @@ assert.match(visionPageSource, /agent_switched/);
 Run:
 
 ```bash
-PYTHONPATH=. "/home/zk/Project/LLM-deployment/.sglang/bin/python" -m pytest tests/test_multi_agent_runner.py -q
+PYTHONPATH=. ~/Project/LLM-deployment/.sglang/bin/python -m pytest tests/test_multi_agent_runner.py -q
 node --test --experimental-strip-types "frontend/src/lib/timeline-projection.test.mts"
 ```
 
@@ -65,7 +65,7 @@ Ensure trailing `aborted` or `error` terminal events still short-circuit executi
 Run:
 
 ```bash
-PYTHONPATH=. "/home/zk/Project/LLM-deployment/.sglang/bin/python" -m pytest tests/test_multi_agent_runner.py -q
+PYTHONPATH=. ~/Project/LLM-deployment/.sglang/bin/python -m pytest tests/test_multi_agent_runner.py -q
 ```
 
 Expected: the new ordering regressions pass.
@@ -144,7 +144,7 @@ Expected: helper tests pass.
 Run:
 
 ```bash
-PYTHONPATH=. "/home/zk/Project/LLM-deployment/.sglang/bin/python" -m pytest tests/test_multi_agent_runner.py tests/test_agent_session_context.py tests/test_multi_tool_parsing.py tests/test_timeline_projection.py -q
+PYTHONPATH=. ~/Project/LLM-deployment/.sglang/bin/python -m pytest tests/test_multi_agent_runner.py tests/test_agent_session_context.py tests/test_multi_tool_parsing.py tests/test_timeline_projection.py -q
 ```
 
 - [ ] **Step 2: Run frontend unit tests**

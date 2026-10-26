@@ -13,7 +13,7 @@
 **Spec:** `docs/superpowers/specs/outdated-2026-06-11-v2-compact-prompt-turn-shape-design.md`
 **Reference materials:**
 - `ref_src/services/compact/prompt.ts:19-26, 61-143, 269-272, 345-347` — compaction prompt wording source
-- `/home/zk/Project/LLM-weight/Qwen3___5-35B-A3B-GPTQ-Int4/chat_template.jinja:67-80` — `multi_step_tool` check
+- `~/Project/LLM-weight/Qwen3___5-35B-A3B-GPTQ-Int4/chat_template.jinja:67-80` — `multi_step_tool` check
 - `踩坑记录4.md` — symptom history, SGLang mamba/KV tuning
 - `踩坑记录3.md` §20 — chat template rendering test lesson
 
@@ -1417,7 +1417,7 @@ from backend.compact.prompt_builder import build_compact_messages_v2
 from backend.config import CompactionPromptsConfig
 from backend.llm_service import Message
 
-CHAT_TEMPLATE_PATH = Path("/home/zk/Project/LLM-weight/Qwen3___5-35B-A3B-GPTQ-Int4/chat_template.jinja")
+CHAT_TEMPLATE_PATH = Path("~/Project/LLM-weight/Qwen3___5-35B-A3B-GPTQ-Int4/chat_template.jinja").expanduser()
 YAML_PATH = Path(__file__).resolve().parents[1] / "config" / "config-agent-prompts.yaml"
 
 
@@ -1493,7 +1493,7 @@ def test_v2_does_not_raise_multi_step_tool_check(prompts: CompactionPromptsConfi
 - [ ] **Step 2: Run the test and verify it passes**
 
 Run: `PYTHONPATH=. ./.sglang/bin/python -m pytest tests/test_compact_prompt_builder_v2_template_compat.py -v`
-Expected: PASS (2 tests). The test reads the real Qwen3 chat template from `/home/zk/Project/LLM-weight/Qwen3___5-35B-A3B-GPTQ-Int4/chat_template.jinja` and renders the v2 output. If the file is not present, both tests skip (this is intentional — the developer environment may not have the model weights).
+Expected: PASS (2 tests). The test reads the real Qwen3 chat template from `~/Project/LLM-weight/Qwen3___5-35B-A3B-GPTQ-Int4/chat_template.jinja` and renders the v2 output. If the file is not present, both tests skip (this is intentional — the developer environment may not have the model weights).
 
 - [ ] **Step 3: Commit**
 
@@ -1666,7 +1666,7 @@ git commit -m "docs: add trap #26 for v2 compact prompt; update 踩坑记录4 §
 
 Run:
 ```bash
-cd /home/zk/Project/LLM-deployment
+cd ~/Project/LLM-deployment
 ./scripts/1_start_sglang.sh
 ```
 
@@ -1676,7 +1676,7 @@ Expected: SGLang starts successfully. The terminal log shows the model loading a
 
 In a separate terminal:
 ```bash
-cd /home/zk/Project/LLM-deployment
+cd ~/Project/LLM-deployment
 ./scripts/2_start_backend.sh
 ```
 
@@ -1686,7 +1686,7 @@ Expected: Backend starts successfully. The lifespan log shows `CompactOrchestrat
 
 In a separate terminal:
 ```bash
-cd /home/zk/Project/LLM-deployment
+cd ~/Project/LLM-deployment
 cd frontend && npm run dev
 ```
 

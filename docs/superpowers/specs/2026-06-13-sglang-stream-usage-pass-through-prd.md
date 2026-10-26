@@ -342,13 +342,13 @@ Fake provider raises an unsupported `stream_options` error on the first call and
 Run existing compact instrumentation tests:
 
 ```bash
-PYTHONPATH=. "/home/zk/Project/LLM-deployment/.sglang/bin/python" -m pytest tests/test_compact_orchestrator_instrumentation.py -q
+PYTHONPATH=. ~/Project/LLM-deployment/.sglang/bin/python -m pytest tests/test_compact_orchestrator_instrumentation.py -q
 ```
 
 Run chat compact regression tests to ensure no stream protocol leakage:
 
 ```bash
-PYTHONPATH=. "/home/zk/Project/LLM-deployment/.sglang/bin/python" -m pytest tests/test_compact_chat_v2_path.py tests/test_compact_chat_rebuild_contract.py tests/test_compact_chat_auto_trigger.py -q
+PYTHONPATH=. ~/Project/LLM-deployment/.sglang/bin/python -m pytest tests/test_compact_chat_v2_path.py tests/test_compact_chat_rebuild_contract.py tests/test_compact_chat_auto_trigger.py -q
 ```
 
 ## 12. Rollout Strategy For Future Work

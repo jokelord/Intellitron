@@ -271,6 +271,36 @@ def test_cache_key_partitions_detected_format_route_and_schema(tmp_path):
     service.close()
 
 
+def test_ocr_pipeline_cache_fingerprint_accepts_home_path(tmp_path, monkeypatch):
+    from backend.config import OCRServiceConfig
+    from backend.tools.read_file import service as service_module
+
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setattr(service_module, "PROJECT_ROOT", tmp_path / "project")
+    pipeline = tmp_path / "pipeline.yaml"
+    pipeline.write_text("pipeline: v1\n", encoding="utf-8")
+    source = tmp_path / "source.bin"
+    source.write_bytes(b"source")
+    config = replace(ReadFileConfig(), main_llm_memory_reserve_gb=0)
+    common = dict(detected_format=".bin", route="ocr", password=None,
+                  document_mode="auto", recognize_seals=False)
+
+    tilde_service = ReadFileService(
+        config=config,
+        ocr_config=OCRServiceConfig(pipeline_config_path="~/pipeline.yaml"),
+        ocr_client=object(),
+    )
+    absolute_service = ReadFileService(
+        config=config,
+        ocr_config=OCRServiceConfig(pipeline_config_path=str(pipeline)),
+        ocr_client=object(),
+    )
+
+    assert tilde_service._cache_key(source, **common) == absolute_service._cache_key(source, **common)
+    tilde_service.close()
+    absolute_service.close()
+
+
 def test_cache_schema_mismatch_clears_existing_entries(tmp_path):
     path = tmp_path / "cache.sqlite3"
     cache = ReadFileCache(

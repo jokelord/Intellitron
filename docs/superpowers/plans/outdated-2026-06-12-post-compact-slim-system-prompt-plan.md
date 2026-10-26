@@ -47,7 +47,7 @@
 
 - [ ] **Step 1.1: Find the Session dataclass**
 
-Run: `cd /home/zk/Project/LLM-deployment && grep -n "class.*Session\b\|@dataclass" backend/agent/agent_runner.py | head -20`
+Run: `cd ~/Project/LLM-deployment && grep -n "class.*Session\b\|@dataclass" backend/agent/agent_runner.py | head -20`
 
 Locate the Session class definition. Note the file:line for the next step. (Likely `Session` is a dataclass around line 200-400; may be `AgentSession` or `Session`.)
 
@@ -120,7 +120,7 @@ def test_replace_agent_memory_keeps_has_run_true():
 
 - [ ] **Step 1.3: Run test to verify it fails**
 
-Run: `cd /home/zk/Project/LLM-deployment && PYTHONPATH=. ./.sglang/bin/python -m pytest tests/test_post_compact_slim_flag.py -v`
+Run: `cd ~/Project/LLM-deployment && PYTHONPATH=. ./.sglang/bin/python -m pytest tests/test_post_compact_slim_flag.py -v`
 
 Expected: FAIL with `AttributeError: ... 'first_post_compact_turn'` (the session mock has every attribute, but our new field is not set yet) or `assert False` from `test_replace_agent_memory_keeps_has_run_true` is fine but `test_replace_agent_memory_sets_first_post_compact_turn_true` MUST fail with `AttributeError` from the assertion.
 
@@ -161,14 +161,14 @@ In `backend/agent/agent_runner.py`, after line 4560 (`session.current_agent_name
 
 - [ ] **Step 1.6: Re-run the test to verify it passes**
 
-Run: `cd /home/zk/Project/LLM-deployment && PYTHONPATH=. ./.sglang/bin/python -m pytest tests/test_post_compact_slim_flag.py -v`
+Run: `cd ~/Project/LLM-deployment && PYTHONPATH=. ./.sglang/bin/python -m pytest tests/test_post_compact_slim_flag.py -v`
 
 Expected: 2 passed.
 
 - [ ] **Step 1.7: Commit**
 
 ```bash
-cd /home/zk/Project/LLM-deployment
+cd ~/Project/LLM-deployment
 git add backend/agent/agent_runner.py tests/test_post_compact_slim_flag.py
 git commit -m "feat(agent_runner): add first_post_compact_turn flag, set on _replace_agent_memory
 
@@ -194,7 +194,7 @@ Hard contracts preserved:
 
 - [ ] **Step 2.1: Read `LocalLLMModel.__call__` and `generate_stream`**
 
-Run: `cd /home/zk/Project/LLM-deployment && sed -n '215,235p' backend/agent/local_llm_model.py && echo "---" && sed -n '310,325p' backend/agent/local_llm_model.py`
+Run: `cd ~/Project/LLM-deployment && sed -n '215,235p' backend/agent/local_llm_model.py && echo "---" && sed -n '310,325p' backend/agent/local_llm_model.py`
 
 Confirm:
 - `__call__` line 223-230 has the tool/agent filtering block (per AGENTS.md trap #12)
@@ -202,7 +202,7 @@ Confirm:
 
 - [ ] **Step 2.2: Find the Session reference inside `LocalLLMModel`**
 
-Run: `cd /home/zk/Project/LLM-deployment && grep -n "self.session\|self\._session\|session" backend/agent/local_llm_model.py | head -10`
+Run: `cd ~/Project/LLM-deployment && grep -n "self.session\|self\._session\|session" backend/agent/local_llm_model.py | head -10`
 
 Find where `LocalLLMModel` accesses the `Session` object. It may be passed via `__init__` or as a kwarg to `__call__`.
 
@@ -266,7 +266,7 @@ def test_local_llm_model_no_slim_when_flag_false():
 
 - [ ] **Step 2.4: Run test to verify it fails**
 
-Run: `cd /home/zk/Project/LLM-deployment && PYTHONPATH=. ./.sglang/bin/python -m pytest tests/test_post_compact_slim_flag.py::test_local_llm_model_reads_first_post_compact_turn_flag -v`
+Run: `cd ~/Project/LLM-deployment && PYTHONPATH=. ./.sglang/bin/python -m pytest tests/test_post_compact_slim_flag.py::test_local_llm_model_reads_first_post_compact_turn_flag -v`
 
 Expected: FAIL (LocalLLMModel doesn't read the flag yet, or doesn't pass slim kwarg).
 
@@ -329,14 +329,14 @@ In `backend/llm_service.py`, find the function that calls `_inject_runtime_conte
 
 - [ ] **Step 2.9: Re-run test to verify it passes**
 
-Run: `cd /home/zk/Project/LLM-deployment && PYTHONPATH=. ./.sglang/bin/python -m pytest tests/test_post_compact_slim_flag.py -v`
+Run: `cd ~/Project/LLM-deployment && PYTHONPATH=. ./.sglang/bin/python -m pytest tests/test_post_compact_slim_flag.py -v`
 
 Expected: 4 passed (2 from Task 1 + 2 from Task 2).
 
 - [ ] **Step 2.10: Commit**
 
 ```bash
-cd /home/zk/Project/LLM-deployment
+cd ~/Project/LLM-deployment
 git add backend/agent/local_llm_model.py \
         backend/llm_service.py \
         tests/test_post_compact_slim_flag.py
@@ -363,7 +363,7 @@ Coordinator_1 routing is preserved (user requirement)."
 
 - [ ] **Step 3.1: Find the tool filtering block in `LocalLLMModel`**
 
-Run: `cd /home/zk/Project/LLM-deployment && sed -n '218,240p' backend/agent/local_llm_model.py`
+Run: `cd ~/Project/LLM-deployment && sed -n '218,240p' backend/agent/local_llm_model.py`
 
 The block passes `tools_to_call_from=self.tools` (or filtered subset) to `self.llm_service.chat_stream_async`.
 
@@ -398,7 +398,7 @@ def test_local_llm_model_strips_tools_when_slim():
 
 - [ ] **Step 3.3: Run test to verify it fails**
 
-Run: `cd /home/zk/Project/LLM-deployment && PYTHONPATH=. ./.sglang/bin/python -m pytest tests/test_post_compact_slim_flag.py::test_local_llm_model_strips_tools_when_slim -v`
+Run: `cd ~/Project/LLM-deployment && PYTHONPATH=. ./.sglang/bin/python -m pytest tests/test_post_compact_slim_flag.py::test_local_llm_model_strips_tools_when_slim -v`
 
 Expected: FAIL.
 
@@ -414,14 +414,14 @@ In `backend/agent/local_llm_model.py`, in the `__call__` method, find where `too
 
 - [ ] **Step 3.5: Re-run test to verify it passes**
 
-Run: `cd /home/zk/Project/LLM-deployment && PYTHONPATH=. ./.sglang/bin/python -m pytest tests/test_post_compact_slim_flag.py -v`
+Run: `cd ~/Project/LLM-deployment && PYTHONPATH=. ./.sglang/bin/python -m pytest tests/test_post_compact_slim_flag.py -v`
 
 Expected: 5 passed.
 
 - [ ] **Step 3.6: Commit**
 
 ```bash
-cd /home/zk/Project/LLM-deployment
+cd ~/Project/LLM-deployment
 git add backend/agent/local_llm_model.py tests/test_post_compact_slim_flag.py
 git commit -m "feat(local_llm_model): strip tool schemas when slim=True
 
@@ -481,7 +481,7 @@ Actually, **coordinator_1's `__call__` is the FIRST LLM call after compact**; if
 
 - [ ] **Step 4.3: Find the exact post-routing line in `run_stream`**
 
-Run: `cd /home/zk/Project/LLM-deployment && sed -n '4780,4830p' backend/agent/agent_runner.py`
+Run: `cd ~/Project/LLM-deployment && sed -n '4780,4830p' backend/agent/agent_runner.py`
 
 Find where `_run_coordinator_routing_stream` ends and the actual LLM-C call starts (likely `_run_basic_stream` or `_run_coordinator_2_stream`).
 
@@ -535,7 +535,7 @@ def test_session_flag_clears_after_consumption():
 
 - [ ] **Step 4.5: Run test to verify it fails**
 
-Run: `cd /home/zk/Project/LLM-deployment && PYTHONPATH=. ./.sglang/bin/python -m pytest tests/test_post_compact_slim_flag.py::test_session_flag_clears_after_consumption -v`
+Run: `cd ~/Project/LLM-deployment && PYTHONPATH=. ./.sglang/bin/python -m pytest tests/test_post_compact_slim_flag.py::test_session_flag_clears_after_consumption -v`
 
 This test should already pass (it just demonstrates the consumption semantics). The actual test that will fail is the `run_stream` integration test. Skip that for now and use this minimal flag-consumption test.
 
@@ -558,7 +558,7 @@ In `run_stream`, when calling the LLM-C agent (NOT routing), pass `consume_slim=
 
 - [ ] **Step 4.7: Find where `run_stream` invokes the actual LLM-C call (not routing)**
 
-Run: `cd /home/zk/Project/LLM-deployment && grep -n "self\.llm_service\|LocalLLMModel\|\.run_stream\|\.run(" backend/agent/agent_runner.py | grep -v "coordinator" | head -20`
+Run: `cd ~/Project/LLM-deployment && grep -n "self\.llm_service\|LocalLLMModel\|\.run_stream\|\.run(" backend/agent/agent_runner.py | grep -v "coordinator" | head -20`
 
 Find the LLM-C call site (it's likely `agent.run()` via `_run_basic_stream` or `_run_coordinator_2_stream`).
 
@@ -790,20 +790,20 @@ def test_slim_consumed_via_contextvar(monkeypatch):
 
 - [ ] **Step 4.14: Run test to verify it passes**
 
-Run: `cd /home/zk/Project/LLM-deployment && PYTHONPATH=. ./.sglang/bin/python -m pytest tests/test_post_compact_slim_flag.py -v`
+Run: `cd ~/Project/LLM-deployment && PYTHONPATH=. ./.sglang/bin/python -m pytest tests/test_post_compact_slim_flag.py -v`
 
 Expected: All tests pass.
 
 - [ ] **Step 4.15: Run full compact test suite to verify no regression**
 
-Run: `cd /home/zk/Project/LLM-deployment && PYTHONPATH=. ./.sglang/bin/python -m pytest tests/test_compact_*.py tests/test_multi_agent_runner.py tests/test_prefix_cache_stability_v2.py -q`
+Run: `cd ~/Project/LLM-deployment && PYTHONPATH=. ./.sglang/bin/python -m pytest tests/test_compact_*.py tests/test_multi_agent_runner.py tests/test_prefix_cache_stability_v2.py -q`
 
 Expected: All pass.
 
 - [ ] **Step 4.16: Commit**
 
 ```bash
-cd /home/zk/Project/LLM-deployment
+cd ~/Project/LLM-deployment
 git add backend/agent/agent_runner.py \
         backend/agent/local_llm_model.py \
         tests/test_post_compact_slim_flag.py
@@ -837,7 +837,7 @@ flag and the ContextVar are reset."
 
 Run:
 ```bash
-cd /home/zk/Project/LLM-deployment
+cd ~/Project/LLM-deployment
 PID=$(lsof -ti :8090 2>/dev/null)
 if [ -n "$PID" ]; then kill -9 $PID; sleep 2; fi
 nohup ./.sglang/bin/python -m uvicorn backend.main:app --host 0.0.0.0 --port 8090 > /tmp/backend_slim.log 2>&1 &
@@ -855,7 +855,7 @@ The 50k Chinese sci-fi payload is at `/tmp/fixed_compact_payload.json`. Reuse it
 
 Run:
 ```bash
-cd /home/zk/Project/LLM-deployment
+cd ~/Project/LLM-deployment
 time curl -sS -m 300 -N -X POST http://127.0.0.1:8090/v1/compact/run \
   -H "Content-Type: application/json" \
   --data @/tmp/fixed_compact_payload.json \
@@ -900,7 +900,7 @@ In `backend/agent/local_llm_model.py`, at the top of `__call__`:
 - [ ] **Step 5.6: Commit the diag logs**
 
 ```bash
-cd /home/zk/Project/LLM-deployment
+cd ~/Project/LLM-deployment
 git add backend/agent/agent_runner.py backend/agent/local_llm_model.py
 git commit -m "diag: add post-compact + llm-c diagnostic logs
 
@@ -913,7 +913,7 @@ production traffic. They help verify the slim path is taken."
 Build a payload that simulates user → 50k Chinese sci-fi + user "我觉得你把小说总结得不错呢":
 
 ```bash
-cd /home/zk/Project/LLM-deployment
+cd ~/Project/LLM-deployment
 PYTHONPATH=. ./.sglang/bin/python << 'PYEOF' 2>&1 | tail -3
 # Build a payload that triggers auto-compact + chat in /v1/chat/completions
 # ... (similar to before, but mode="chat" or use /v1/agent/chat)

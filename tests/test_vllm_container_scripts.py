@@ -43,6 +43,7 @@ def run_launcher(
     relative_selections: bool = False,
     invalid_snapshot_link: bool = False,
     cache_root_host: str | None = None,
+    home: Path | None = None,
 ):
     model_path = tmp_path / "direct-model"
     model_path.mkdir()
@@ -69,7 +70,9 @@ def run_launcher(
         else model_path
     )
 
-    model_config = tmp_path / "model.yaml"
+    config_root = home or tmp_path
+    config_root.mkdir(parents=True, exist_ok=True)
+    model_config = config_root / "model.yaml"
     model_config.write_text(
         yaml.safe_dump(
             {"model": {"model_path": str(configured_model_path), "model_name": model_name}},
@@ -77,7 +80,7 @@ def run_launcher(
         ),
         encoding="utf-8",
     )
-    infer_config = tmp_path / "infer.yaml"
+    infer_config = config_root / "infer.yaml"
     infer_config_data = {
         "vllm": {
             "host": "127.0.0.1",
@@ -110,12 +113,20 @@ def run_launcher(
     infer_config.write_text(
         yaml.safe_dump(infer_config_data, sort_keys=False), encoding="utf-8"
     )
-    overall_config = tmp_path / "overall.yaml"
+    overall_config = config_root / "overall.yaml"
     selected_model_path = (
-        os.path.relpath(model_config, PROJECT_ROOT) if relative_selections else model_config
+        "~/model.yaml"
+        if home
+        else os.path.relpath(model_config, PROJECT_ROOT)
+        if relative_selections
+        else model_config
     )
     selected_infer_path = (
-        os.path.relpath(infer_config, PROJECT_ROOT) if relative_selections else infer_config
+        "~/infer.yaml"
+        if home
+        else os.path.relpath(infer_config, PROJECT_ROOT)
+        if relative_selections
+        else infer_config
     )
     overall_config.write_text(
         f"model: {selected_model_path}\ninfer: {selected_infer_path}\n", encoding="utf-8"
@@ -153,12 +164,14 @@ done
     docker_guard.chmod(0o755)
 
     environment = os.environ | {
-        "CONFIG_OVERALL_PATH": str(overall_config),
+        "CONFIG_OVERALL_PATH": "~/overall.yaml" if home else str(overall_config),
         "VLLM_DOCKER_BIN": str(fake_docker),
         "FAKE_DOCKER_LOG": str(fake_docker_log),
         "VLLM_CACHE_ROOT_HOST": cache_root_host or str(tmp_path / "vllm-cache"),
         "PATH": f"{guard_dir}:{os.environ['PATH']}",
     }
+    if home:
+        environment["HOME"] = str(home)
     completed = subprocess.run(
         ["bash", str(PROJECT_ROOT / "scripts" / script_name)],
         cwd=PROJECT_ROOT,
@@ -489,6 +502,33 @@ def test_repository_native_template_mounted_into_ngc(script_name, tmp_path):
     call = final_docker_call(log)
     assert f'<{PROJECT_ROOT / relative}:/opt/llm-chat-template.jinja:ro>' in call
     assert '<--chat-template> </opt/llm-chat-template.jinja>' in call
+
+
+@pytest.mark.parametrize('script_name', ['1_B_start_vllm_container_with_snapshots.sh', '1_C_start_vllm_container.sh'])
+def test_tilde_overall_template_and_parser_paths_reach_fake_container_launcher(script_name, tmp_path):
+    home = tmp_path / 'runtime-home'
+    home.mkdir()
+    (home / 'chat.jinja').write_text('{{ messages }}', encoding='utf-8')
+    (home / 'plugin.py').write_text('# fake parser plugin\n', encoding='utf-8')
+
+    completed, log, _ = run_launcher(
+        script_name,
+        tmp_path,
+        home=home,
+        infer_overrides={
+            'chat_template': '~/chat.jinja',
+            'tool_call_parser': 'qwen3_coder_raw_passthrough',
+            'tool_parser_plugin': '~/plugin.py',
+            'enable_auto_tool_choice': True,
+        },
+    )
+
+    assert completed.returncode == 0, completed.stderr + completed.stdout
+    call = final_docker_call(log)
+    assert f'<{home}/chat.jinja:/opt/llm-chat-template.jinja:ro>' in call
+    assert '<--chat-template> </opt/llm-chat-template.jinja>' in call
+    assert f'<{home}/plugin.py:/opt/llm-tool-parser-plugin.py:ro>' in call
+    assert '<--tool-parser-plugin> </opt/llm-tool-parser-plugin.py>' in call
 
 @pytest.mark.parametrize('script_name', ['1_B_start_vllm_container_with_snapshots.sh', '1_C_start_vllm_container.sh'])
 @pytest.mark.parametrize('infer_path', sorted((PROJECT_ROOT / 'config').glob('qwen*config-infer.yaml')))

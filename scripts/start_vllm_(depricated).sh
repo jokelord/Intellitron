@@ -9,6 +9,7 @@ set -uo pipefail
 # 1. 获取项目根目录 & YAML 配置文件
 # ============================================================
 PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+source "$PROJECT_ROOT/scripts/_workspace_paths.sh"
 
 # 从 config-overall.yaml 读取实际配置文件路径
 YAML_OVERALL="$PROJECT_ROOT/config/config-overall.yaml"
@@ -17,9 +18,9 @@ YAML_OVERALL="$PROJECT_ROOT/config/config-overall.yaml"
 OVERALL_MODEL=$(python3 -c "import yaml; print((yaml.safe_load(open('$YAML_OVERALL')) or {}).get('model', '') or '')")
 OVERALL_INFER=$(python3 -c "import yaml; print((yaml.safe_load(open('$YAML_OVERALL')) or {}).get('infer', ''))")
 
-YAML_INFER="$PROJECT_ROOT/$OVERALL_INFER"
+YAML_INFER="$(resolve_project_path "$OVERALL_INFER" "$PROJECT_ROOT")"
 if [ -n "$OVERALL_MODEL" ] && [ "$OVERALL_MODEL" != "None" ]; then
-  YAML_MODEL="$PROJECT_ROOT/$OVERALL_MODEL"
+  YAML_MODEL="$(resolve_project_path "$OVERALL_MODEL" "$PROJECT_ROOT")"
 else
   SIBLING_MODEL="$(echo "$YAML_INFER" | sed 's/-config-infer\.yaml$/-config-model.yaml/')"
   if [ "$SIBLING_MODEL" != "$YAML_INFER" ] && [ -f "$SIBLING_MODEL" ]; then
@@ -170,6 +171,16 @@ is_true() {
     value="$(trim_value "${1:-}")"
     [[ "$value" =~ ^([Tt][Rr][Uu][Ee]|1|[Yy][Ee][Ss]|[Oo][Nn])$ ]]
 }
+
+for name in MODEL_PATH SPECULATIVE_MODEL DOWNLOAD_DIR; do
+    value="${!name:-}"
+    if [[ -n "$value" && "$value" != "null" && "$value" != "None" ]]; then
+        printf -v "$name" '%s' "$(expand_home_path "$value")"
+    fi
+done
+if [[ -n "$CHAT_TEMPLATE" && "$CHAT_TEMPLATE" != "null" && "$CHAT_TEMPLATE" != "None" ]]; then
+    CHAT_TEMPLATE="$(resolve_project_path "$CHAT_TEMPLATE" "$PROJECT_ROOT")"
+fi
 
 # ============================================================
 # 4. 确保 logs 目录存在 & 生成日志文件名

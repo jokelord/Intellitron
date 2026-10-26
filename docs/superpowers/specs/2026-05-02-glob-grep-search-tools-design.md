@@ -67,7 +67,7 @@
 ```yaml
 agent:
   search_whitelist_paths:
-    - /home/zk/Project/LLM-deployment
+    - ~/Project/LLM-deployment
     - /tmp
   search_exclude_globs:
     - .git
@@ -125,8 +125,8 @@ Glob search summary
 - showing: 100
 
 Files:
-1. /home/zk/Project/LLM-deployment/backend/config.py
-2. /home/zk/Project/LLM-deployment/backend/agent/agent_runner.py
+1. ~/Project/LLM-deployment/backend/config.py
+2. ~/Project/LLM-deployment/backend/agent/agent_runner.py
 ...
 
 Note: results truncated. Narrow `pattern` or pass a narrower absolute `path`.
@@ -189,9 +189,9 @@ Grep search summary
 - showing files: 3
 
 Files:
-1. /home/zk/Project/LLM-deployment/backend/agent/agent_runner.py
-2. /home/zk/Project/LLM-deployment/tests/test_agent_session_context.py
-3. /home/zk/Project/LLM-deployment/backend/api/agent.py
+1. ~/Project/LLM-deployment/backend/agent/agent_runner.py
+2. ~/Project/LLM-deployment/tests/test_agent_session_context.py
+3. ~/Project/LLM-deployment/backend/api/agent.py
 ```
 
 `content`:
@@ -205,8 +205,8 @@ Grep search summary
 - offset: 0
 
 Content:
-/home/zk/Project/LLM-deployment/backend/agent/agent_runner.py:785:    def tools_and_managed_agents(self):
-/home/zk/Project/LLM-deployment/backend/agent/agent_runner.py:1705:                    tools_to_call_from=self.tools_and_managed_agents,
+~/Project/LLM-deployment/backend/agent/agent_runner.py:785:    def tools_and_managed_agents(self):
+~/Project/LLM-deployment/backend/agent/agent_runner.py:1705:                    tools_to_call_from=self.tools_and_managed_agents,
 ...
 ```
 
@@ -220,8 +220,8 @@ Grep search summary
 - matched files: 4
 
 Counts:
-12  /home/zk/Project/LLM-deployment/backend/agent/agent_runner.py
-4   /home/zk/Project/LLM-deployment/backend/agent/local_llm_model.py
+12  ~/Project/LLM-deployment/backend/agent/agent_runner.py
+4   ~/Project/LLM-deployment/backend/agent/local_llm_model.py
 ...
 ```
 

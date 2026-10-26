@@ -203,7 +203,8 @@ def test_context_validator_refuses_uncertified_budget(monkeypatch):
 
 
 @pytest.mark.parametrize("backend", ["sglang", "vllm"])
-def test_context_budget_uses_active_provider_custom_template_snapshot(tmp_path, monkeypatch, backend):
+@pytest.mark.parametrize("use_tilde", [False, True])
+def test_context_budget_uses_active_provider_custom_template_snapshot(tmp_path, monkeypatch, backend, use_tilde):
     from tokenizers import Tokenizer
     from tokenizers.models import WordLevel
     from tokenizers.pre_tokenizers import Whitespace
@@ -218,12 +219,17 @@ def test_context_budget_uses_active_provider_custom_template_snapshot(tmp_path, 
     serving_template = "{{ 'x ' * 20 }}{% for n in range(5) %}{{ messages[-1].content[0].text }} {% endfor %}"
     template_file = tmp_path / "serving.jinja"
     template_file.write_text(serving_template, encoding="utf-8")
+    monkeypatch.setenv("HOME", str(tmp_path))
+    (tmp_path / "Documents").mkdir(exist_ok=True)
+    (tmp_path / "Project").mkdir(exist_ok=True)
     runner, service = make_runner("basic_agent", "qwen35-native")
     service.active_backend = backend
     runner.config.sglang.max_context_length = 60
     runner.config.vllm.max_model_len = 60
     runner.config.inference.max_tokens = 5
-    getattr(runner.config, backend).chat_template = str(template_file)
+    getattr(runner.config, backend).chat_template = (
+        f"~/{template_file.name}" if use_tilde else str(template_file)
+    )
     other_backend = "vllm" if backend == "sglang" else "sglang"
     getattr(runner.config, other_backend).chat_template = str(tmp_path / "missing-other.jinja")
     session = runner.get_or_create_session(str(uuid4()), None)

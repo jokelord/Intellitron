@@ -45,7 +45,7 @@ def test_coordinator_2_prompt_explicitly_requires_canonical_switch_output():
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `PYTHONPATH=. "/home/zk/Project/LLM-deployment/.sglang/bin/python" -m pytest tests/test_get_tools_no_load_images.py tests/test_multi_agent_config.py -q`
+Run: `PYTHONPATH=. ~/Project/LLM-deployment/.sglang/bin/python -m pytest tests/test_get_tools_no_load_images.py tests/test_multi_agent_config.py -q`
 
 Expected: FAIL because `coordinator_2` still sees normal tools and its prompt does not contain the stricter switch contract.
 
@@ -76,7 +76,7 @@ Update `config/config-agent-prompts.yaml` so `coordinator_2` system prompt expli
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `PYTHONPATH=. "/home/zk/Project/LLM-deployment/.sglang/bin/python" -m pytest tests/test_get_tools_no_load_images.py tests/test_multi_agent_config.py -q`
+Run: `PYTHONPATH=. ~/Project/LLM-deployment/.sglang/bin/python -m pytest tests/test_get_tools_no_load_images.py tests/test_multi_agent_config.py -q`
 
 Expected: PASS
 
@@ -130,7 +130,7 @@ Also add a context-pack/handoff-ledger test asserting that after a `coordinator_
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `PYTHONPATH=. "/home/zk/Project/LLM-deployment/.sglang/bin/python" -m pytest tests/test_multi_agent_runner.py tests/test_agent_session_context.py -q`
+Run: `PYTHONPATH=. ~/Project/LLM-deployment/.sglang/bin/python -m pytest tests/test_multi_agent_runner.py tests/test_agent_session_context.py -q`
 
 Expected: FAIL because `coordinator_2` has no runner-owned secondary handoff path yet.
 
@@ -162,7 +162,7 @@ Do not leave the handoff as plain tool output text.
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `PYTHONPATH=. "/home/zk/Project/LLM-deployment/.sglang/bin/python" -m pytest tests/test_multi_agent_runner.py tests/test_agent_session_context.py -q`
+Run: `PYTHONPATH=. ~/Project/LLM-deployment/.sglang/bin/python -m pytest tests/test_multi_agent_runner.py tests/test_agent_session_context.py -q`
 
 Expected: PASS
 
@@ -206,7 +206,7 @@ def test_run_basic_stream_coordinator_2_filters_tool_call_json_from_chat_bubble(
 
 - [ ] **Step 2: Run the focused test to verify it fails**
 
-Run: `PYTHONPATH=. "/home/zk/Project/LLM-deployment/.sglang/bin/python" -m pytest tests/test_multi_agent_runner.py::test_run_basic_stream_coordinator_2_filters_tool_call_json_from_chat_bubble -q`
+Run: `PYTHONPATH=. ~/Project/LLM-deployment/.sglang/bin/python -m pytest tests/test_multi_agent_runner.py::test_run_basic_stream_coordinator_2_filters_tool_call_json_from_chat_bubble -q`
 
 Expected: FAIL because raw tool-call transcript is still emitted as `message_delta`.
 
@@ -231,7 +231,7 @@ Keep ordinary reasoning/final text flowing to the bubble unchanged.
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `PYTHONPATH=. "/home/zk/Project/LLM-deployment/.sglang/bin/python" -m pytest tests/test_multi_agent_runner.py -q`
+Run: `PYTHONPATH=. ~/Project/LLM-deployment/.sglang/bin/python -m pytest tests/test_multi_agent_runner.py -q`
 
 Expected: PASS
 
@@ -312,7 +312,7 @@ Expected: PASS
 
 - [ ] **Step 3: Run backend phase-1 baseline relevant to this feature**
 
-Run: `PYTHONPATH=. "/home/zk/Project/LLM-deployment/.sglang/bin/python" -m pytest tests/test_multi_agent_runner.py tests/test_agent_session_context.py tests/test_multi_tool_parsing.py tests/test_timeline_projection.py -q`
+Run: `PYTHONPATH=. ~/Project/LLM-deployment/.sglang/bin/python -m pytest tests/test_multi_agent_runner.py tests/test_agent_session_context.py tests/test_multi_tool_parsing.py tests/test_timeline_projection.py -q`
 
 Expected: PASS
 

@@ -38,7 +38,7 @@ def _context_validator(service, messages, tools, max_tokens, enable_thinking):
             configured = getattr(getattr(cfg, backend), "chat_template", None)
             template = None
             if configured:
-                path = Path(configured)
+                path = Path(configured).expanduser()
                 if not path.is_absolute():
                     path = PROJECT_ROOT / path
                 fd = os.open(path, os.O_RDONLY | os.O_NONBLOCK | os.O_NOFOLLOW)

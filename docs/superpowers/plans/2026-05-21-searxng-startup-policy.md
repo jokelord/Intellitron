@@ -29,7 +29,7 @@ def test_failure_message_includes_guided_setup_steps():
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `"/home/zk/Project/LLM-deployment/.sglang/bin/python" -m pytest tests/test_start_backend_searxng.py -q`
+Run: `~/Project/LLM-deployment/.sglang/bin/python -m pytest tests/test_start_backend_searxng.py -q`
 Expected: FAIL because the current failure message does not yet embed the guided setup steps.
 
 - [ ] **Step 3: Add doc expectation for the new operator policy**
@@ -46,7 +46,7 @@ def test_tutorial_mentions_reuse_first_managed_fallback_and_guided_setup():
 
 - [ ] **Step 4: Run tests to verify the new expectations fail before implementation**
 
-Run: `"/home/zk/Project/LLM-deployment/.sglang/bin/python" -m pytest tests/test_start_backend_searxng.py tests/test_searxng_docs.py -q`
+Run: `~/Project/LLM-deployment/.sglang/bin/python -m pytest tests/test_start_backend_searxng.py tests/test_searxng_docs.py -q`
 Expected: FAIL on the newly added assertions.
 
 ### Task 2: Implement Tutorial-Guided Failure Messaging
@@ -85,7 +85,7 @@ def classify_searxng_failure_message(reason: str) -> str:
 
 - [ ] **Step 3: Run focused tests**
 
-Run: `"/home/zk/Project/LLM-deployment/.sglang/bin/python" -m pytest tests/test_start_backend_searxng.py -q`
+Run: `~/Project/LLM-deployment/.sglang/bin/python -m pytest tests/test_start_backend_searxng.py -q`
 Expected: PASS
 
 ### Task 3: Make the Shell Policy Match Reuse-First Plus Managed-Fallback
@@ -136,7 +136,7 @@ def choose_searxng_start_mode(...):
 
 - [ ] **Step 4: Run helper tests**
 
-Run: `"/home/zk/Project/LLM-deployment/.sglang/bin/python" -m pytest tests/test_start_backend_searxng.py -q`
+Run: `~/Project/LLM-deployment/.sglang/bin/python -m pytest tests/test_start_backend_searxng.py -q`
 Expected: PASS
 
 ### Task 4: Sync Active Docs With the New Operator Story
@@ -164,7 +164,7 @@ Expected: PASS
 
 - [ ] **Step 3: Run doc tests**
 
-Run: `"/home/zk/Project/LLM-deployment/.sglang/bin/python" -m pytest tests/test_searxng_docs.py -q`
+Run: `~/Project/LLM-deployment/.sglang/bin/python -m pytest tests/test_searxng_docs.py -q`
 Expected: PASS
 
 ### Task 5: Full Regression and Runtime Verification
@@ -180,7 +180,7 @@ Expected: PASS
 
 - [ ] **Step 1: Run the impacted regression suite**
 
-Run: `"/home/zk/Project/LLM-deployment/.sglang/bin/python" -m pytest tests/test_web_tools_config.py tests/test_searxng_search.py tests/test_start_backend_searxng.py tests/test_searxng_docs.py tests/test_search_and_fetch.py tests/test_web_fetch.py tests/test_cycle_config.py tests/test_cycle_executor.py tests/test_agent_session_context.py tests/test_multi_agent_runner.py -q`
+Run: `~/Project/LLM-deployment/.sglang/bin/python -m pytest tests/test_web_tools_config.py tests/test_searxng_search.py tests/test_start_backend_searxng.py tests/test_searxng_docs.py tests/test_search_and_fetch.py tests/test_web_fetch.py tests/test_cycle_config.py tests/test_cycle_executor.py tests/test_agent_session_context.py tests/test_multi_agent_runner.py -q`
 Expected: PASS
 
 - [ ] **Step 2: Recheck shell syntax**

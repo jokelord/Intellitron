@@ -614,6 +614,22 @@ def test_disabled_asr_skips_local_model_artifact_validation(tmp_path: Path):
     assert config.enabled is False
 
 
+def test_asr_config_file_accepts_home_spelling(tmp_path: Path, monkeypatch):
+    from backend.asr.config import load_asr_config
+
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.setenv("HOME", str(home))
+    data = _valid_config(home)
+    data["enabled"] = False
+    config_path = home / "asr.yaml"
+    config_path.write_text(yaml.safe_dump(data), encoding="utf-8")
+
+    config = load_asr_config("~/asr.yaml", project_root=home)
+
+    assert config.enabled is False
+
+
 @pytest.mark.parametrize("timeout", [0.0, -1.0, float("inf"), float("nan")])
 def test_asr_config_requires_positive_finite_startup_timeout(
     tmp_path: Path, timeout: float

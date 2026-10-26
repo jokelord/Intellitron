@@ -995,7 +995,7 @@ test("template page wiring does not introduce a template-specific network path",
 Run backend tests:
 
 ```bash
-cd /home/zk/Project/LLM-deployment
+cd ~/Project/LLM-deployment
 ./.sglang/bin/python -m pytest \
   tests/test_web_ui_config.py \
   tests/test_runtime_config_limits.py \
@@ -1005,7 +1005,7 @@ cd /home/zk/Project/LLM-deployment
 Run frontend tests:
 
 ```bash
-cd /home/zk/Project/LLM-deployment/frontend
+cd ~/Project/LLM-deployment/frontend
 node --test --experimental-strip-types \
   src/lib/web-ui-config.test.mts \
   src/components/MessageTemplateMenu.test.mjs \
@@ -1020,7 +1020,7 @@ Expected: all focused tests PASS and type-check completes successfully.
 Run:
 
 ```bash
-cd /home/zk/Project/LLM-deployment/frontend
+cd ~/Project/LLM-deployment/frontend
 node --test --experimental-strip-types \
   src/lib/chat-input-alignment.test.mjs \
   src/lib/chat-input-keyboard.test.mts \
@@ -1035,7 +1035,7 @@ Expected: existing input, voice, vision, and uploader tests remain green.
 Run:
 
 ```bash
-cd /home/zk/Project/LLM-deployment/frontend
+cd ~/Project/LLM-deployment/frontend
 npm run build:verify
 ```
 

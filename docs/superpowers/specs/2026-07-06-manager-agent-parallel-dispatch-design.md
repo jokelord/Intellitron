@@ -158,7 +158,7 @@ child `basic_agent` 使用常规 `basic_agent` 的完整工具集与提示词，
       "name": "news-reading-agent",
       "task": "Read today's AI industry news from the assigned sources and produce a concise report...",
       "may_write": true,
-      "reserved_files": ["/home/zk/Documents/news/ai-news.md"]
+      "reserved_files": ["~/Documents/news/ai-news.md"]
     }
   ],
   "max_parallel": 3

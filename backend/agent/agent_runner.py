@@ -8231,7 +8231,7 @@ class AgentRunner:
                 template_text = None
                 if configured_template:
                     from ..config import PROJECT_ROOT
-                    template_path = Path(configured_template)
+                    template_path = Path(configured_template).expanduser()
                     if not template_path.is_absolute():
                         template_path = PROJECT_ROOT / template_path
                     fd = os.open(template_path, os.O_RDONLY | os.O_NONBLOCK | os.O_NOFOLLOW)

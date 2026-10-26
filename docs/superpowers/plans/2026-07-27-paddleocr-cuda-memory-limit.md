@@ -185,7 +185,7 @@ First call `backend.tools.file_ops.read_file` for the original PDF and require c
 
 ```json
 {
-  "message": "读取 `/home/zk/Documents/Jetson_Thor_PCN213501_Update_of_the_Jetson_thor_OrderingPN.pdf`",
+  "message": "读取 `~/Documents/Jetson_Thor_PCN213501_Update_of_the_Jetson_thor_OrderingPN.pdf`",
   "stream": false,
   "mode": "tool_calling",
   "enable_thinking": false

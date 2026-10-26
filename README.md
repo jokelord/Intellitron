@@ -2,7 +2,7 @@
 
 **简体中文（默认）** | [English](README.en.md)
 
-分享自用本地 LLM 伴侣——Intellitron，其为面向 NVIDIA Jetson Thor（ARM64 / SM110a）的本地大语言模型部署与 Agent 交互系统，也可在桌面 GPU 上运行。它将视觉采集、可编程工作流、桌面操作、网络检索、文档阅读与语音输入接入同一套 Chat / Agent 界面，适合把日常阅读和实际工作串起来。
+分享自用本地 LLM 伴侣——Intellitron，其为面向 NVIDIA Jetson Thor（ARM64 / SM110a）的本地大语言模型部署与 Agent 交互系统，也可在英伟达 DGX/RTX Spark 及 桌面 GPU 上运行。它将视觉采集、可编程工作流、桌面操作、网络检索、文档阅读与语音输入接入同一套 Chat / Agent 界面，适合把日常阅读和实际工作串起来。
 
 ## 介绍视频
 
@@ -11,15 +11,16 @@
 ## 特色
 
 1. **视觉阅读伴侣**：Vision Automation 按间隔采集共享屏幕或摄像头画面并发送给模型，让 Agent 随着你翻页持续辅助理解；参见 [Vision 页面说明](frontend/src/app/vision/README.md)。
-2. **自动工作流编排**：Cycle 模式组合等待、消息、拍照与嵌套循环，并支持定时消息，可复用重复的 Chat / Agent 工作流程；参见 [Cycle 配置](config/config-misc.yaml)。
-3. **桌面视觉交互**：内置 [computer-use-vision Skill](backend/skills/computer-use-vision/SKILL.md)，让视觉模型通过桌面截图定位目标，再执行点击、滚动等操作；参见 [操作指南](docs/computer-use-vision-operations.md)。
-4. **批量网络搜索与抓取**：按 [SearXNG 部署教程](deploy/searxng/01_Docker-Compose安装及searXNG拉取教材.md) 和 [后端托管配置指南](deploy/searxng/02_searxng-backend-managed-setup.md) 部署后，`search_and_fetch` 可批量搜索并并发抓取网页正文。 将[示例](deploy/searxng/core-config/settings.yml.example)复制为同目录的 `settings.yml`，并填写密钥。
-5. **直接阅读文档**：部署 PaddleOCR-VL 后，Agent 的 `read_file` 可阅读 PDF、Word 等文档；Word 等 Office 格式需要 LibreOffice 转换。OCR 启动方式见下方「部署与启动」。
-6. **自动语音输入与听写**：部署独立 Qwen3-ASR 服务后，可选择识别后自动发送的语音模式，或转为可编辑文本的听写模式。Dictation Magic Send 可在转写输入末尾精确匹配配置的口令，减少手动点击发送。参见 [ASR 配置](config/config-asr.yaml) 与下方启动说明。
-7. **并行任务分工**：可将入口设为 `manager_agent`，让它把相互独立的任务分发给多个 `basic_agent` 并行执行，并在界面查看进度；参见 [Agent 配置](config/config-agent-operation.yaml)。
-8. **按任务选择工具**：新建 Agent context 前可在设置中勾选所需工具；请求被接受后，工具选择及对应提示词/API schema 固定在该 context 中，便于保持任务所需的能力范围。
-9. **GUI 启动与诊断反馈**：[running-linux-gui-commands Skill](backend/skills/running-linux-gui-commands/SKILL.md) 自动定位 Linux 图形会话，提供启动状态、存活探测、退出码与日志反馈；结合桌面视觉 Skill 可进一步检查实际界面。
-10. **本地记忆**：将 `.md`/`.txt` 笔记放入 `memory/agent-local/`，后端会建立 zvec 语义向量索引，并为后续 Chat / Agent 消息检索相关片段。首次使用请按[本地记忆说明](docs/how-to-use-local-memory.md)准备本地向量模型，并在网页设置中开启“本地记忆”。
+2. **自动向量化本地记忆与快速匹配**：将 `.md`/`.txt` 笔记放入 `memory/agent-local/`，后端会建立 zvec 语义向量索引，并为后续 Chat / Agent 消息检索相关片段。首次使用请按[本地记忆说明](docs/how-to-use-local-memory.md)准备本地向量模型，并在网页设置中开启“本地记忆”。
+3. **自动工作流编排**：Cycle 模式组合等待、消息、拍照与嵌套循环，并支持定时消息，可复用重复的 Chat / Agent 工作流程；参见 [Cycle 配置](config/config-misc.yaml)。
+4. **桌面视觉交互**：内置 [computer-use-vision Skill](backend/skills/computer-use-vision/SKILL.md)，让视觉模型通过桌面截图定位目标，再执行点击、滚动等操作；参见 [操作指南](docs/computer-use-vision-operations.md)。
+5. **批量网络搜索与抓取**：按 [SearXNG 部署教程](deploy/searxng/01_Docker-Compose安装及searXNG拉取教材.md) 和 [后端托管配置指南](deploy/searxng/02_searxng-backend-managed-setup.md) 部署后，`search_and_fetch` 可批量搜索并并发抓取网页正文。 将[示例](deploy/searxng/core-config/settings.yml.example)复制为同目录的 `settings.yml`，并填写密钥。
+6. **直接阅读文档**：部署 PaddleOCR-VL 后，Agent 的 `read_file` 可阅读 PDF、Word 等文档；Word 等 Office 格式需要 LibreOffice 转换。OCR 启动方式见下方「部署与启动」。
+7. **自动语音输入与听写**：部署独立 Qwen3-ASR 服务后，支持2种语音模式：识别后自动发送模式，及转为可编辑文本的听写模式。听写模式下，“Dictation Magic Send” 可在输入末尾精确匹配自定义口令，以减少手动点击发送。参见 [ASR 配置](config/config-asr.yaml) 与下方启动说明。
+8. **并行任务分工**：可将入口设为 `manager_agent`，让它把相互独立的任务分发给多个 `basic_agent` 并行执行，并在界面查看进度；参见 [Agent 配置](config/config-agent-operation.yaml)。
+9. **按任务选择工具**：新建 Agent context 前可在设置中勾选所需工具；请求被接受后，工具选择及对应提示词/API schema 固定在该 context 中，便于保持任务所需的能力范围。
+10. **GUI 启动与诊断反馈**：[running-linux-gui-commands Skill](backend/skills/running-linux-gui-commands/SKILL.md) 自动定位 Linux 图形会话，提供启动状态、存活探测、退出码与日志反馈；结合桌面视觉 Skill 可进一步检查实际界面。
+
 
 ## 项目架构
 

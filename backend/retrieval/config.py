@@ -8,6 +8,13 @@ from .decoding import normalize_encoding
 from .state import require_source_path
 
 
+def resolve_local_memory_path(project_root: str | Path, value: str | Path) -> Path:
+    """Expand a local-memory path, anchoring relative values under the project."""
+    path = Path(value).expanduser()
+    root = Path(project_root).expanduser().absolute()
+    return path if path.is_absolute() else root / path
+
+
 @dataclass(frozen=True)
 class EmbeddingConfig:
     model_id: str = 'intfloat/multilingual-e5-small'
@@ -102,9 +109,9 @@ class LocalMemoryConfig:
             raise ValueError('candidate_k must be >= top_k')
         if self.chunking.overlap_chars >= self.chunking.max_chars or not 16 <= self.chunking.max_tokens <= 512:
             raise ValueError('invalid chunking overlap or token limit')
-        root = Path(project_root).absolute()
-        source = (root / self.source_dir).resolve()
-        state = (root / self.state_dir).resolve()
+        root = Path(project_root).expanduser().absolute()
+        source = resolve_local_memory_path(root, self.source_dir).resolve()
+        state = resolve_local_memory_path(root, self.state_dir).resolve()
         if state == source or state.is_relative_to(source) or source.is_relative_to(state):
             raise ValueError('source_dir and state_dir must not overlap')
         return self
@@ -121,7 +128,7 @@ def _construct(cls, values):
 
 
 def load_local_memory_config(path: str | Path, project_root: str | Path) -> LocalMemoryConfig:
-    with Path(path).open(encoding='utf-8') as handle:
+    with Path(path).expanduser().open(encoding='utf-8') as handle:
         data = yaml.safe_load(handle) or {}
     if not isinstance(data, dict) or set(data) - {'local_memory'}:
         raise ValueError('expected a local_memory YAML section')

@@ -44,6 +44,26 @@ def test_yaml_absolute_native_path_override_is_preserved(field):
 
 
 @pytest.mark.parametrize("field", PATH_FIELDS)
+def test_yaml_native_path_accepts_home_spelling(field, tmp_path, monkeypatch):
+    monkeypatch.setenv("HOME", str(tmp_path))
+    loader = config_module.ConfigLoader()
+    loader._data = {"computer_use": {field: "~/private/native-file"}}
+
+    parsed = loader._parse_computer_use_config()
+
+    assert getattr(parsed, field) == str(tmp_path / "private/native-file")
+
+
+@pytest.mark.parametrize("field", PATH_FIELDS)
+def test_runtime_config_accepts_home_spelled_native_path(field, tmp_path, monkeypatch):
+    monkeypatch.setenv("HOME", str(tmp_path))
+
+    config = ComputerUseConfig.from_mapping({field: "~/native-file"})
+
+    assert getattr(config, field) == str(tmp_path / "native-file")
+
+
+@pytest.mark.parametrize("field", PATH_FIELDS)
 def test_yaml_null_native_path_is_preserved(field):
     loader = config_module.ConfigLoader()
     loader._data = {"computer_use": {field: None}}

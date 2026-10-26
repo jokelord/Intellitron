@@ -4,7 +4,7 @@
 
 **Goal:** Extend Cycle mode with a durable-in-process top-level scheduled-message track, browser-timezone-aware `HH:mm:ss` delivery, queued arbitration with ordinary messages, reconnectable SSE recovery, Cycle timeout exemption, and a footer-independent readable canvas in both text and vision pages.
 
-**Approved design:** [2026-09-17-cycle-scheduled-message-and-recovery-design.md](/home/zk/Project/LLM-deployment/docs/superpowers/specs/2026-09-17-cycle-scheduled-message-and-recovery-design.md)
+**Approved design:** [2026-09-17-cycle-scheduled-message-and-recovery-design.md](../specs/2026-09-17-cycle-scheduled-message-and-recovery-design.md)
 
 **Architecture terms:**
 

@@ -74,6 +74,34 @@ def test_compact_config_defaults_loaded(monkeypatch, tmp_path):
     assert cfg.compact.image_token_estimate_per_image == 512
 
 
+def test_overall_and_subconfig_paths_accept_home_spelling(monkeypatch, tmp_path):
+    _make_minimal_config_tree(tmp_path, agent_prompts={"marker": "loaded"})
+    monkeypatch.setenv("HOME", str(tmp_path))
+    overall_path = tmp_path / "config" / "config-overall.yaml"
+    overall = yaml.safe_load(overall_path.read_text())
+    for key, name in (("model", "model.yaml"), ("infer", "infer.yaml"),
+                      ("server", "server.yaml"), ("misc", "misc.yaml"),
+                      ("agent_prompts", "agent_prompts.yaml")):
+        overall[key] = f"~/config/{name}"
+    (tmp_path / "config" / "local-memory.yaml").write_text(yaml.safe_dump({
+        "local_memory": {"enabled": False},
+    }))
+    overall["local_memory"] = "~/config/local-memory.yaml"
+    overall_path.write_text(yaml.safe_dump(overall))
+    monkeypatch.setattr("backend.config.PROJECT_ROOT", tmp_path)
+
+    import backend.config as cfg_mod
+    loader = cfg_mod.ConfigLoader(config_path=Path("~/config/config-overall.yaml"))
+    loader.load()
+
+    assert loader._data["model_path"] == "/dummy/model"
+    assert loader._data["max_context_length"] == 32000
+    assert loader._data["host"] == "127.0.0.1"
+    assert loader._data["some_other_field"] == "value"
+    assert loader._agent_prompts_data["marker"] == "loaded"
+    assert loader._config.local_memory.enabled is False
+
+
 def test_compact_config_explicit_values_override_defaults(monkeypatch, tmp_path):
     """Explicit yaml values override defaults."""
     _make_minimal_config_tree(

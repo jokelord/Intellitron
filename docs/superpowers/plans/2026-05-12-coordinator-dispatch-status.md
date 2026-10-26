@@ -36,7 +36,7 @@ def test_build_coordinator_turn_message_uses_yaml_template():
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `PYTHONPATH=. "/home/zk/Project/LLM-deployment/.sglang/bin/python" -m pytest tests/test_multi_agent_runner.py::test_build_coordinator_turn_message_uses_yaml_template -v`
+Run: `PYTHONPATH=. ~/Project/LLM-deployment/.sglang/bin/python -m pytest tests/test_multi_agent_runner.py::test_build_coordinator_turn_message_uses_yaml_template -v`
 
 Expected: FAIL because `_build_coordinator_turn_message()` still returns hardcoded English text.
 
@@ -59,7 +59,7 @@ If you switch, keep internal reasoning text as short as possible, targeting fewe
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `PYTHONPATH=. "/home/zk/Project/LLM-deployment/.sglang/bin/python" -m pytest tests/test_multi_agent_runner.py::test_build_coordinator_turn_message_uses_yaml_template -v`
+Run: `PYTHONPATH=. ~/Project/LLM-deployment/.sglang/bin/python -m pytest tests/test_multi_agent_runner.py::test_build_coordinator_turn_message_uses_yaml_template -v`
 
 Expected: PASS
 
@@ -98,7 +98,7 @@ def test_run_stream_emits_dispatch_running_before_coordinator_finishes():
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `PYTHONPATH=. "/home/zk/Project/LLM-deployment/.sglang/bin/python" -m pytest tests/test_multi_agent_runner.py::test_run_stream_emits_dispatch_running_before_coordinator_finishes -v`
+Run: `PYTHONPATH=. ~/Project/LLM-deployment/.sglang/bin/python -m pytest tests/test_multi_agent_runner.py::test_run_stream_emits_dispatch_running_before_coordinator_finishes -v`
 
 Expected: FAIL because `run_stream()` currently blocks in `_run_coordinator_routing_pass()` and emits no dispatch step.
 
@@ -120,7 +120,7 @@ Dispatch payload should stay inside `agent_step` and include `dispatch_status`, 
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `PYTHONPATH=. "/home/zk/Project/LLM-deployment/.sglang/bin/python" -m pytest tests/test_multi_agent_runner.py -q`
+Run: `PYTHONPATH=. ~/Project/LLM-deployment/.sglang/bin/python -m pytest tests/test_multi_agent_runner.py -q`
 
 Expected: PASS for new dispatch lifecycle tests and existing coordinator route tests.
 
@@ -148,7 +148,7 @@ def test_classify_coordinator_stream_uses_stream_content_for_switch():
 
 - [ ] **Step 2: Run test to verify it fails or exposes missing helper boundaries**
 
-Run: `PYTHONPATH=. "/home/zk/Project/LLM-deployment/.sglang/bin/python" -m pytest tests/test_multi_agent_runner.py -q`
+Run: `PYTHONPATH=. ~/Project/LLM-deployment/.sglang/bin/python -m pytest tests/test_multi_agent_runner.py -q`
 
 Expected: FAIL or require a new helper boundary for coordinator stream aggregation.
 
@@ -166,7 +166,7 @@ Do not send this delta as frontend thought content. After stream completes, clas
 
 - [ ] **Step 4: Run tests to verify it passes**
 
-Run: `PYTHONPATH=. "/home/zk/Project/LLM-deployment/.sglang/bin/python" -m pytest tests/test_multi_agent_runner.py tests/test_multi_tool_parsing.py -q`
+Run: `PYTHONPATH=. ~/Project/LLM-deployment/.sglang/bin/python -m pytest tests/test_multi_agent_runner.py tests/test_multi_tool_parsing.py -q`
 
 Expected: PASS
 
@@ -317,7 +317,7 @@ Any new `json.dumps()` used in stream responses or structured logging must inclu
 Run:
 
 ```bash
-PYTHONPATH=. "/home/zk/Project/LLM-deployment/.sglang/bin/python" -m pytest \
+PYTHONPATH=. ~/Project/LLM-deployment/.sglang/bin/python -m pytest \
   tests/test_multi_agent_runner.py \
   tests/test_multi_tool_parsing.py \
   tests/test_agent_api_images.py \
@@ -332,7 +332,7 @@ Expected: all pass.
 Run:
 
 ```bash
-PYTHONPATH=. "/home/zk/Project/LLM-deployment/.sglang/bin/python" -m pytest \
+PYTHONPATH=. ~/Project/LLM-deployment/.sglang/bin/python -m pytest \
   tests/test_multi_agent_config.py \
   tests/test_multi_agent_runner.py \
   tests/test_multi_tool_parsing.py \

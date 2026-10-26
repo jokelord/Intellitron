@@ -20,7 +20,7 @@ fi
 source "$SHARED_SGLANG_ACTIVATE"
 
 if [ -n "${ASR_CONFIG_PATH:-}" ]; then
-    ASR_CONFIG="$ASR_CONFIG_PATH"
+    ASR_CONFIG="$(expand_home_path "$ASR_CONFIG_PATH")"
 else
     ASR_CONFIG="$($SHARED_SGLANG_PYTHON - "$PROJECT_ROOT" "$YAML_OVERALL" <<'PYEOF'
 import sys
@@ -29,10 +29,13 @@ import yaml
 
 root = Path(sys.argv[1])
 overall = yaml.safe_load(Path(sys.argv[2]).read_text(encoding="utf-8")) or {}
-relative = overall.get("asr")
-if not relative:
+selected = overall.get("asr")
+if not selected:
     raise SystemExit("config-overall.yaml has no asr route")
-print(root / relative)
+sys.path.insert(0, str(root / "scripts"))
+from path_utils import resolve_path
+
+print(resolve_path(selected, root))
 PYEOF
 )"
 fi
@@ -47,7 +50,7 @@ if [ "$ASR_ENABLED" != "true" ]; then
     exit 0
 fi
 
-LOG_DIR="${ASR_LOG_DIR:-$PROJECT_ROOT/logs}"
+LOG_DIR="$(expand_home_path "${ASR_LOG_DIR:-$PROJECT_ROOT/logs}")"
 mkdir -p "$LOG_DIR"
 LOG_FILE="$LOG_DIR/asr_sglang_$(date +%Y%m%d_%H%M%S).log"
 

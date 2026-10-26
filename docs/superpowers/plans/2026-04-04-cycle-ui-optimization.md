@@ -103,7 +103,7 @@ class TestListCamerasV4L2:
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `cd /home/zk/Project/LLM-deployment && .sglang/bin/python -m pytest tests/test_camera_service.py::TestListCamerasV4L2 -v`
+Run: `cd ~/Project/LLM-deployment && .sglang/bin/python -m pytest tests/test_camera_service.py::TestListCamerasV4L2 -v`
 
 Expected: FAIL — `backend.cycle.camera` has no `os`, `fcntl` attributes
 
@@ -396,7 +396,7 @@ class TestCapture:
 
 - [ ] **Step 3: Run all camera tests**
 
-Run: `cd /home/zk/Project/LLM-deployment && .sglang/bin/python -m pytest tests/test_camera_service.py -v`
+Run: `cd ~/Project/LLM-deployment && .sglang/bin/python -m pytest tests/test_camera_service.py -v`
 
 Expected: All pass
 
@@ -464,7 +464,7 @@ to:
 
 - [ ] **Step 2: Run existing tests to ensure nothing breaks**
 
-Run: `cd /home/zk/Project/LLM-deployment && .sglang/bin/python -m pytest tests/ -v`
+Run: `cd ~/Project/LLM-deployment && .sglang/bin/python -m pytest tests/ -v`
 
 Expected: All pass
 
@@ -505,7 +505,7 @@ export interface Camera {
 
 - [ ] **Step 2: Verify TypeScript compilation**
 
-Run: `cd /home/zk/Project/LLM-deployment/frontend && npx tsc --noEmit`
+Run: `cd ~/Project/LLM-deployment/frontend && npx tsc --noEmit`
 
 Expected: 0 errors
 
@@ -691,7 +691,7 @@ Delete the file: `frontend/src/components/ActionPanel.tsx`
 
 - [ ] **Step 4: Verify TypeScript compilation**
 
-Run: `cd /home/zk/Project/LLM-deployment/frontend && npx tsc --noEmit`
+Run: `cd ~/Project/LLM-deployment/frontend && npx tsc --noEmit`
 
 Expected: Errors in `page.tsx` and `vision/page.tsx` (they still import ActionPanel) — that's OK, we'll fix them in next tasks.
 
@@ -767,7 +767,7 @@ In `frontend/src/app/vision/page.tsx`:
 
 - [ ] **Step 2: Verify TypeScript compilation**
 
-Run: `cd /home/zk/Project/LLM-deployment/frontend && npx tsc --noEmit`
+Run: `cd ~/Project/LLM-deployment/frontend && npx tsc --noEmit`
 
 Expected: Errors only from `page.tsx` (still uses ActionPanel) — OK for now
 
@@ -867,13 +867,13 @@ In `frontend/src/app/page.tsx`:
 
 - [ ] **Step 2: Verify TypeScript compilation**
 
-Run: `cd /home/zk/Project/LLM-deployment/frontend && npx tsc --noEmit`
+Run: `cd ~/Project/LLM-deployment/frontend && npx tsc --noEmit`
 
 Expected: 0 errors
 
 - [ ] **Step 3: Verify Next.js build**
 
-Run: `cd /home/zk/Project/LLM-deployment/frontend && npx next build`
+Run: `cd ~/Project/LLM-deployment/frontend && npx next build`
 
 Expected: Build succeeds for both `/` and `/vision` routes
 
@@ -924,7 +924,7 @@ In `frontend/src/components/CycleEditor.tsx`, replace the load effect (lines 37-
 
 - [ ] **Step 2: Verify TypeScript compilation**
 
-Run: `cd /home/zk/Project/LLM-deployment/frontend && npx tsc --noEmit`
+Run: `cd ~/Project/LLM-deployment/frontend && npx tsc --noEmit`
 
 Expected: 0 errors
 
@@ -943,19 +943,19 @@ git commit -m "fix: CycleEditor properly loads default steps from backend config
 
 - [ ] **Step 1: Run all backend tests**
 
-Run: `cd /home/zk/Project/LLM-deployment && .sglang/bin/python -m pytest tests/ -v`
+Run: `cd ~/Project/LLM-deployment && .sglang/bin/python -m pytest tests/ -v`
 
 Expected: All tests pass
 
 - [ ] **Step 2: Run TypeScript compilation check**
 
-Run: `cd /home/zk/Project/LLM-deployment/frontend && npx tsc --noEmit`
+Run: `cd ~/Project/LLM-deployment/frontend && npx tsc --noEmit`
 
 Expected: 0 errors
 
 - [ ] **Step 3: Run Next.js build**
 
-Run: `cd /home/zk/Project/LLM-deployment/frontend && npx next build`
+Run: `cd ~/Project/LLM-deployment/frontend && npx next build`
 
 Expected: Build succeeds for both `/` and `/vision` routes
 

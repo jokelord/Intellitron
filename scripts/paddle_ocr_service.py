@@ -121,6 +121,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--cuda-memory-limit-gb", required=True, type=int)
     parser.add_argument("--memory-report", required=True, type=Path)
     args, paddlex_args = parser.parse_known_args(argv)
+    args.memory_report = args.memory_report.expanduser()
     if not paddlex_args:
         parser.error("PaddleX arguments are required")
 

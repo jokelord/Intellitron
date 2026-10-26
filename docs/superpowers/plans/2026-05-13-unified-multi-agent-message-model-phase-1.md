@@ -77,7 +77,7 @@ def test_coordinator_1_and_coordinator_2_prompts_exist():
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `PYTHONPATH=. "/home/zk/Project/LLM-deployment/.sglang/bin/python" -m pytest tests/test_multi_agent_runner.py::test_config_exposes_coordinator_1_timeout_seconds tests/test_multi_agent_runner.py::test_coordinator_1_and_coordinator_2_prompts_exist -q`
+Run: `PYTHONPATH=. ~/Project/LLM-deployment/.sglang/bin/python -m pytest tests/test_multi_agent_runner.py::test_config_exposes_coordinator_1_timeout_seconds tests/test_multi_agent_runner.py::test_coordinator_1_and_coordinator_2_prompts_exist -q`
 
 Expected: FAIL because config and prompt structure still only expose the old `coordinator_agent` profile.
 
@@ -118,7 +118,7 @@ Keep top-level keys required by the user stable:
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `PYTHONPATH=. "/home/zk/Project/LLM-deployment/.sglang/bin/python" -m pytest tests/test_multi_agent_runner.py::test_config_exposes_coordinator_1_timeout_seconds tests/test_multi_agent_runner.py::test_coordinator_1_and_coordinator_2_prompts_exist -q`
+Run: `PYTHONPATH=. ~/Project/LLM-deployment/.sglang/bin/python -m pytest tests/test_multi_agent_runner.py::test_config_exposes_coordinator_1_timeout_seconds tests/test_multi_agent_runner.py::test_coordinator_1_and_coordinator_2_prompts_exist -q`
 
 Expected: PASS
 
@@ -163,7 +163,7 @@ def test_classify_coordinator_output_accepts_coordinator_2_target():
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `PYTHONPATH=. "/home/zk/Project/LLM-deployment/.sglang/bin/python" -m pytest tests/test_multi_tool_parsing.py::test_parse_switch_agent_command_from_canonical_array_to_coordinator_2 tests/test_multi_agent_runner.py::test_classify_coordinator_output_accepts_coordinator_2_target -q`
+Run: `PYTHONPATH=. ~/Project/LLM-deployment/.sglang/bin/python -m pytest tests/test_multi_tool_parsing.py::test_parse_switch_agent_command_from_canonical_array_to_coordinator_2 tests/test_multi_agent_runner.py::test_classify_coordinator_output_accepts_coordinator_2_target -q`
 
 Expected: FAIL because routing still only accepts `basic_agent`.
 
@@ -181,7 +181,7 @@ Keep `LocalLLMModel._parse_switch_agent_command()` generic; do not hardcode only
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `PYTHONPATH=. "/home/zk/Project/LLM-deployment/.sglang/bin/python" -m pytest tests/test_multi_tool_parsing.py tests/test_multi_agent_runner.py -q`
+Run: `PYTHONPATH=. ~/Project/LLM-deployment/.sglang/bin/python -m pytest tests/test_multi_tool_parsing.py tests/test_multi_agent_runner.py -q`
 
 Expected: PASS for new target parsing and existing switch parsing coverage.
 
@@ -214,7 +214,7 @@ def test_get_or_create_session_initializes_coordinator_1_entry_state():
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `PYTHONPATH=. "/home/zk/Project/LLM-deployment/.sglang/bin/python" -m pytest tests/test_multi_agent_runner.py::test_get_or_create_session_initializes_coordinator_1_entry_state -q`
+Run: `PYTHONPATH=. ~/Project/LLM-deployment/.sglang/bin/python -m pytest tests/test_multi_agent_runner.py::test_get_or_create_session_initializes_coordinator_1_entry_state -q`
 
 Expected: FAIL because entry profile is still `coordinator_agent`.
 
@@ -231,7 +231,7 @@ Update `AgentSession.current_agent_name` defaults and session preparation logic 
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `PYTHONPATH=. "/home/zk/Project/LLM-deployment/.sglang/bin/python" -m pytest tests/test_multi_agent_runner.py -q`
+Run: `PYTHONPATH=. ~/Project/LLM-deployment/.sglang/bin/python -m pytest tests/test_multi_agent_runner.py -q`
 
 Expected: PASS with updated entry-profile expectations.
 
@@ -284,7 +284,7 @@ def test_coordinator_routing_stream_times_out_to_basic_agent(agent_runner):
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `PYTHONPATH=. "/home/zk/Project/LLM-deployment/.sglang/bin/python" -m pytest tests/test_agent_session_context.py::test_coordinator_routing_stream_times_out_to_basic_agent -q`
+Run: `PYTHONPATH=. ~/Project/LLM-deployment/.sglang/bin/python -m pytest tests/test_agent_session_context.py::test_coordinator_routing_stream_times_out_to_basic_agent -q`
 
 Expected: FAIL because timeout fallback is not implemented.
 
@@ -317,7 +317,7 @@ Do not apply timeout to `coordinator_2`; this timeout is only for `coordinator_1
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `PYTHONPATH=. "/home/zk/Project/LLM-deployment/.sglang/bin/python" -m pytest tests/test_agent_session_context.py tests/test_multi_agent_runner.py -q`
+Run: `PYTHONPATH=. ~/Project/LLM-deployment/.sglang/bin/python -m pytest tests/test_agent_session_context.py tests/test_multi_agent_runner.py -q`
 
 Expected: PASS including timeout fallback coverage.
 
@@ -358,7 +358,7 @@ def test_run_stream_emits_timeline_event_for_routing_delta():
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `PYTHONPATH=. "/home/zk/Project/LLM-deployment/.sglang/bin/python" -m pytest tests/test_multi_agent_runner.py::test_run_stream_emits_timeline_event_for_routing_delta -q`
+Run: `PYTHONPATH=. ~/Project/LLM-deployment/.sglang/bin/python -m pytest tests/test_multi_agent_runner.py::test_run_stream_emits_timeline_event_for_routing_delta -q`
 
 Expected: FAIL because `timeline_event` is not yet emitted.
 
@@ -376,7 +376,7 @@ Teach `_run_coordinator_routing_stream()` to emit timeline items for routing del
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `PYTHONPATH=. "/home/zk/Project/LLM-deployment/.sglang/bin/python" -m pytest tests/test_multi_agent_runner.py -q`
+Run: `PYTHONPATH=. ~/Project/LLM-deployment/.sglang/bin/python -m pytest tests/test_multi_agent_runner.py -q`
 
 Expected: PASS for new timeline-event path and existing stream tests.
 
@@ -416,7 +416,7 @@ def test_compile_context_pack_for_coordinator_2_uses_route_receipt_and_unresolve
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `PYTHONPATH=. "/home/zk/Project/LLM-deployment/.sglang/bin/python" -m pytest tests/test_timeline_projection.py::test_compile_context_pack_for_coordinator_2_uses_route_receipt_and_unresolved_items -q`
+Run: `PYTHONPATH=. ~/Project/LLM-deployment/.sglang/bin/python -m pytest tests/test_timeline_projection.py::test_compile_context_pack_for_coordinator_2_uses_route_receipt_and_unresolved_items -q`
 
 Expected: FAIL because timeline/behavior compiler state does not yet exist.
 
@@ -456,7 +456,7 @@ For Phase 1, keep this deterministic and minimal; no LLM summarizer.
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `PYTHONPATH=. "/home/zk/Project/LLM-deployment/.sglang/bin/python" -m pytest tests/test_timeline_projection.py -q`
+Run: `PYTHONPATH=. ~/Project/LLM-deployment/.sglang/bin/python -m pytest tests/test_timeline_projection.py -q`
 
 Expected: PASS
 
@@ -495,7 +495,7 @@ def test_activate_profile_agent_compiles_context_pack_for_target_agent():
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `PYTHONPATH=. "/home/zk/Project/LLM-deployment/.sglang/bin/python" -m pytest tests/test_multi_agent_runner.py::test_activate_profile_agent_compiles_context_pack_for_target_agent -q`
+Run: `PYTHONPATH=. ~/Project/LLM-deployment/.sglang/bin/python -m pytest tests/test_multi_agent_runner.py::test_activate_profile_agent_compiles_context_pack_for_target_agent -q`
 
 Expected: FAIL because `_activate_profile_agent()` does not compile or store context packs.
 
@@ -515,7 +515,7 @@ Preserve shared memory/state semantics already covered by existing tests.
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `PYTHONPATH=. "/home/zk/Project/LLM-deployment/.sglang/bin/python" -m pytest tests/test_multi_agent_runner.py -q`
+Run: `PYTHONPATH=. ~/Project/LLM-deployment/.sglang/bin/python -m pytest tests/test_multi_agent_runner.py -q`
 
 Expected: PASS
 
@@ -680,7 +680,7 @@ def test_coordinator_terminal_logging_can_be_disabled_or_throttled_separately(ag
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `PYTHONPATH=. "/home/zk/Project/LLM-deployment/.sglang/bin/python" -m pytest tests/test_agent_session_context.py::test_coordinator_terminal_logging_can_be_disabled_or_throttled_separately -q`
+Run: `PYTHONPATH=. ~/Project/LLM-deployment/.sglang/bin/python -m pytest tests/test_agent_session_context.py::test_coordinator_terminal_logging_can_be_disabled_or_throttled_separately -q`
 
 Expected: FAIL because no readable CLI-stream strategy boundary exists.
 
@@ -697,7 +697,7 @@ Use this only for terminal/live printing decisions, not for Web UI SSE. Web UI m
 
 - [ ] **Step 4: Run focused tests to verify they pass**
 
-Run: `PYTHONPATH=. "/home/zk/Project/LLM-deployment/.sglang/bin/python" -m pytest tests/test_agent_session_context.py -q`
+Run: `PYTHONPATH=. ~/Project/LLM-deployment/.sglang/bin/python -m pytest tests/test_agent_session_context.py -q`
 
 Expected: PASS
 
@@ -716,7 +716,7 @@ git commit -m "refactor: separate CLI readability from web streaming"
 
 - [ ] **Step 1: Run backend tests**
 
-Run: `PYTHONPATH=. "/home/zk/Project/LLM-deployment/.sglang/bin/python" -m pytest tests/test_multi_agent_runner.py tests/test_agent_session_context.py tests/test_multi_tool_parsing.py tests/test_timeline_projection.py -q`
+Run: `PYTHONPATH=. ~/Project/LLM-deployment/.sglang/bin/python -m pytest tests/test_multi_agent_runner.py tests/test_agent_session_context.py tests/test_multi_tool_parsing.py tests/test_timeline_projection.py -q`
 
 Expected: PASS
 

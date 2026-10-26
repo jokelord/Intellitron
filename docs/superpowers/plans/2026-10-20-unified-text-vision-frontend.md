@@ -10,11 +10,11 @@
 
 **Tech Stack:** Existing Next.js 14, React 18, TypeScript, Node 24 `node:test`, existing React component renderer, existing Python/FastAPI contracts; no new dependencies.
 
-**Spec:** [Approved SPEC](/home/zk/Project/LLM-deployment/docs/superpowers/specs/2026-10-20-unified-text-vision-frontend-spec.md). The user approved this SPEC and requested plan creation followed immediately by subagent implementation on 2026-10-20 (America/Los_Angeles).
+**Spec:** [Approved SPEC](../specs/2026-10-20-unified-text-vision-frontend-spec.md). The user approved this SPEC and requested plan creation followed immediately by subagent implementation on 2026-10-20 (America/Los_Angeles).
 
 ## Global Constraints
 
-- Work in `/home/zk/Project/LLM-deployment`; no git commands, commits, branches or worktrees without separate user permission. Do not run skill scripts that invoke git implicitly.
+- Work in `~/Project/LLM-deployment`; no git commands, commits, branches or worktrees without separate user permission. Do not run skill scripts that invoke git implicitly.
 - The original implementation used three implementers. The user's follow-up authorized one independent auditor; repairs reuse the original implementer contexts, for four agents total, below the limit of six. No worker may spawn agents or reviewers.
 - The initial execution excluded independent review. The authorized follow-up audit is complete; implementers verify repairs and the coordinator runs integration checks directly, without another reviewer stage.
 - Only this implementation plan is written. No `.superpowers` ledger, per-step summaries, task report files or chapter completion documents. Report progress/results through agent messages.

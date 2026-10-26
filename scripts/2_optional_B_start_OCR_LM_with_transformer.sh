@@ -24,6 +24,13 @@ OCR_STOPPING_MARKER="${OCR_STOPPING_MARKER:-${OCR_START_LOCK}.stopping}"
 OCR_CUDA_MEMORY_LIMIT_GB="${OCR_CUDA_MEMORY_LIMIT_GB:-}"
 OCR_MEMORY_REPORT="${OCR_MEMORY_REPORT:-$SHARED_WORKSPACE_ROOT/logs/paddleocr-cuda-memory-limit.json}"
 OCR_SERVICE_WRAPPER="${OCR_SERVICE_WRAPPER:-$PROJECT_ROOT/scripts/paddle_ocr_service.py}"
+PIPELINE_CONFIG="$(resolve_project_path "$PIPELINE_CONFIG" "$PROJECT_ROOT")"
+ATTESTATION_PATH="$(expand_home_path "$ATTESTATION_PATH")"
+OCR_LOG="$(expand_home_path "$OCR_LOG")"
+OCR_START_LOCK="$(expand_home_path "$OCR_START_LOCK")"
+OCR_STOPPING_MARKER="$(expand_home_path "$OCR_STOPPING_MARKER")"
+OCR_MEMORY_REPORT="$(expand_home_path "$OCR_MEMORY_REPORT")"
+OCR_SERVICE_WRAPPER="$(expand_home_path "$OCR_SERVICE_WRAPPER")"
 OCR_PID=""
 OCR_START_LOCK_HELD=0
 
@@ -48,9 +55,10 @@ import yaml
 
 root = Path(sys.argv[1])
 overall = yaml.safe_load((root / "config/config-overall.yaml").read_text()) or {}
-server_path = Path(overall.get("server", "config/config-server.yaml"))
-if not server_path.is_absolute():
-    server_path = root / server_path
+sys.path.insert(0, str(root / "scripts"))
+from path_utils import resolve_path
+
+server_path = resolve_path(overall.get("server", "config/config-server.yaml"), root)
 server = yaml.safe_load(server_path.read_text()) or {}
 value = (server.get("ocr") or {}).get("cuda_memory_limit_gb", 16)
 if isinstance(value, bool) or not isinstance(value, int) or value <= 0:

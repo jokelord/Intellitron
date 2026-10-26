@@ -67,6 +67,7 @@ def run_probe(app_config, *, authorization_timeout=None, transport_timeout=None)
     config = app_config.computer_use
     if not config.helper_binary:
         raise NativeUnavailable('HELPER_NOT_BUILT')
+    helper_binary = str(Path(config.helper_binary).expanduser())
     runtime = capability.command_runtime_config()
     supervisor = ProcessSupervisor(max_output_bytes=runtime.max_output_bytes,
                                    termination_grace_seconds=runtime.termination_grace_seconds)
@@ -79,7 +80,7 @@ def run_probe(app_config, *, authorization_timeout=None, transport_timeout=None)
             custom_blacklist=runtime.command_blacklist,
             max_exec_timeout_seconds=runtime.max_exec_timeout_seconds,
             max_output_bytes=runtime.max_output_bytes)
-        native = NativeClient(helper_binary=config.helper_binary, supervisor=supervisor,
+        native = NativeClient(helper_binary=helper_binary, supervisor=supervisor,
             environment_builder=EnvironmentBuilder(runtime), command_policy=policy,
             owner_session_id=owner,
             timeout=config.transport_timeout_seconds if transport_timeout is None else transport_timeout,
@@ -130,6 +131,7 @@ def main(argv=None):
     args = parser.parse_args(argv)
     if not args.authorize:
         parser.error('--authorize is required for isolated capture and POINTER authorization')
+    args.helper_binary = str(Path(args.helper_binary).expanduser())
     if not Path(args.helper_binary).is_absolute() or '\x00' in args.helper_binary:
         parser.error('--helper-binary must be an absolute path')
     try:

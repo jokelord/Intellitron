@@ -22,6 +22,7 @@ TARGET_PREFIX = "model.visual."
 
 
 def _read_header(source: Path) -> tuple[dict[str, Any], int]:
+    source = Path(source).expanduser()
     with source.open("rb") as handle:
         raw_length = handle.read(8)
         if len(raw_length) != 8:
@@ -42,8 +43,8 @@ def _read_header(source: Path) -> tuple[dict[str, Any], int]:
 
 def rewrite_vision_keys(source: Path, target: Path) -> int:
     """Write a repaired safetensors file and return the number of renamed keys."""
-    source = source.resolve()
-    target = target.resolve()
+    source = Path(source).expanduser().resolve()
+    target = Path(target).expanduser().resolve()
     if source == target:
         raise ValueError("source and target must be different files")
     if not source.is_file():
@@ -90,8 +91,8 @@ def rewrite_vision_keys(source: Path, target: Path) -> int:
 
 def build_repaired_model_directory(source: Path, output_dir: Path) -> int:
     """Create a model directory with linked metadata and repaired weight file."""
-    source = source.absolute()
-    output_dir = output_dir.absolute()
+    source = Path(source).expanduser().absolute()
+    output_dir = Path(output_dir).expanduser().absolute()
     if output_dir.exists():
         raise FileExistsError(f"output model directory already exists: {output_dir}")
 

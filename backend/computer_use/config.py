@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass, fields
+from pathlib import Path
 from typing import Any, Mapping
 
 
@@ -61,6 +62,12 @@ class ComputerUseConfig:
     def __post_init__(self) -> None:
         for name in ("helper_binary", "calibration_report_path", "operator_session_safety_config_path"):
             value = getattr(self, name)
+            if isinstance(value, str) and (value == "~" or value.startswith("~/")):
+                try:
+                    value = str(Path(value).expanduser())
+                except (OSError, RuntimeError):
+                    raise ValueError(f"{name} must be an absolute path") from None
+                object.__setattr__(self, name, value)
             if value is not None and (not isinstance(value, str) or not value.startswith("/") or "\x00" in value):
                 raise ValueError(f"{name} must be an absolute path")
         _positive_number(self.authorization_timeout_seconds, "authorization_timeout_seconds")

@@ -45,6 +45,7 @@ def main() -> int:
     parser.add_argument("--artifact-dir", type=Path, required=True)
     parser.add_argument("--fixture-only", action="store_true")
     args = parser.parse_args()
+    args.artifact_dir = args.artifact_dir.expanduser()
     manifest = build_manifest(backend=args.backend, fixture_only=args.fixture_only)
     args.artifact_dir.mkdir(parents=True, exist_ok=True)
     output = args.artifact_dir / "computer-use-acceptance.json"

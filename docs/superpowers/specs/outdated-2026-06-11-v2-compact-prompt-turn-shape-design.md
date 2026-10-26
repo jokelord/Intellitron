@@ -76,7 +76,7 @@ compact 路径不应主动重新生成或写入 `session.runtime_context`。但 
 - [N6] **不**改前端协议（`runCompactSSE` 仍消费相同事件流，前端 `applyCompactProjection` 不变）。
 - [N7] **不**在 v2 路径上做"分多轮 prefill 让每轮享受之前所有轮的 prefix cache"的多 pass 优化——这是单独的设计提案，本 spec 范围之外。
 - [N8] **不**修改 `coordinator_1_routing_*` 相关参数（`coordinator_1` 走它自己的 routing 路径，与 compact 无关）。
-- [N9] **不**修改 smolagents 库本身（`/home/zk/Project/LLM-deployment/.sglang/lib/python3.12/site-packages/smolagents/`）。
+- [N9] **不**修改 smolagents 库本身（`~/Project/LLM-deployment/.sglang/lib/python3.12/site-packages/smolagents/`）。
 - [N10] **不**修改 SGLang 启动参数（`scripts/1_start_sglang.sh`、`config/qwen3__5-config-infer.yaml`）—— mamba / KV 调优已在 `踩坑记录4.md` 中落地。
 
 ## 4. 架构：组件、数据流、调用栈
@@ -585,13 +585,13 @@ v2 spec 的 byte-equal 理想**被打破**：
   - trap #21：frontend local state ≠ wire format（chat 模式 metadata 翻译仍用）
   - trap #22：/compact 必须按 `agentMode` 选 `mode`（v2 遵守）
   - trap #23：post-compact `has_run=True`（v2 仍遵守）
-- SGLang 源码（`/home/zk/Project/LLM-deployment/.sglang/lib/python3.12/site-packages/sglang/`）：
+- SGLang 源码（`~/Project/LLM-deployment/.sglang/lib/python3.12/site-packages/sglang/`）：
   - `srt/mem_cache/radix_cache.py:191-211`：`_key_match_*` 逐 token 整数相等
   - `srt/mem_cache/radix_cache.py:374-444`：`match_prefix` 入口
   - `srt/mem_cache/mamba_radix_cache.py:423-454`：`MambaRadixCache` 与 `RadixCache` 共享 `key_match_fn`
   - `srt/mem_cache/mamba_radix_cache.py:1035-1044`：mamba state 在 chunk-aligned 位置 checkpoint
-- Qwen3.5 chat_template：`/home/zk/Project/LLM-weight/Qwen3___5-35B-A3B-GPTQ-Int4/chat_template.jinja:67-80`（`multi_step_tool` check，至少一条非 `<tool_response>` user 行）
-- smolagents 1.22.0 源码（`/home/zk/Project/LLM-deployment/.sglang/lib/python3.12/site-packages/smolagents/`）：
+- Qwen3.5 chat_template：`~/Project/LLM-weight/Qwen3___5-35B-A3B-GPTQ-Int4/chat_template.jinja:67-80`（`multi_step_tool` check，至少一条非 `<tool_response>` user 行）
+- smolagents 1.22.0 源码（`~/Project/LLM-deployment/.sglang/lib/python3.12/site-packages/smolagents/`）：
   - `agents.py:752-764`：`write_memory_to_messages` 父类方法
   - `memory.py:24-211`：`ToolCall` / `ActionStep` / `TaskStep` / `SystemPromptStep` 数据类
   - `models.py:237-240`：`tool_role_conversions` (TOOL_CALL→ASSISTANT, TOOL_RESPONSE→USER)

@@ -1087,7 +1087,7 @@ class ConfigLoader:
         Args:
             config_path: 总配置文件路径，默认为 config/config-overall.yaml
         """
-        self.config_path = config_path or CONFIG_PATH
+        self.config_path = Path(config_path or CONFIG_PATH).expanduser()
         # 合并后的所有 YAML 章节数据（section -> dict）
         self._data: dict = {}
         self._config: Optional[AppConfig] = None
@@ -1101,6 +1101,12 @@ class ConfigLoader:
         """加载单个 YAML 文件，返回 dict（空文件返回 {}）"""
         with open(path, "r", encoding="utf-8") as f:
             return yaml.safe_load(f) or {}
+
+    @staticmethod
+    def _resolve_project_path(value: str | Path) -> Path:
+        """Expand home spelling while keeping relative config paths project-rooted."""
+        path = Path(value).expanduser()
+        return path if path.is_absolute() else PROJECT_ROOT / path
 
     @staticmethod
     def _infer_sibling_model_path(infer_path: Path) -> Optional[Path]:
@@ -1148,7 +1154,7 @@ class ConfigLoader:
         ):
             rel_path = overall.get(key)
             if rel_path:
-                sub_path = PROJECT_ROOT / rel_path
+                sub_path = self._resolve_project_path(rel_path)
                 if key == "infer":
                     infer_sub_path = sub_path
                 if sub_path.exists():
@@ -1202,7 +1208,7 @@ class ConfigLoader:
         self._agent_prompts_data: dict = {}
         agent_prompts_rel = overall.get("agent_prompts")
         if agent_prompts_rel:
-            agent_prompts_path = PROJECT_ROOT / agent_prompts_rel
+            agent_prompts_path = self._resolve_project_path(agent_prompts_rel)
             if agent_prompts_path.exists():
                 self._agent_prompts_data = self._load_yaml_file(agent_prompts_path)
 
@@ -1214,14 +1220,16 @@ class ConfigLoader:
             from backend.asr.config import load_asr_config
 
             asr_config = load_asr_config(
-                PROJECT_ROOT / asr_rel,
+                self._resolve_project_path(asr_rel),
                 project_root=PROJECT_ROOT,
             )
 
         local_memory_config = LocalMemoryConfig().validate(PROJECT_ROOT)
         local_memory_rel = overall.get("local_memory")
         if local_memory_rel:
-            local_memory_config = load_local_memory_config(PROJECT_ROOT / local_memory_rel, PROJECT_ROOT)
+            local_memory_config = load_local_memory_config(
+                self._resolve_project_path(local_memory_rel), PROJECT_ROOT
+            )
 
         # 3. 解析各模块配置（顺序敏感：sglang/vllm 先解析供 model fallback 使用；
         # vision_upload 先解析供 model 图片字段回退使用；此处为保持最小改动，
@@ -2804,9 +2812,15 @@ class ConfigLoader:
             raw = dict(raw)
             for name in ("helper_binary", "calibration_report_path", "operator_session_safety_config_path"):
                 value = raw.get(name)
-                if (isinstance(value, str) and value.strip() and "\x00" not in value
-                        and not Path(value).is_absolute()):
-                    raw[name] = str(PROJECT_ROOT / value)
+                if (
+                    isinstance(value, str)
+                    and value.strip()
+                    and "\x00" not in value
+                ):
+                    path = Path(value).expanduser()
+                    if not path.is_absolute():
+                        path = PROJECT_ROOT / path
+                    raw[name] = str(path)
         return ComputerUseConfig.from_mapping(raw)
 
     def _parse_cycle_config(self) -> CycleConfig:

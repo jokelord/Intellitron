@@ -29,3 +29,16 @@ def test_doctor_selects_session_backend_without_claiming_readiness(monkeypatch, 
         assert result["evidence"]["x11_connection"] == "not_run"
     if expected == "wayland":
         assert "libei-1.0" in result["missing_development_packages"]
+
+
+def test_doctor_expands_home_spelled_helper_path(tmp_path, monkeypatch):
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("XDG_SESSION_TYPE", "x11")
+    monkeypatch.setattr(doctor, "_pkg_config_probe", lambda: {name: "1" for name in doctor._PKG_CONFIG_NAMES})
+    helper = tmp_path / "helper"
+    helper.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    helper.chmod(0o755)
+
+    result = doctor.diagnose("~/helper")
+
+    assert result["helper_executable"] is True

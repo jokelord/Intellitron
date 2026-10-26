@@ -47,7 +47,7 @@ def test_parse_nested_searxng_pagination_config():
 
 - [ ] **Step 4: Run focused tests to verify they fail**
 
-Run: `"/home/zk/Project/LLM-deployment/.sglang/bin/python" -m pytest tests/test_searxng_search.py tests/test_web_tools_config.py -q`
+Run: `~/Project/LLM-deployment/.sglang/bin/python -m pytest tests/test_searxng_search.py tests/test_web_tools_config.py -q`
 Expected: FAIL because request builder, config, and pagination behavior are not implemented yet.
 
 ### Task 2: Implement Config-Backed Pagination in `web_search`
@@ -118,7 +118,7 @@ break
 
 - [ ] **Step 8: Run focused tests**
 
-Run: `"/home/zk/Project/LLM-deployment/.sglang/bin/python" -m pytest tests/test_searxng_search.py tests/test_web_tools_config.py -q`
+Run: `~/Project/LLM-deployment/.sglang/bin/python -m pytest tests/test_searxng_search.py tests/test_web_tools_config.py -q`
 Expected: PASS
 
 ### Task 3: Keep `search_and_fetch` Aligned With Aggregated Search Results
@@ -141,7 +141,7 @@ assert "共找到 10 个结果" in result
 
 - [ ] **Step 3: Run focused composite tests**
 
-Run: `"/home/zk/Project/LLM-deployment/.sglang/bin/python" -m pytest tests/test_search_and_fetch.py -q`
+Run: `~/Project/LLM-deployment/.sglang/bin/python -m pytest tests/test_search_and_fetch.py -q`
 Expected: PASS
 
 ### Task 4: Update Agent Prompt Guidance
@@ -165,7 +165,7 @@ assert "自动" in text and "pageno" in text and "max_results" in text
 
 - [ ] **Step 3: Run the prompt/doc test**
 
-Run: `"/home/zk/Project/LLM-deployment/.sglang/bin/python" -m pytest tests/test_searxng_docs.py -q`
+Run: `~/Project/LLM-deployment/.sglang/bin/python -m pytest tests/test_searxng_docs.py -q`
 Expected: PASS
 
 ### Task 5: Full Verification
@@ -179,7 +179,7 @@ Expected: PASS
 
 - [ ] **Step 1: Run impacted regression suite**
 
-Run: `"/home/zk/Project/LLM-deployment/.sglang/bin/python" -m pytest tests/test_web_tools_config.py tests/test_searxng_search.py tests/test_search_and_fetch.py tests/test_web_fetch.py tests/test_searxng_docs.py tests/test_cycle_config.py tests/test_cycle_executor.py tests/test_agent_session_context.py tests/test_multi_agent_runner.py -q`
+Run: `~/Project/LLM-deployment/.sglang/bin/python -m pytest tests/test_web_tools_config.py tests/test_searxng_search.py tests/test_search_and_fetch.py tests/test_web_fetch.py tests/test_searxng_docs.py tests/test_cycle_config.py tests/test_cycle_executor.py tests/test_agent_session_context.py tests/test_multi_agent_runner.py -q`
 Expected: PASS
 
 - [ ] **Step 2: Commit**

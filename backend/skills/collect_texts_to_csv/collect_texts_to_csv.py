@@ -70,7 +70,7 @@ def main():
         print(f"用法: {sys.argv[0]} <目录路径>", file=sys.stderr)
         sys.exit(1)
 
-    directory = Path(sys.argv[1]).resolve()
+    directory = Path(sys.argv[1]).expanduser().resolve()
     if not directory.is_dir():
         print(f"错误: '{directory}' 不是有效目录", file=sys.stderr)
         sys.exit(1)

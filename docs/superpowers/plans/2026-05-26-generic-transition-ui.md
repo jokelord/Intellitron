@@ -46,7 +46,7 @@ def test_run_basic_stream_execution_steps_default_to_after_body_slot():
 Run:
 
 ```bash
-PYTHONPATH=. "/home/zk/Project/LLM-deployment/.sglang/bin/python" -m pytest tests/test_multi_agent_runner.py -q
+PYTHONPATH=. ~/Project/LLM-deployment/.sglang/bin/python -m pytest tests/test_multi_agent_runner.py -q
 ```
 
 Expected: new tests fail because `dispatch_delta`, `display_slot`, or `dispatch_kind` are missing.
@@ -146,7 +146,7 @@ self._queue_dispatch_timeline_event(
 Run:
 
 ```bash
-PYTHONPATH=. "/home/zk/Project/LLM-deployment/.sglang/bin/python" -m pytest tests/test_multi_agent_runner.py -q
+PYTHONPATH=. ~/Project/LLM-deployment/.sglang/bin/python -m pytest tests/test_multi_agent_runner.py -q
 ```
 
 Expected: focused routing/handoff tests pass.
@@ -426,7 +426,7 @@ assert.match(textPageSource, /afterBodySteps/);
 Run:
 
 ```bash
-PYTHONPATH=. "/home/zk/Project/LLM-deployment/.sglang/bin/python" -m pytest tests/test_multi_agent_runner.py tests/test_agent_session_context.py tests/test_multi_tool_parsing.py tests/test_timeline_projection.py -q
+PYTHONPATH=. ~/Project/LLM-deployment/.sglang/bin/python -m pytest tests/test_multi_agent_runner.py tests/test_agent_session_context.py tests/test_multi_tool_parsing.py tests/test_timeline_projection.py -q
 ```
 
 Expected: all backend regression suites pass.

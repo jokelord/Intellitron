@@ -10,7 +10,7 @@
 
 本设计为现有 Text 与 Vision Web UI 增加 Keyboard/Voice 输入模式切换。浏览器负责麦克风权限、轻量 PCM 采集和 SPL 波形展示；Jetson Thor 后端负责软件增益、声压检测、pre-trigger ring buffer、Silero VAD v6.2、录音状态机、WAV 编码和 Qwen3-ASR 推理。
 
-Qwen3-ASR-1.7B 必须通过独立 SGLang 服务推理。项目不使用 `qwen-asr`、Transformers 或 vLLM 作为 ASR 推理后端。默认模型路径为 `/home/zk/Project/LLM-weight/Qwen3-ASR-1.7B`，默认 SGLang 端口为 `30003`。
+Qwen3-ASR-1.7B 必须通过独立 SGLang 服务推理。项目不使用 `qwen-asr`、Transformers 或 vLLM 作为 ASR 推理后端。默认模型路径为 `~/Project/LLM-weight/Qwen3-ASR-1.7B`，默认 SGLang 端口为 `30003`。
 
 浏览器与 FastAPI 通过 session-local WebSocket 传输 Float32 PCM。默认完成整句录音后一次性调用 SGLang `/v1/audio/transcriptions`，`transcription.streaming=false`。识别文本默认自动进入当前 Chat/Agent 发送链路；用户可在 YAML 中将 `auto_send` 改为 `false`，改为识别后手动点击 Send。
 
@@ -195,7 +195,7 @@ sglang:
   host: 127.0.0.1
   port: 30003
   served_model_name: Qwen3-ASR-1.7B
-  model_path: /home/zk/Project/LLM-weight/Qwen3-ASR-1.7B
+  model_path: ~/Project/LLM-weight/Qwen3-ASR-1.7B
   dtype: bfloat16
   mem_fraction_static: 0.08
   max_running_requests: 1

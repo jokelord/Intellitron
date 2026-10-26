@@ -26,7 +26,7 @@ Upgrade the Agent `read_file` tool from a text-only reader into a document reade
 - No LibreOffice Calc code is written for `.xls` or `.ods`.
 - LibreOffice Writer and Impress conversion remains in scope for `.doc`, `.docx`, `.ppt`, and `.pptx`.
 - If both `start_line` and `end_line` are omitted, `read_file` returns the complete result. It does not impose an automatic 200-line or character cap.
-- The default path allowlist is configurable and initially includes the project root, `/home/zk`, and system temporary directories.
+- The default path allowlist is configurable and initially includes the project root, `~`, and system temporary directories.
 - Only the model-serving stack is isolated in `.paddle-ocr`. MarkItDown, PyMuPDF, MIME detection, image normalization, and other non-model parsing dependencies remain backend dependencies in `.sglang`.
 - The solution does not modify PaddleOCR, PaddleX, Transformers, or any other installed package source.
 

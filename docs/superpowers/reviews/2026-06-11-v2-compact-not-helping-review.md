@@ -48,7 +48,7 @@ The v2 builder (`backend/compact/prompt_builder.py:78-109`) does in fact `list(b
 
 **Token-sequence consequences (most important):**
 
-The Qwen3.5 chat template (`/home/zk/Project/LLM-weight/Qwen3___5-35B-A3B-GPTQ-Int4/chat_template.jinja:46-154`) renders the assistant role with conditional `<|im_start|>assistant\n[content]<|im_end|>\n` (line 89-103), and the `<tool_call>` XML is **only emitted** when the message dict has a `tool_calls` field (line 105-129). The previous chat call's assistant message had a `tool_calls` field (smolagents puts it there from the model's structured output), so the rendered tokens were:
+The Qwen3.5 chat template (`~/Project/LLM-weight/Qwen3___5-35B-A3B-GPTQ-Int4/chat_template.jinja:46-154`) renders the assistant role with conditional `<|im_start|>assistant\n[content]<|im_end|>\n` (line 89-103), and the `<tool_call>` XML is **only emitted** when the message dict has a `tool_calls` field (line 105-129). The previous chat call's assistant message had a `tool_calls` field (smolagents puts it there from the model's structured output), so the rendered tokens were:
 
 ```
 <|im_start|>assistant\n[model_output text]<tool_call>\n<function=name>\n<parameter=...>value</parameter>\n</function></tool_call><|im_end|>\n

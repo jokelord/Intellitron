@@ -7,8 +7,9 @@ import os
 import stat
 from pathlib import Path
 import threading
-from .markdown import split_markdown
+from .config import resolve_local_memory_path
 from .decoding import decode_source, decoding_fingerprint
+from .markdown import split_markdown
 from .safe_fs import atomic_json, open_directory, read_json, read_regular
 from .zvec_store import ZvecStore
 from .state import has_memory_source_suffix, require_hash, require_source_path, validate_manifest, validate_journal, validate_snapshot
@@ -23,9 +24,9 @@ def digest(value):
 class MemoryCorpus:
     def __init__(self, config, project_root, encoder=None):
         self.config = config
-        self.root = Path(project_root).absolute()
-        self.source = self.root / config.source_dir
-        self.state = self.root / config.state_dir
+        self.root = Path(project_root).expanduser().absolute()
+        self.source = resolve_local_memory_path(self.root, config.source_dir)
+        self.state = resolve_local_memory_path(self.root, config.state_dir)
         self.encoder = encoder
         self.store = None
         self.lock = threading.RLock()

@@ -192,7 +192,7 @@ _append_live_action_step_messages(stripped)
 
 ## 3. 对 prefix cache 的逐项影响分析
 
-我用真实 AutoTokenizer（`/home/zk/Project/LLM-weight/Qwen3___5-35B-A3B-GPTQ-Int4/`，vocab=248044）
+我用真实 AutoTokenizer（`~/Project/LLM-weight/Qwen3___5-35B-A3B-GPTQ-Int4/`，vocab=248044）
 + Qwen3.5 chat template 实际渲染对比 token 序列。
 
 ### 3.1 Tool call assistant 文本：current vs historical 序列化差异
@@ -629,8 +629,9 @@ clean = get_clean_message_list(msgs, role_conversions=tool_role_conversions)
 # 2. 用真实 Qwen3.5 tokenizer 渲染对比 token 数
 PYTHONPATH=. ./.sglang/bin/python -c "
 import json
+from pathlib import Path
 from transformers import AutoTokenizer
-tok = AutoTokenizer.from_pretrained('/home/zk/Project/LLM-weight/Qwen3___5-35B-A3B-GPTQ-Int4/', trust_remote_code=True)
+tok = AutoTokenizer.from_pretrained(Path('~/Project/LLM-weight/Qwen3___5-35B-A3B-GPTQ-Int4/').expanduser(), trust_remote_code=True)
 # current_round_text = model_output + \n + Calling tools:\n + repr
 # historical_text = Calling tools:\n + json.dumps
 # 渲染后：62 vs 55 tokens（差 7）

@@ -97,7 +97,7 @@ def test_parse_misc_config_exposes_runtime_time_context_flag():
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `PYTHONPATH=. "/home/zk/Project/LLM-deployment/.sglang/bin/python" -m pytest tests/test_runtime_config_limits.py::test_config_endpoint_exposes_runtime_time_context_flag tests/test_multi_agent_config.py::test_parse_misc_config_exposes_runtime_time_context_flag -q`
+Run: `PYTHONPATH=. ~/Project/LLM-deployment/.sglang/bin/python -m pytest tests/test_runtime_config_limits.py::test_config_endpoint_exposes_runtime_time_context_flag tests/test_multi_agent_config.py::test_parse_misc_config_exposes_runtime_time_context_flag -q`
 
 Expected: FAIL because `MiscConfig` and `/config` do not yet expose the flag.
 
@@ -131,7 +131,7 @@ def _parse_misc_config(self) -> MiscConfig:
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `PYTHONPATH=. "/home/zk/Project/LLM-deployment/.sglang/bin/python" -m pytest tests/test_runtime_config_limits.py::test_config_endpoint_exposes_runtime_time_context_flag tests/test_multi_agent_config.py::test_parse_misc_config_exposes_runtime_time_context_flag -q`
+Run: `PYTHONPATH=. ~/Project/LLM-deployment/.sglang/bin/python -m pytest tests/test_runtime_config_limits.py::test_config_endpoint_exposes_runtime_time_context_flag tests/test_multi_agent_config.py::test_parse_misc_config_exposes_runtime_time_context_flag -q`
 
 Expected: PASS
 
@@ -160,7 +160,7 @@ def test_profile_runtime_context_skips_coordinator_1_but_reaches_basic_and_coord
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `PYTHONPATH=. "/home/zk/Project/LLM-deployment/.sglang/bin/python" -m pytest tests/test_multi_agent_runner.py::test_profile_runtime_context_skips_coordinator_1_but_reaches_basic_and_coordinator_2 -q`
+Run: `PYTHONPATH=. ~/Project/LLM-deployment/.sglang/bin/python -m pytest tests/test_multi_agent_runner.py::test_profile_runtime_context_skips_coordinator_1_but_reaches_basic_and_coordinator_2 -q`
 
 Expected: FAIL because runtime context does not exist yet.
 
@@ -190,7 +190,7 @@ request_data["runtime_context"] = runtime_context
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `PYTHONPATH=. "/home/zk/Project/LLM-deployment/.sglang/bin/python" -m pytest tests/test_multi_agent_runner.py::test_profile_runtime_context_skips_coordinator_1_but_reaches_basic_and_coordinator_2 -q`
+Run: `PYTHONPATH=. ~/Project/LLM-deployment/.sglang/bin/python -m pytest tests/test_multi_agent_runner.py::test_profile_runtime_context_skips_coordinator_1_but_reaches_basic_and_coordinator_2 -q`
 
 Expected: PASS
 
@@ -220,7 +220,7 @@ def test_real_config_files_use_multi_agent_prompt_layout():
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `PYTHONPATH=. "/home/zk/Project/LLM-deployment/.sglang/bin/python" -m pytest tests/test_multi_agent_config.py::test_real_config_files_use_multi_agent_prompt_layout -q`
+Run: `PYTHONPATH=. ~/Project/LLM-deployment/.sglang/bin/python -m pytest tests/test_multi_agent_config.py::test_real_config_files_use_multi_agent_prompt_layout -q`
 
 Expected: FAIL until `coordinator_agent` is removed from YAML and parser assumptions are updated.
 
@@ -255,7 +255,7 @@ PROFILE_TOOL_ALLOWLIST = {
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `PYTHONPATH=. "/home/zk/Project/LLM-deployment/.sglang/bin/python" -m pytest tests/test_multi_agent_config.py::test_real_config_files_use_multi_agent_prompt_layout tests/test_get_tools_no_load_images.py -q`
+Run: `PYTHONPATH=. ~/Project/LLM-deployment/.sglang/bin/python -m pytest tests/test_multi_agent_config.py::test_real_config_files_use_multi_agent_prompt_layout tests/test_get_tools_no_load_images.py -q`
 
 Expected: PASS
 
@@ -322,7 +322,7 @@ Expected: PASS
 
 - [ ] **Step 1: Run backend tests**
 
-Run: `PYTHONPATH=. "/home/zk/Project/LLM-deployment/.sglang/bin/python" -m pytest tests/test_runtime_config_limits.py tests/test_multi_agent_config.py tests/test_multi_agent_runner.py tests/test_get_tools_no_load_images.py -q`
+Run: `PYTHONPATH=. ~/Project/LLM-deployment/.sglang/bin/python -m pytest tests/test_runtime_config_limits.py tests/test_multi_agent_config.py tests/test_multi_agent_runner.py tests/test_get_tools_no_load_images.py -q`
 
 - [ ] **Step 2: Run frontend tests**
 

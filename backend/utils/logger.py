@@ -10,6 +10,7 @@ import sys
 import time
 from contextlib import contextmanager
 from functools import wraps
+from pathlib import Path
 from typing import Any, Callable, Optional
 
 # 尝试导入 colorama 用于彩色输出
@@ -97,7 +98,7 @@ def get_logger(
     
     # 文件 handler（如果指定了日志文件）
     if log_file:
-        file_handler = logging.FileHandler(log_file, encoding="utf-8")
+        file_handler = logging.FileHandler(Path(log_file).expanduser(), encoding="utf-8")
         file_handler.setFormatter(logging.Formatter(fmt))
         logger.addHandler(file_handler)
     

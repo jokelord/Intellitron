@@ -45,8 +45,9 @@ def _session_backend():
 
 
 def diagnose(helper_binary=None):
-    executable = bool(helper_binary and os.path.isabs(helper_binary)
-                      and os.path.isfile(helper_binary) and os.access(helper_binary, os.X_OK))
+    helper_path = os.path.expanduser(os.fspath(helper_binary)) if helper_binary else None
+    executable = bool(helper_path and os.path.isabs(helper_path)
+                      and os.path.isfile(helper_path) and os.access(helper_path, os.X_OK))
     backend = _session_backend()
     required = (("json-glib-1.0", "x11", "xext", "xtst", "xrandr")
                 if backend == "x11" else

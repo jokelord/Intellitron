@@ -164,7 +164,7 @@ def test_compaction_prompt_control_fields_loaded(monkeypatch, tmp_path):
 
 - [ ] **Step 2: Run the failing tests**
 
-Run: `PYTHONPATH=. "/home/zk/Project/LLM-deployment/.sglang/bin/python" -m pytest tests/test_compact_config.py -q`
+Run: `PYTHONPATH=. ~/Project/LLM-deployment/.sglang/bin/python -m pytest tests/test_compact_config.py -q`
 
 Expected: FAIL with `AttributeError` for the new config/prompt fields.
 
@@ -300,7 +300,7 @@ Add these keys under `config/config-agent-prompts.yaml:compaction`:
 
 - [ ] **Step 5: Run config tests**
 
-Run: `PYTHONPATH=. "/home/zk/Project/LLM-deployment/.sglang/bin/python" -m pytest tests/test_compact_config.py -q`
+Run: `PYTHONPATH=. ~/Project/LLM-deployment/.sglang/bin/python -m pytest tests/test_compact_config.py -q`
 
 Expected: PASS.
 
@@ -364,7 +364,7 @@ def test_extract_cached_tokens_handles_common_usage_shapes():
 
 - [ ] **Step 2: Run failing diagnostics tests**
 
-Run: `PYTHONPATH=. "/home/zk/Project/LLM-deployment/.sglang/bin/python" -m pytest tests/test_compact_prompt_diagnostics.py -q`
+Run: `PYTHONPATH=. ~/Project/LLM-deployment/.sglang/bin/python -m pytest tests/test_compact_prompt_diagnostics.py -q`
 
 Expected: FAIL with `ModuleNotFoundError: No module named 'backend.compact.prompt_diagnostics'`.
 
@@ -474,7 +474,7 @@ def extract_cached_tokens(usage: dict[str, Any] | None) -> int | None:
 
 - [ ] **Step 4: Run diagnostics tests**
 
-Run: `PYTHONPATH=. "/home/zk/Project/LLM-deployment/.sglang/bin/python" -m pytest tests/test_compact_prompt_diagnostics.py -q`
+Run: `PYTHONPATH=. ~/Project/LLM-deployment/.sglang/bin/python -m pytest tests/test_compact_prompt_diagnostics.py -q`
 
 Expected: PASS.
 
@@ -524,7 +524,7 @@ def test_stream_payload_to_chunk_returns_none_for_empty_payload():
 
 - [ ] **Step 2: Run failing usage tests**
 
-Run: `PYTHONPATH=. "/home/zk/Project/LLM-deployment/.sglang/bin/python" -m pytest tests/test_llm_stream_usage_propagation.py -q`
+Run: `PYTHONPATH=. ~/Project/LLM-deployment/.sglang/bin/python -m pytest tests/test_llm_stream_usage_propagation.py -q`
 
 Expected: FAIL because `_openai_stream_payload_to_chunk` does not exist.
 
@@ -567,7 +567,7 @@ Apply the same helper to the OpenAI-compatible proxy stream parser if it has dup
 
 - [ ] **Step 4: Run usage tests**
 
-Run: `PYTHONPATH=. "/home/zk/Project/LLM-deployment/.sglang/bin/python" -m pytest tests/test_llm_stream_usage_propagation.py -q`
+Run: `PYTHONPATH=. ~/Project/LLM-deployment/.sglang/bin/python -m pytest tests/test_llm_stream_usage_propagation.py -q`
 
 Expected: PASS.
 
@@ -658,7 +658,7 @@ def test_build_compact_control_instruction_adds_custom_instructions():
 
 - [ ] **Step 2: Run failing prompt-control tests**
 
-Run: `PYTHONPATH=. "/home/zk/Project/LLM-deployment/.sglang/bin/python" -m pytest tests/test_compact_prompt_control.py -q`
+Run: `PYTHONPATH=. ~/Project/LLM-deployment/.sglang/bin/python -m pytest tests/test_compact_prompt_control.py -q`
 
 Expected: FAIL because `backend.compact.prompt_control` does not exist.
 
@@ -815,7 +815,7 @@ Do not run this when `prompt_control_enabled` is false.
 
 - [ ] **Step 6: Run prompt-control tests**
 
-Run: `PYTHONPATH=. "/home/zk/Project/LLM-deployment/.sglang/bin/python" -m pytest tests/test_compact_prompt_control.py -q`
+Run: `PYTHONPATH=. ~/Project/LLM-deployment/.sglang/bin/python -m pytest tests/test_compact_prompt_control.py -q`
 
 Expected: PASS.
 
@@ -913,7 +913,7 @@ def test_compact_request_cache_first_fields_default_to_none():
 
 - [ ] **Step 2: Run failing prompt-plan tests**
 
-Run: `PYTHONPATH=. "/home/zk/Project/LLM-deployment/.sglang/bin/python" -m pytest tests/test_compact_prompt_plan.py tests/test_compact_types.py -q`
+Run: `PYTHONPATH=. ~/Project/LLM-deployment/.sglang/bin/python -m pytest tests/test_compact_prompt_plan.py tests/test_compact_types.py -q`
 
 Expected: FAIL because `prompt_plan.py` and new `CompactRequest` fields do not exist.
 
@@ -1018,7 +1018,7 @@ def build_cache_first_tail_plan(
 
 - [ ] **Step 5: Run prompt-plan tests**
 
-Run: `PYTHONPATH=. "/home/zk/Project/LLM-deployment/.sglang/bin/python" -m pytest tests/test_compact_prompt_plan.py tests/test_compact_types.py -q`
+Run: `PYTHONPATH=. ~/Project/LLM-deployment/.sglang/bin/python -m pytest tests/test_compact_prompt_plan.py tests/test_compact_types.py -q`
 
 Expected: PASS.
 
@@ -1110,7 +1110,7 @@ def test_validate_accepts_required_sections():
 
 - [ ] **Step 2: Run failing validation tests**
 
-Run: `PYTHONPATH=. "/home/zk/Project/LLM-deployment/.sglang/bin/python" -m pytest tests/test_compact_validation.py -q`
+Run: `PYTHONPATH=. ~/Project/LLM-deployment/.sglang/bin/python -m pytest tests/test_compact_validation.py -q`
 
 Expected: FAIL because `backend.compact.validation` does not exist.
 
@@ -1195,7 +1195,7 @@ def validate_compact_summary(
 
 - [ ] **Step 4: Run validation tests**
 
-Run: `PYTHONPATH=. "/home/zk/Project/LLM-deployment/.sglang/bin/python" -m pytest tests/test_compact_validation.py -q`
+Run: `PYTHONPATH=. ~/Project/LLM-deployment/.sglang/bin/python -m pytest tests/test_compact_validation.py -q`
 
 Expected: PASS.
 
@@ -1352,7 +1352,7 @@ async def test_reliable_default_keeps_streaming_delta_behavior():
 
 - [ ] **Step 2: Run failing orchestrator tests**
 
-Run: `PYTHONPATH=. "/home/zk/Project/LLM-deployment/.sglang/bin/python" -m pytest tests/test_compact_orchestrator_cache_first.py -q`
+Run: `PYTHONPATH=. ~/Project/LLM-deployment/.sglang/bin/python -m pytest tests/test_compact_orchestrator_cache_first.py -q`
 
 Expected: FAIL because orchestrator has no prompt-plan/fallback behavior.
 
@@ -1550,7 +1550,7 @@ Keep the v1 fallback deprecation warning path from current code. Do not remove c
 
 - [ ] **Step 4: Run orchestrator cache-first tests**
 
-Run: `PYTHONPATH=. "/home/zk/Project/LLM-deployment/.sglang/bin/python" -m pytest tests/test_compact_orchestrator_cache_first.py tests/test_compact_orchestrator_v2.py tests/test_compact_orchestrator_instrumentation.py -q`
+Run: `PYTHONPATH=. ~/Project/LLM-deployment/.sglang/bin/python -m pytest tests/test_compact_orchestrator_cache_first.py tests/test_compact_orchestrator_v2.py tests/test_compact_orchestrator_instrumentation.py -q`
 
 Expected: PASS after updating instrumentation assertions to accept the expanded `[compact-diag]` fields.
 
@@ -1673,7 +1673,7 @@ def test_run_compact_then_continue_passes_both_reliable_and_cache_first_bodies()
 
 - [ ] **Step 2: Run failing agent tests**
 
-Run: `PYTHONPATH=. "/home/zk/Project/LLM-deployment/.sglang/bin/python" -m pytest tests/test_compact_agent_cache_first.py tests/test_compact_agent_system_override.py -q`
+Run: `PYTHONPATH=. ~/Project/LLM-deployment/.sglang/bin/python -m pytest tests/test_compact_agent_cache_first.py tests/test_compact_agent_system_override.py -q`
 
 Expected: FAIL because `_build_cache_first_compact_body_messages` does not exist.
 
@@ -1761,7 +1761,7 @@ In `_build_compact_body_messages()` comments, replace the claim that prefix-cach
 
 - [ ] **Step 7: Run agent compact tests**
 
-Run: `PYTHONPATH=. "/home/zk/Project/LLM-deployment/.sglang/bin/python" -m pytest tests/test_compact_agent_cache_first.py tests/test_compact_agent_v2_path.py tests/test_compact_agent_system_override.py tests/test_compact_agent_apply.py -q`
+Run: `PYTHONPATH=. ~/Project/LLM-deployment/.sglang/bin/python -m pytest tests/test_compact_agent_cache_first.py tests/test_compact_agent_v2_path.py tests/test_compact_agent_system_override.py tests/test_compact_agent_apply.py -q`
 
 Expected: PASS.
 
@@ -1882,7 +1882,7 @@ def test_chat_prompt_control_disabled_preserves_no_system_default(monkeypatch):
 
 - [ ] **Step 2: Run failing chat tests**
 
-Run: `PYTHONPATH=. "/home/zk/Project/LLM-deployment/.sglang/bin/python" -m pytest tests/test_compact_chat_cache_first.py -q`
+Run: `PYTHONPATH=. ~/Project/LLM-deployment/.sglang/bin/python -m pytest tests/test_compact_chat_cache_first.py -q`
 
 Expected: FAIL because chat mode does not pass `cache_first_body_messages` and reliable body does not force compact system.
 
@@ -1939,7 +1939,7 @@ if current_user_message is not None:
 
 - [ ] **Step 5: Run chat compact tests**
 
-Run: `PYTHONPATH=. "/home/zk/Project/LLM-deployment/.sglang/bin/python" -m pytest tests/test_compact_chat_cache_first.py tests/test_compact_chat_v2_path.py tests/test_compact_chat_rebuild_contract.py tests/test_compact_chat_streaming_filter.py -q`
+Run: `PYTHONPATH=. ~/Project/LLM-deployment/.sglang/bin/python -m pytest tests/test_compact_chat_cache_first.py tests/test_compact_chat_v2_path.py tests/test_compact_chat_rebuild_contract.py tests/test_compact_chat_streaming_filter.py -q`
 
 Expected: PASS.
 
@@ -2047,7 +2047,7 @@ Append a new trap to `AGENTS.md` after the current compact traps:
 
 - [ ] **Step 4: Run docs grep check**
 
-Run: `PYTHONPATH=. "/home/zk/Project/LLM-deployment/.sglang/bin/python" -m pytest tests/test_prefix_cache_stability_v2.py -q`
+Run: `PYTHONPATH=. ~/Project/LLM-deployment/.sglang/bin/python -m pytest tests/test_prefix_cache_stability_v2.py -q`
 
 Expected: PASS. This is a proxy check that no old sidecar fields were revived while editing docs and code.
 
@@ -2060,13 +2060,13 @@ Expected: PASS. This is a proxy check that no old sidecar fields were revived wh
 
 - [ ] **Step 1: Run compact-focused backend tests**
 
-Run: `PYTHONPATH=. "/home/zk/Project/LLM-deployment/.sglang/bin/python" -m pytest tests/test_compact_*.py tests/test_llm_stream_usage_propagation.py -q`
+Run: `PYTHONPATH=. ~/Project/LLM-deployment/.sglang/bin/python -m pytest tests/test_compact_*.py tests/test_llm_stream_usage_propagation.py -q`
 
 Expected: PASS.
 
 - [ ] **Step 2: Run prefix/cache and agent regression baseline**
 
-Run: `PYTHONPATH=. "/home/zk/Project/LLM-deployment/.sglang/bin/python" -m pytest tests/test_multi_agent_runner.py tests/test_agent_session_context.py tests/test_search_and_fetch.py tests/test_multi_tool_parsing.py tests/test_timeline_projection.py tests/test_prefix_cache_stability_v2.py tests/test_compact_*.py -q`
+Run: `PYTHONPATH=. ~/Project/LLM-deployment/.sglang/bin/python -m pytest tests/test_multi_agent_runner.py tests/test_agent_session_context.py tests/test_search_and_fetch.py tests/test_multi_tool_parsing.py tests/test_timeline_projection.py tests/test_prefix_cache_stability_v2.py tests/test_compact_*.py -q`
 
 Expected: PASS.
 

@@ -54,6 +54,9 @@ def run_probe(app_config, *, authorization_timeout: float, transport_timeout: fl
     require_capability(capability, "desktop_capture")
     require_capability(capability, "desktop_input")
     config = app_config.computer_use
+    helper_binary = (
+        str(Path(config.helper_binary).expanduser()) if config.helper_binary else config.helper_binary
+    )
     runtime = capability.command_runtime_config()
     supervisor = ProcessSupervisor(max_output_bytes=runtime.max_output_bytes,
                                    termination_grace_seconds=runtime.termination_grace_seconds)
@@ -69,7 +72,7 @@ def run_probe(app_config, *, authorization_timeout: float, transport_timeout: fl
             custom_blacklist=runtime.command_blacklist,
             max_exec_timeout_seconds=runtime.max_exec_timeout_seconds,
             max_output_bytes=runtime.max_output_bytes)
-        native = NativeClient(helper_binary=config.helper_binary, supervisor=supervisor,
+        native = NativeClient(helper_binary=helper_binary, supervisor=supervisor,
             environment_builder=EnvironmentBuilder(runtime), command_policy=policy,
             owner_session_id=owner, timeout=transport_timeout,
             authorization_timeout=authorization_timeout,
@@ -168,6 +171,7 @@ def main(argv=None):
     args = parser.parse_args(argv)
     if not args.authorize:
         parser.error("--authorize is required: this probe sends four input events to its own test window")
+    args.helper_binary = str(Path(args.helper_binary).expanduser())
     if not Path(args.helper_binary).is_absolute() or "\x00" in args.helper_binary:
         parser.error("--helper-binary must be an absolute path")
     isolated = copy.deepcopy(get_config())

@@ -42,6 +42,11 @@ EVIDENCE_ROOT = Path(__file__).resolve().parents[1] / 'logs' / 'computer-use' / 
 def prepare_operator_test_app(deployment, *, helper_binary: str, safety_limits: dict,
                               test_timeouts: dict | None = None):
     """Build a private test config; never mutate or mark the deployment ready."""
+    helper_binary = (
+        str(Path(helper_binary).expanduser())
+        if isinstance(helper_binary, str)
+        else helper_binary
+    )
     if deployment.computer_use.ready:
         raise ValueError('operator test requires release readiness to remain false')
     if ((deployment.agent.allow_desktop_capture or deployment.agent.allow_desktop_input)
@@ -142,6 +147,8 @@ def main(argv=None) -> int:
     args = parser.parse_args(argv)
     if not args.check_only and not args.authorize_test_input:
         parser.error('--authorize-test-input is required')
+    args.helper_binary = args.helper_binary.expanduser()
+    args.safety_config = args.safety_config.expanduser()
     if not args.helper_binary.is_file() or not os.access(args.helper_binary, os.X_OK):
         parser.error('--helper-binary must name an executable file')
     if not args.target_description.strip():

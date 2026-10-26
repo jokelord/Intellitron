@@ -504,7 +504,7 @@ class ReadFileService:
         document_mode: str,
         recognize_seals: bool,
     ) -> str:
-        pipeline_path = Path(self.ocr_config.pipeline_config_path)
+        pipeline_path = Path(self.ocr_config.pipeline_config_path).expanduser()
         if not pipeline_path.is_absolute():
             pipeline_path = PROJECT_ROOT / pipeline_path
         pipeline_hash = (

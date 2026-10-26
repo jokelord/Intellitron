@@ -366,7 +366,7 @@ def test_partial_result_remains_successful():
     result = ReadFileResult(
         success=True,
         markdown="ok",
-        source_path="/home/zk/example.pdf",
+        source_path="~/example.pdf",
         source_format="pdf",
         normalized_format=None,
         engine="PaddleOCR-VL-1.6",

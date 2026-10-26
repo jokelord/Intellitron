@@ -464,10 +464,11 @@ if max_concurrency != max_running or isinstance(batch_size, bool) or not isinsta
     raise SystemExit("VLRecognition concurrency is inconsistent")
 
 overall = yaml.safe_load((project_root / "config/config-overall.yaml").read_text()) or {}
+sys.path.insert(0, str(project_root / "scripts"))
+from path_utils import resolve_path
+
 def load_selected_config(key, fallback):
-    selected = Path(str(overall.get(key, fallback)))
-    if not selected.is_absolute():
-        selected = project_root / selected
+    selected = resolve_path(str(overall.get(key, fallback)), project_root)
     return yaml.safe_load(selected.read_text()) or {}
 
 server = load_selected_config("server", "config/config-server.yaml")
@@ -564,6 +565,7 @@ main() {
     SGLANG_PYTHON="$(get_shared_sglang_python "$PROJECT_ROOT")"
     OCR_PYTHON="$(get_shared_paddle_ocr_python "$PROJECT_ROOT")"
     PIPELINE_CONFIG="${OCR_PIPELINE_CONFIG:-$PROJECT_ROOT/config/paddleocr-vl-thor-sglang.yaml}"
+    PIPELINE_CONFIG="$(resolve_project_path "$PIPELINE_CONFIG" "$PROJECT_ROOT")"
     OCR_SERVICE_WRAPPER="${OCR_SERVICE_WRAPPER:-$PROJECT_ROOT/scripts/paddle_ocr_service.py}"
     PREFLIGHT="${OCR_PREFLIGHT:-$PROJECT_ROOT/scripts/paddle_ocr_preflight.py}"
     OCR_LOG_DIR="${OCR_LOG_DIR:-$SHARED_WORKSPACE_ROOT/logs}"
@@ -574,6 +576,13 @@ main() {
     OCR_START_LOCK_TIMEOUT="${OCR_START_LOCK_TIMEOUT:-900}"
     OCR_PROBE_TIMEOUT="${OCR_PROBE_TIMEOUT:-5}"
     TRITON_PTXAS_WRAPPER="${OCR_TRITON_PTXAS_WRAPPER:-$SHARED_WORKSPACE_ROOT/patch/ptxas_wrapper.sh}"
+    OCR_SERVICE_WRAPPER="$(expand_home_path "$OCR_SERVICE_WRAPPER")"
+    PREFLIGHT="$(expand_home_path "$PREFLIGHT")"
+    OCR_LOG_DIR="$(expand_home_path "$OCR_LOG_DIR")"
+    OCR_ATTESTATION_PATH="$(expand_home_path "$OCR_ATTESTATION_PATH")"
+    OCR_MEMORY_REPORT="$(expand_home_path "$OCR_MEMORY_REPORT")"
+    OCR_TOPOLOGY_LOCK="$(expand_home_path "$OCR_TOPOLOGY_LOCK")"
+    TRITON_PTXAS_WRAPPER="$(expand_home_path "$TRITON_PTXAS_WRAPPER")"
     OCR_TORCH_CUDA_ARCH_LIST="${OCR_TORCH_CUDA_ARCH_LIST:-11.0a}"
     LOCAL_NO_PROXY="127.0.0.1,localhost"
     PADDLEX_HOST=127.0.0.1

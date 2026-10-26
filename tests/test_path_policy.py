@@ -31,6 +31,22 @@ def test_create_paths_are_canonically_contained_and_missing_parents_are_allowed(
     _error_code(lambda: policy.validate_create(str(tmp_path / "outside.txt"), "write"), "path_not_allowed")
 
 
+def test_absolute_and_home_spelled_tool_paths_resolve_to_the_same_allowed_file(tmp_path, monkeypatch):
+    home = tmp_path / "home"
+    root = home / "allowed"
+    root.mkdir(parents=True)
+    target = root / "note.txt"
+    target.write_text("allowed content")
+    monkeypatch.setenv("HOME", str(home))
+    policy = _policy(root)
+
+    absolute = policy.resolve_existing(target, "read")
+    home_spelled = policy.resolve_existing("~/allowed/note.txt", "read")
+
+    assert absolute.resolved == home_spelled.resolved == str(target.resolve())
+    assert absolute.root == home_spelled.root == str(root.resolve())
+
+
 def test_existing_paths_reject_directories_and_non_regular_files(tmp_path):
     root = tmp_path / "allowed"
     root.mkdir()

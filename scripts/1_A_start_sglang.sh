@@ -17,10 +17,10 @@ YAML_OVERALL="$PROJECT_ROOT/config/config-overall.yaml"
 OVERALL_MODEL=$(python3 -c "import yaml; print((yaml.safe_load(open('$YAML_OVERALL')) or {}).get('model', '') or '')")
 OVERALL_INFER=$(python3 -c "import yaml; print((yaml.safe_load(open('$YAML_OVERALL')) or {}).get('infer', ''))")
 
-# 如果路径是相对路径，拼接 PROJECT_ROOT
-YAML_INFER="$PROJECT_ROOT/$OVERALL_INFER"
+# 配置引用中的 ~ 必须先展开；相对引用继续相对项目根目录解析。
+YAML_INFER="$(resolve_project_path "$OVERALL_INFER" "$PROJECT_ROOT")"
 if [ -n "$OVERALL_MODEL" ] && [ "$OVERALL_MODEL" != "None" ]; then
-  YAML_MODEL="$PROJECT_ROOT/$OVERALL_MODEL"
+  YAML_MODEL="$(resolve_project_path "$OVERALL_MODEL" "$PROJECT_ROOT")"
 else
   # sibling 回退：*-config-infer.yaml → *-config-model.yaml（旧文件兼容）
   SIBLING_MODEL="$(echo "$YAML_INFER" | sed 's/-config-infer\.yaml$/-config-model.yaml/')"
@@ -130,9 +130,9 @@ print('\n'.join([
 PYEOF
 )"
 
-# Chat template paths are repository-relative, independent of launcher cwd.
+# Resolve configured model/template paths independently of the launcher cwd.
 if [ -n "$CHAT_TEMPLATE" ]; then
-  [[ "$CHAT_TEMPLATE" = /* ]] || CHAT_TEMPLATE="$PROJECT_ROOT/$CHAT_TEMPLATE"
+  CHAT_TEMPLATE="$(resolve_project_path "$CHAT_TEMPLATE" "$PROJECT_ROOT")"
   [[ -f "$CHAT_TEMPLATE" ]] || { echo "❌ Chat template 不存在: $CHAT_TEMPLATE"; exit 1; }
 fi
 
@@ -208,13 +208,13 @@ export CUDA_MODULE_LOADING=
 # export CUDA_MODULE_LOADING=LAZY
 # 将各编译缓存显式固定在持久化 home 下，避免临时目录或不同启动入口造成缓存漂移。
 # 可在启动前用 SGLANG_COMPILE_CACHE_BASE 覆盖，但切换路径会造成一次 cache miss。
-SGLANG_COMPILE_CACHE_BASE="${SGLANG_COMPILE_CACHE_BASE:-$HOME}"
-export FLASHINFER_WORKSPACE_BASE="${FLASHINFER_WORKSPACE_BASE:-$SGLANG_COMPILE_CACHE_BASE}"
-export SGLANG_CACHE_DIR="${SGLANG_CACHE_DIR:-$SGLANG_COMPILE_CACHE_BASE/.cache/sglang}"
-export TORCH_EXTENSIONS_DIR="${TORCH_EXTENSIONS_DIR:-$SGLANG_COMPILE_CACHE_BASE/.cache/torch_extensions}"
-export TRITON_CACHE_DIR="${TRITON_CACHE_DIR:-$SGLANG_COMPILE_CACHE_BASE/.triton/cache}"
-export CUDA_CACHE_PATH="${CUDA_CACHE_PATH:-$SGLANG_COMPILE_CACHE_BASE/.nv/ComputeCache}"
-export SGLANG_DG_CACHE_DIR="${SGLANG_DG_CACHE_DIR:-$SGLANG_COMPILE_CACHE_BASE/.cache/deep_gemm}"
+SGLANG_COMPILE_CACHE_BASE="$(expand_home_path "${SGLANG_COMPILE_CACHE_BASE:-$HOME}")"
+export FLASHINFER_WORKSPACE_BASE="$(expand_home_path "${FLASHINFER_WORKSPACE_BASE:-$SGLANG_COMPILE_CACHE_BASE}")"
+export SGLANG_CACHE_DIR="$(expand_home_path "${SGLANG_CACHE_DIR:-$SGLANG_COMPILE_CACHE_BASE/.cache/sglang}")"
+export TORCH_EXTENSIONS_DIR="$(expand_home_path "${TORCH_EXTENSIONS_DIR:-$SGLANG_COMPILE_CACHE_BASE/.cache/torch_extensions}")"
+export TRITON_CACHE_DIR="$(expand_home_path "${TRITON_CACHE_DIR:-$SGLANG_COMPILE_CACHE_BASE/.triton/cache}")"
+export CUDA_CACHE_PATH="$(expand_home_path "${CUDA_CACHE_PATH:-$SGLANG_COMPILE_CACHE_BASE/.nv/ComputeCache}")"
+export SGLANG_DG_CACHE_DIR="$(expand_home_path "${SGLANG_DG_CACHE_DIR:-$SGLANG_COMPILE_CACHE_BASE/.cache/deep_gemm}")"
 mkdir -p "$SGLANG_CACHE_DIR" "$TORCH_EXTENSIONS_DIR" "$TRITON_CACHE_DIR" \
     "$CUDA_CACHE_PATH" "$SGLANG_DG_CACHE_DIR"
 

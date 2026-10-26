@@ -12,7 +12,7 @@
 
 - ASR inference is SGLang-only; do not add qwen-asr, Transformers, vLLM, or cloud fallback.
 - Install `silero-vad==6.2.0` into the existing `.sglang` uv environment; never modify dependency source.
-- Default Qwen3-ASR model path is `/home/zk/Project/LLM-weight/Qwen3-ASR-1.7B`; default port is `30003`.
+- Default Qwen3-ASR model path is `~/Project/LLM-weight/Qwen3-ASR-1.7B`; default port is `30003`.
 - All important runtime values come from `config/config-asr.yaml` through a strict typed config object.
 - Default `audio.input_gain_db=12.0`, `transcription.streaming=false`, and `transcription.auto_send=true`.
 - SGLang health/model probes use configured `sglang.health_timeout_seconds=2.0`, never the transcription timeout.

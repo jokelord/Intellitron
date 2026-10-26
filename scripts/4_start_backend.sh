@@ -54,17 +54,14 @@ def q(value):
 
 project_root = Path(sys.argv[1])
 overall_path = Path(sys.argv[2])
+sys.path.insert(0, str(project_root / "scripts"))
+from path_utils import resolve_path
+
 overall = yaml.safe_load(overall_path.read_text(encoding="utf-8")) or {}
 
 
-def resolve_path(value):
-    if not value:
-        return ""
-    path = Path(value).expanduser()
-    return path if path.is_absolute() else project_root / path
-
-server_path = project_root / overall.get("server", "config/config-server.yaml")
-infer_path = project_root / overall.get("infer", "config/qwen3-vl-config-infer.yaml")
+server_path = resolve_path(overall.get("server", "config/config-server.yaml"), project_root)
+infer_path = resolve_path(overall.get("infer", "config/qwen3-vl-config-infer.yaml"), project_root)
 
 server_cfg = yaml.safe_load(server_path.read_text(encoding="utf-8")) or {}
 infer_cfg = yaml.safe_load(infer_path.read_text(encoding="utf-8")) or {}
@@ -72,10 +69,10 @@ infer_cfg = yaml.safe_load(infer_path.read_text(encoding="utf-8")) or {}
 server = server_cfg.get("server", {}) or {}
 frontend = server_cfg.get("frontend", {}) or {}
 ocr = server_cfg.get("ocr", {}) or {}
-asr_path = project_root / overall.get("asr", "config/config-asr.yaml")
+asr_path = resolve_path(overall.get("asr", "config/config-asr.yaml"), project_root)
 asr_cfg = load_asr_config(asr_path, project_root=project_root)
 browser_security = asr_cfg.browser_security
-memory_path = project_root / overall.get("local_memory", "config/config-local-memory.yaml")
+memory_path = resolve_path(overall.get("local_memory", "config/config-local-memory.yaml"), project_root)
 memory_cfg = load_local_memory_config(memory_path, project_root)
 sglang = infer_cfg.get("sglang", {}) or {}
 vllm = infer_cfg.get("vllm", {}) or {}
@@ -103,9 +100,9 @@ values = {
     "CONTAINER_API_URL": container.get("api_url", "http://localhost:8000/v1"),
     "CONTAINER_MODEL_NAME": container.get("model_name", ""),
     "ASR_HTTPS_ENABLED": str(browser_security.https_enabled).lower(),
-    "ASR_CA_CERTIFICATE": resolve_path(browser_security.ca_certificate_path),
-    "ASR_CERTIFICATE": resolve_path(browser_security.certificate_path),
-    "ASR_PRIVATE_KEY": resolve_path(browser_security.private_key_path),
+    "ASR_CA_CERTIFICATE": resolve_path(browser_security.ca_certificate_path, project_root),
+    "ASR_CERTIFICATE": resolve_path(browser_security.certificate_path, project_root),
+    "ASR_PRIVATE_KEY": resolve_path(browser_security.private_key_path, project_root),
 }
 
 for key, value in values.items():

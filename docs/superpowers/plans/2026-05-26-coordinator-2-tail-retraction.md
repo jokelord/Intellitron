@@ -265,7 +265,7 @@ Remove tests that only prove speculative early-prefix buffering if that path is 
 Run:
 
 ```bash
-PYTHONPATH=. "/home/zk/Project/LLM-deployment/.sglang/bin/python" -m pytest tests/test_multi_agent_runner.py -q
+PYTHONPATH=. ~/Project/LLM-deployment/.sglang/bin/python -m pytest tests/test_multi_agent_runner.py -q
 ```
 
 Expected: PASS, with backend retaining structured handoff correctness even after dead-code cleanup.
@@ -280,7 +280,7 @@ Expected: PASS, with backend retaining structured handoff correctness even after
 Run:
 
 ```bash
-PYTHONPATH=. "/home/zk/Project/LLM-deployment/.sglang/bin/python" -m pytest tests/test_multi_agent_runner.py tests/test_agent_session_context.py tests/test_multi_tool_parsing.py tests/test_timeline_projection.py -q
+PYTHONPATH=. ~/Project/LLM-deployment/.sglang/bin/python -m pytest tests/test_multi_agent_runner.py tests/test_agent_session_context.py tests/test_multi_tool_parsing.py tests/test_timeline_projection.py -q
 ```
 
 - [ ] **Step 2: Run frontend unit tests**

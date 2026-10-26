@@ -42,7 +42,7 @@ def test_streaming_pipeline_stops_after_reaching_deduped_max_results(...):
 
 - [ ] **Step 4: Run focused tests to verify they fail**
 
-Run: `"/home/zk/Project/LLM-deployment/.sglang/bin/python" -m pytest tests/test_search_and_fetch.py -q`
+Run: `~/Project/LLM-deployment/.sglang/bin/python -m pytest tests/test_search_and_fetch.py -q`
 Expected: FAIL because `search_and_fetch` still waits for the full search result list before fetching.
 
 ### Task 2: Add Internal Search-Page Iterator Support for the Composite Tool
@@ -67,7 +67,7 @@ def _normalize_searxng_result_url(url: str) -> str:
 
 - [ ] **Step 3: Verify helper-focused search tests still pass**
 
-Run: `"/home/zk/Project/LLM-deployment/.sglang/bin/python" -m pytest tests/test_searxng_search.py -q`
+Run: `~/Project/LLM-deployment/.sglang/bin/python -m pytest tests/test_searxng_search.py -q`
 Expected: PASS
 
 ### Task 3: Implement the Streaming Pipeline in `search_and_fetch`
@@ -110,7 +110,7 @@ done, not_done = wait(submitted_futures, timeout=...)
 
 - [ ] **Step 5: Run focused composite-tool tests**
 
-Run: `"/home/zk/Project/LLM-deployment/.sglang/bin/python" -m pytest tests/test_search_and_fetch.py -q`
+Run: `~/Project/LLM-deployment/.sglang/bin/python -m pytest tests/test_search_and_fetch.py -q`
 Expected: PASS
 
 ### Task 4: Preserve Output Simplicity and Tool Isolation
@@ -130,7 +130,7 @@ assert "pageno" not in result
 
 - [ ] **Step 2: Re-run focused tests for `web_search` to ensure it remains a pure search tool**
 
-Run: `"/home/zk/Project/LLM-deployment/.sglang/bin/python" -m pytest tests/test_searxng_search.py -q`
+Run: `~/Project/LLM-deployment/.sglang/bin/python -m pytest tests/test_searxng_search.py -q`
 Expected: PASS
 
 ### Task 5: Full Verification
@@ -144,7 +144,7 @@ Expected: PASS
 
 - [ ] **Step 1: Run the impacted regression suite**
 
-Run: `"/home/zk/Project/LLM-deployment/.sglang/bin/python" -m pytest tests/test_web_tools_config.py tests/test_searxng_search.py tests/test_search_and_fetch.py tests/test_web_fetch.py tests/test_searxng_docs.py tests/test_cycle_config.py tests/test_cycle_executor.py tests/test_agent_session_context.py tests/test_multi_agent_runner.py -q`
+Run: `~/Project/LLM-deployment/.sglang/bin/python -m pytest tests/test_web_tools_config.py tests/test_searxng_search.py tests/test_search_and_fetch.py tests/test_web_fetch.py tests/test_searxng_docs.py tests/test_cycle_config.py tests/test_cycle_executor.py tests/test_agent_session_context.py tests/test_multi_agent_runner.py -q`
 Expected: PASS
 
 - [ ] **Step 2: Commit**

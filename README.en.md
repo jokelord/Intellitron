@@ -2,7 +2,7 @@
 
 [简体中文（默认）](README.md) | **English**
 
-Sharing my personal local LLM companion, Intellitron, a local LLM deployment and Agent interaction system for NVIDIA Jetson Thor (ARM64 / SM110a), also usable on desktop GPUs. It brings visual capture, programmable workflows, desktop interaction, web research, document reading, and voice input into one Chat / Agent interface for everyday reading and practical work.
+Sharing my personal local LLM companion, Intellitron, a local LLM deployment and Agent interaction system for NVIDIA Jetson Thor (ARM64 / SM110a), also usable on NVIDIA DGX/ RTX Spark desktop GPUs. It brings visual capture, programmable workflows, desktop interaction, web research, document reading, and voice input into one Chat / Agent interface for everyday reading and practical work.
 
 ## Introduction video
 
@@ -11,15 +11,16 @@ Sharing my personal local LLM companion, Intellitron, a local LLM deployment and
 ## Highlights
 
 1. **A visual reading companion**: Vision Automation captures a shared screen or camera at intervals and sends the images to the model, allowing an Agent to help you understand material as you turn pages. See the [Vision page guide](frontend/src/app/vision/README.md).
-2. **Automated workflow orchestration**: Cycle combines waits, messages, photos, and nested loops, with scheduled messages for repeatable Chat / Agent workflows. See the [Cycle configuration](config/config-misc.yaml).
-3. **Visual desktop interaction**: The built-in [computer-use-vision Skill](backend/skills/computer-use-vision/SKILL.md) lets a vision model locate targets in screenshots and perform actions such as clicking and scrolling. See the [operations guide](docs/computer-use-vision-operations.md).
-4. **Batch web search and fetching**: After following the [SearXNG deployment tutorial](deploy/searxng/01_Docker-Compose安装及searXNG拉取教材.md) and [backend-managed setup guide](deploy/searxng/02_searxng-backend-managed-setup.md), `search_and_fetch` can run batch searches and fetch page bodies concurrently. Copy the [example](deploy/searxng/core-config/settings.yml.example) as `settings.yml`; set its key.
-5. **Direct document reading**: With PaddleOCR-VL deployed, the Agent's `read_file` can read PDF, Word, and other documents. Office formats such as Word require LibreOffice conversion. See the OCR startup instructions below.
-6. **Automatic voice input and dictation**: Deploy the separate Qwen3-ASR service to choose between voice mode, which automatically sends recognized speech, and dictation mode, which produces editable text. Dictation Magic Send exactly matches a configured command at the end of transcribed input, removes it, and triggers sending, reducing manual clicks. See the [ASR configuration](config/config-asr.yaml) and startup instructions below.
-7. **Parallel task delegation**: Choose `manager_agent` as the entry profile to delegate independent tasks to multiple `basic_agent` children concurrently, with progress shown in the interface. See the [Agent configuration](config/config-agent-operation.yaml).
-8. **Tools selected for each task**: Select the required tools in settings before creating an Agent context. Once its request is accepted, the tool selection and corresponding prompt/API schema are pinned to that context, keeping its capabilities aligned with the task.
-9. **GUI launch and diagnostic feedback**: The [running-linux-gui-commands Skill](backend/skills/running-linux-gui-commands/SKILL.md) resolves the Linux graphical session and reports launch status, liveness, exit codes, and logs. Combine it with the desktop vision Skill to inspect the actual interface.
-10. **Local memory**: Put `.md`/`.txt` notes in `memory/agent-local/`; the backend builds a zvec semantic-vector index and retrieves relevant passages for later Chat / Agent messages. Before first use, follow the [local memory guide](docs/how-to-use-local-memory.md) to prepare the local embedding model, then enable “Local memory” in the web settings.
+2. **Automatic Vectorization of Local Memory and Its Fast Matching**: Put `.md`/`.txt` notes in `memory/agent-local/`; the backend builds a zvec semantic-vector index and retrieves relevant passages for later Chat / Agent messages. Before first use, follow the [local memory guide](docs/how-to-use-local-memory.md) to prepare the local embedding model, then enable “Local memory” in the web settings.
+3. **Automated workflow orchestration**: Cycle combines waits, messages, photos, and nested loops, with scheduled messages for repeatable Chat / Agent workflows. See the [Cycle configuration](config/config-misc.yaml).
+4. **Visual desktop interaction**: The built-in [computer-use-vision Skill](backend/skills/computer-use-vision/SKILL.md) lets a vision model locate targets in screenshots and perform actions such as clicking and scrolling. See the [operations guide](docs/computer-use-vision-operations.md).
+5. **Batch web search and fetching**: After following the [SearXNG deployment tutorial](deploy/searxng/01_Docker-Compose安装及searXNG拉取教材.md) and [backend-managed setup guide](deploy/searxng/02_searxng-backend-managed-setup.md), `search_and_fetch` can run batch searches and fetch page bodies concurrently. Copy the [example](deploy/searxng/core-config/settings.yml.example) as `settings.yml`; set its key.
+6. **Direct document reading**: With PaddleOCR-VL deployed, the Agent's `read_file` can read PDF, Word, and other documents. Office formats such as Word require LibreOffice conversion. See the OCR startup instructions below.
+7. **Automatic voice input and dictation**: Deploy the separate Qwen3-ASR service to choose between voice mode, which automatically sends recognized speech, and dictation mode, which produces editable text. Dictation Magic Send exactly matches a configured command at the end of transcribed input, removes it, and triggers sending, reducing manual clicks. See the [ASR configuration](config/config-asr.yaml) and startup instructions below.
+8. **Parallel task delegation**: Choose `manager_agent` as the entry profile to delegate independent tasks to multiple `basic_agent` children concurrently, with progress shown in the interface. See the [Agent configuration](config/config-agent-operation.yaml).
+9. **Tools selected for each task**: Select the required tools in settings before creating an Agent context. Once its request is accepted, the tool selection and corresponding prompt/API schema are pinned to that context, keeping its capabilities aligned with the task.
+10. **GUI launch and diagnostic feedback**: The [running-linux-gui-commands Skill](backend/skills/running-linux-gui-commands/SKILL.md) resolves the Linux graphical session and reports launch status, liveness, exit codes, and logs. Combine it with the desktop vision Skill to inspect the actual interface.
+
 
 ## Architecture
 

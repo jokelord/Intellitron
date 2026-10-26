@@ -84,6 +84,19 @@ def test_request_projection_redacts_unrelated_uploads_and_keeps_exact_hash(tmp_p
         json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
 
 
+def test_calibration_evidence_output_root_accepts_home_spelling(tmp_path, monkeypatch):
+    from backend.agent.computer_use_calibration_evidence import AgentCalibrationEvidence
+
+    monkeypatch.setenv("HOME", str(tmp_path))
+    sink = AgentCalibrationEvidence(
+        "11111111-1111-4111-8111-111111111111",
+        output_root="~/evidence",
+        run_id="home-run",
+    )
+
+    assert sink.output_dir == tmp_path / "evidence" / "home-run"
+
+
 def test_empty_or_failed_provider_response_writes_no_evidence(tmp_path):
     from backend.agent.local_llm_model import LocalLLMModel
     from backend.llm_service import GenerationResult

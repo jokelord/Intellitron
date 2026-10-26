@@ -26,6 +26,7 @@ DEFAULT_HELPER = Path(__file__).resolve().parents[2] / 'bin' / 'linux-aarch64' /
 
 def load_operator_preset(path: Path) -> tuple[dict, dict]:
     """Read only the eight bounded operator session values from an explicit YAML file."""
+    path = Path(path).expanduser()
     try:
         with path.open() as stream:
             values = yaml.safe_load(stream)

@@ -232,7 +232,7 @@ grep -nE "working_memory|unresolved_items|tool_ledger|recent_visible_history|age
 **操作**:
 ```bash
 # Backend 测试
-PYTHONPATH=. "/home/zk/Project/LLM-deployment/.sglang/bin/python" -m pytest \
+PYTHONPATH=. ~/Project/LLM-deployment/.sglang/bin/python -m pytest \
   tests/test_multi_agent_runner.py \
   tests/test_agent_session_context.py \
   tests/test_multi_tool_parsing.py \

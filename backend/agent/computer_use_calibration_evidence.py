@@ -97,7 +97,7 @@ class AgentCalibrationEvidence:
         if not isinstance(run_id, str) or not _SAFE_ID.fullmatch(run_id):
             raise ValueError('run_id must be a safe relative name')
         self.session_id = session_id
-        self.output_dir = Path(output_root) / run_id
+        self.output_dir = Path(output_root).expanduser() / run_id
         self._lock = threading.Lock()
         self._sequence = 0
 
