@@ -223,6 +223,7 @@ frontend/public/*.png
 .codex/
 computer-use-diagrams/
 .agents/
+computer_use_fixture/
 
 # Generated local Agent memory indexes and prepared encoder artifacts
 /data/agent-local-memory/
