@@ -190,6 +190,7 @@ deploy/searxng/backups/
 # skills
 .superpowers/
 .superpowers
+/.superpowers
 /.worktrees/
 /.worktree/
 
